@@ -294,9 +294,11 @@ whether a run finished locally or on Lightning AI.
    `scripts/build_dataset.py` — neither list is derived from `configs/datasets/`, both must be
    updated by hand or the new dataset silently won't be included in default `--tag all`-style runs
    or per-dataset evaluation
-4. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
-5. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
-6. Rebuild any merged datasets with `scripts/build_dataset.py`
+4. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml` 
+   (plus update `data.num_keypoints`) if new keypoints are added
+5. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
+6. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
+7. Rebuild any merged datasets with `scripts/build_dataset.py`
 
 ### Renaming or deprecating a dataset
 
