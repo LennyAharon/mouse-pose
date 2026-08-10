@@ -1,6 +1,6 @@
 exclude:
   keypoints:
-    backTongue
+    - backTongue
   sessions:
 
 keypoints:
