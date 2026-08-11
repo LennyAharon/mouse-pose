@@ -61,6 +61,7 @@ from mouse_pose.train import (
     make_extract_command,
     make_job_name,
     make_output_dir,
+    make_preflight_command,
     make_train_command,
     parse_semicolon_list,
 )
@@ -85,6 +86,7 @@ def main():
     parser.add_argument("--debug",         action="store_true",          help="Smoke-test run (3 epochs)")
     parser.add_argument("--dry_run",       action="store_true",          help="Print jobs without launching")
     parser.add_argument("--skip_existing", action="store_true",          help="Skip combos whose output dir already exists")
+    parser.add_argument("--allow_stock_lp", action="store_true",        help="Allow released lightning-pose, not the local clone")
     parser.add_argument("--machine",       default="T4_SMALL",           help="Lightning Machine type, e.g. T4_SMALL, A10G, L4")
     parser.add_argument("--poll_interval", type=int, default=30,         help="Seconds between job-status polls")
     args = parser.parse_args()
@@ -102,9 +104,12 @@ def main():
         combos = [c for c in combos if not make_output_dir(*c, losses).exists()]
         print(f"After skipping existing: {len(combos)} remaining")
 
-    # Identical for every job (depends only on data_dir, not the combo) — computed once,
-    # but still has to run inside each job since it acts on that job's own filesystem.
-    extract_cmd = make_extract_command()
+    # Identical for every job (depend only on data_dir/env, not the combo) — computed once,
+    # but still have to run inside each job since they act on that job's own filesystem.
+    # Preflight goes first so a wrong lightning_pose kills the job in a second rather than
+    # after a full training run (see make_preflight_command).
+    preflight_cmd = make_preflight_command(args.allow_stock_lp)
+    extract_cmd   = make_extract_command()
 
     jobs_spec = []
     for csv_file, backbone, train_frames_n, seed in combos:
@@ -112,7 +117,9 @@ def main():
         name       = make_job_name(csv_file, backbone, train_frames_n, seed, losses)
         train_cmd  = make_train_command(csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug)
         eval_cmd   = make_eval_command(output_dir, csv_file)
-        full_cmd   = extract_cmd + " && " + " ".join(train_cmd) + " && " + " ".join(eval_cmd)
+        full_cmd   = " && ".join([
+            preflight_cmd, extract_cmd, " ".join(train_cmd), " ".join(eval_cmd),
+        ])
         jobs_spec.append((name, output_dir, full_cmd))
 
     if args.dry_run:

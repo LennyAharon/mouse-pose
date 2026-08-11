@@ -138,6 +138,48 @@ def make_eval_command(output_dir, csv_file) -> list[str]:
     ]
 
 
+def make_preflight_command(allow_stock_lp: bool = False) -> str:
+    """Shell snippet that records which lightning_pose a job actually imported, and by
+    default fails the job immediately if it resolved to a site-packages copy instead of
+    an editable clone (chained ahead of everything else in a Lightning job command).
+
+    A Lightning Job runs in an environment derived from the launching Studio, and an
+    editable install depends on *two* things surviving that transition independently:
+    the `.pth` marker, which lives in the env (outside the Studio's own directory), and
+    the checkout it points at, which lives inside it. If the marker survives but the
+    checkout doesn't, `import lightning_pose` fails loudly and the job dies — fine. The
+    bad case is neither surviving while the job image happens to carry a stock PyPI
+    lightning-pose: training then succeeds, pixel errors look entirely plausible, and
+    every local modification to LP's data loaders is simply absent from the run.
+
+    Failing in the first second of a job is much cheaper than discovering that after a
+    48-job sweep, so this errs toward stopping. Pass allow_stock_lp=True to downgrade it
+    to a log line for runs that legitimately want the released package.
+
+    Returns a shell string (not an argv list, like make_extract_command) — it needs `;`
+    and shell quoting, and is only meaningful for Lightning jobs.
+    """
+    check = (
+        "import lightning_pose as lp, sys; "
+        "p = lp.__file__; "
+        'print(f"[preflight] lightning_pose {lp.__version__} <- {p}", flush=True); '
+        "stock = \"site-packages\" in p; "
+    )
+    if allow_stock_lp:
+        check += (
+            'print("[preflight] WARNING: running the released package, not the local "'
+            '      "clone — LP source changes are NOT in this job") if stock else None'
+        )
+    else:
+        check += (
+            'sys.exit("[preflight] FATAL: lightning_pose resolved to site-packages, so this '
+            "job would train with the released package and silently ignore local LP changes. "
+            'Re-launch with --allow_stock_lp if that is intended.") if stock else None'
+        )
+
+    return f"python -c '{check}'"
+
+
 def make_extract_command() -> str:
     """Shell snippet that extracts DATA_DIR from a sibling `.tar` archive if
     DATA_DIR doesn't already exist, meant to run once at the start of each
@@ -160,10 +202,17 @@ def make_extract_command() -> str:
     functions) since it needs `||` — only meaningful for Lightning jobs; the
     local sequential script never calls this because DATA_DIR is expected to
     already exist on disk for local runs.
+
+    The test/tar pair is parenthesized because `&&` and `||` have equal precedence
+    and associate left to right. Bare, `A && test -d D || tar` would parse as
+    `((A && test) || tar)`, so *any* failure in a command chained ahead of this one
+    would fall through to the tar branch and let the rest of the chain proceed —
+    silently defeating make_preflight_command. The parens keep the fallback bound to
+    the test it belongs to.
     """
     archive = f"{DATA_DIR}.tar"
     return (
-        f'test -d "{DATA_DIR}" || tar -xf "{archive}" -C "{DATA_DIR.parent}"'
+        f'( test -d "{DATA_DIR}" || tar -xf "{archive}" -C "{DATA_DIR.parent}" )'
         f' && mkdir -p "{DATA_DIR / "videos"}"'
     )
 
