@@ -125,6 +125,47 @@ def load_csv(path: Path) -> pd.DataFrame | None:
 
 # ── validation ────────────────────────────────────────────────────────────────
 
+def check_model_config(configs_dir: Path, canonical_kps: list[str]) -> list[str]:
+    """
+    Verify configs/model.yaml's keypoint vocabulary matches configs/keypoints.yaml exactly.
+
+    The two files duplicate the same vocabulary and neither is derived from the other:
+    output CSV column order comes from keypoints.yaml, while Lightning Pose names those
+    columns from model.yaml's keypoint_names. The two ways they can disagree fail very
+    differently, so both are checked here — before any CSV is written:
+
+      - different length: LP raises at train time (this shipped once, in the commit that
+        added cazettes: keypoints.yaml went to 43, model.yaml stayed at 41)
+      - same keypoints, different order: nothing raises, ever. Every prediction is
+        silently attributed to the wrong keypoint, and pixel_error compares wrong pairs.
+    """
+    with open(configs_dir / "model.yaml") as f:
+        model_cfg = yaml.safe_load(f)["data"]
+
+    model_kps  = model_cfg["keypoint_names"]
+    n_declared = model_cfg["num_keypoints"]
+    errors: list[str] = []
+
+    missing = [k for k in canonical_kps if k not in model_kps]
+    extra   = [k for k in model_kps if k not in canonical_kps]
+    if missing:
+        errors.append(f"model.yaml: keypoint_names is missing {missing}")
+    if extra:
+        errors.append(f"model.yaml: keypoint_names has unknown keypoint(s) {extra}")
+    if not missing and not extra and model_kps != canonical_kps:
+        errors.append(
+            "model.yaml: keypoint_names holds the same keypoints as keypoints.yaml but in a "
+            "different order — CSV columns would be labeled with the wrong keypoint names"
+        )
+    if n_declared != len(canonical_kps):
+        errors.append(
+            f"model.yaml: num_keypoints={n_declared} but keypoints.yaml has "
+            f"{len(canonical_kps)} keypoints"
+        )
+
+    return errors
+
+
 def _kps_from_df(df: pd.DataFrame) -> set[str]:
     return set(df.columns.get_level_values(1).unique())
 
@@ -201,7 +242,7 @@ def process_split(
     """
     Apply exclusions, lateralization, renaming, and visibility to one CSV split.
     Returns a DataFrame with canonical keypoint names and remapped index paths.
-    All 37 canonical columns are present; absent keypoints get visible=0.
+    All canonical columns are present; absent keypoints get visible=0.
     """
     orig_scorer  = df.columns.get_level_values(0)[0]
     exc_sessions = set(config["exclude"]["sessions"])
@@ -322,7 +363,8 @@ def main() -> None:
         print(f"WARNING: {args.test_csv} not found — skipping test split")
 
     print("Validating config...")
-    errors = validate(config, canonical_kps, train_df, test_df)
+    errors = check_model_config(CONFIGS_DIR, canonical_kps)
+    errors += validate(config, canonical_kps, train_df, test_df)
     if errors:
         print(f"\n{len(errors)} validation error(s):")
         for e in errors:
