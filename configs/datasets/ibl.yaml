@@ -6,6 +6,12 @@
 
 exclude:
   keypoints:
+  # The 26 sessions below are the legacy `ibl-paw`-era recordings, identifiable by the old
+  # `<uuid>_iblrig_{left,right}Camera.paws*` / `<lab>_<subject>_<date>__iblrig_leftCamera.paws.short`
+  # naming; the 102 kept sessions use the pipeline's `<uuid>_{left,right_flipped}` naming. They are
+  # distinct recordings, not duplicates (no session UUID appears in both sets), and they *are*
+  # labeled — dropping them keeps the dataset a single, uniformly human-reviewed generation rather
+  # than a mix of two labeling eras. None of them appear in the test split.
   sessions:
     - 6c6983ef-7383-4989-9183-32b1a300d17a_iblrig_leftCamera.paws_downsampled_20min
     - 6c6983ef-7383-4989-9183-32b1a300d17a_iblrig_rightCamera.paws_downsampled.flipped_20min

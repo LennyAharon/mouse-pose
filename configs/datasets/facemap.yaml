@@ -2,6 +2,9 @@ exclude:
   keypoints:
     - nose_r
     - paw
+  # `cam0_*` sessions are the opposite-camera recordings of the `cam1_*` sessions kept below;
+  # this dataset is left-view only, so they are dropped (6 sessions, 600 frames). Note the
+  # unrelated `*_cam0` suffix sessions (AD1/AD2) are a different naming scheme and are kept.
   sessions:
     - cam0_DR3_2020_10_27_1
     - cam0_TX56_2020_10_22_1
