@@ -44,10 +44,7 @@ Re-running is safe — images are skipped if already present.
 ### 3. Build a merged training set (run as needed)
 
 ```bash
-# balanced: every dataset capped at the same frame count — tag names this explicitly
-conda run -n pose python scripts/build_dataset.py --tag face+ibl-600 --datasets facemap ibl --n_frames 600
-
-# full: every dataset contributes everything it has, unbalanced
+# every dataset contributes all of its available train frames
 conda run -n pose python scripts/build_dataset.py --tag face+ibl --datasets facemap ibl --n_frames -1
 ```
 
@@ -55,37 +52,40 @@ Outputs to `data/head-fixed/`:
 - `CollectedData_<tag>_train.csv`
 - `CollectedData_<tag>_test.csv`
 
-Frame selection is reproducible: the same `--seed` + dataset name always produces the same frames,
-regardless of which other datasets are included. The default seed is 42 (moot for `--n_frames -1`,
-which always takes every frame).
+Every tag uses `--n_frames -1` (all frames). `--n_frames <N>` caps each dataset at `N` frames
+instead; it isn't part of the current design, but if you use it, frame selection is reproducible —
+the same `--seed` + dataset name always selects the same frames regardless of which other datasets
+share the tag (default seed 42, moot at `-1`).
 
-**See [`docs/build_dataset.md`](docs/build_dataset.md) for the full naming convention and why both a
-balanced (`-600`) and full (bare) version of each tag exist** — in short, `-600` isolates whether
-cross-dataset variety helps independent of data quantity, while the full/bare version answers what's
-actually the best model to deploy.
+Single-dataset tags need no build step: `convert_dataset.py` already writes
+`CollectedData_<dataset>_{train,test}.csv` with every frame, byte-identical to what a single-dataset
+`--n_frames -1` build would produce.
+
+**See [`docs/build_dataset.md`](docs/build_dataset.md) for which tags to build and why** — in short,
+n=1 (each dataset alone), n−1 (leave-one-out), and n=all, rather than all `2^n − 1` combinations.
 
 ### 4. Train
 
 ```bash
 # Dry run to preview commands
 conda run -n pose python scripts/train_sweep.py --dry_run \
-    --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
-    --train_frames "200;400;600" \
+    --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
+    --train_frames "1" \
     --seeds "0;1;2"
 
 # Full sweep
 conda run -n pose python scripts/train_sweep.py \
-    --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
-    --train_frames "200;400;600" \
+    --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
+    --train_frames "1" \
     --seeds "0;1;2" \
     --backbones "vits_dino"
 ```
 
-`--train_frames` subsamples further from whatever pool `build_dataset.py` wrote (see
-[`docs/build_dataset.md`](docs/build_dataset.md)) — it must be ≤ the CSV's `--n_frames`. If you only
-need one data point per tag rather than a learning curve, `--train_frames 200` alone is the standard
-choice: small enough that a single dataset performs only "reasonable but not great," which is the
-regime where dataset-merging effects are easiest to see.
+`--train_frames 1` is Lightning Pose's convention for "use every frame in the CSV" — not one frame.
+Since every tag already contains all available frames, that's what every run uses; `--train_frames
+<N>` would subsample from the CSV at training time, which the current design doesn't do. See
+[`docs/train_sweep.md`](docs/train_sweep.md) for the two-phase plan (n=1 and n=all first, then the
+n−1 ablations).
 
 Results land at `results/head-fixed/<tag>/<losses>/tf<N>/<backbone>/seed<N>/`.
 Evaluation runs automatically after each model against every per-dataset test CSV.
@@ -100,12 +100,16 @@ pip install -e ".[lightning]"
 
 # from within a Lightning AI studio
 python scripts/train_sweep_lightning.py \
-    --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
-    --train_frames "200;400;600" \
+    --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
+    --train_frames "1" \
     --seeds "0;1;2" \
     --backbones "vits_dino" \
     --machine L4
 ```
+
+Each job command begins with a preflight that aborts if `lightning_pose` resolved to a released
+site-packages build instead of the local editable clone — otherwise a job could train successfully
+while silently ignoring local LP changes (`--allow_stock_lp` to opt out; see `make_preflight_command`).
 
 Both scripts share their combo generation, naming, and `litpose train` command-building via
 `mouse_pose/train.py` — they only differ in *how* a command gets executed (subprocess loop vs.
@@ -155,12 +159,23 @@ See `scripts/preprocessing/ibl-face/README.md` for full details.
 
 ## Currently converted datasets
 
+Frame counts are what lands in `data/head-fixed` — i.e. *after* `exclude.sessions`. The raw CSV
+count is deliberately not listed: it isn't what you train on, and carrying both numbers just gives
+two things to go stale. Run `convert_dataset.py` and it prints `N frames excluded` for the split.
+
 | Dataset       | Train frames | Test frames | Notes |
 |---------------|--------------|-------------|-------|
-| facemap       | 1800         | 100         | left-view; bilateral kps lateralized via `{side}` |
-| ibl           | 7608         | 1446        | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw` |
-| cheese-2d     | 665          | 291         | four views (L/R/BC/TC); custom visibility post-processing |
-| cazettes-side | 830          | 217         | left-view; bilateral kps lateralized via `{side}` |
+| facemap       | 1800         | 100         | left-view; bilateral kps lateralized via `{side}`. Excludes 6 `cam0_*` sessions (600 frames) — the opposite-camera recordings of `cam1_*` sessions that are kept |
+| ibl           | 5962         | 1446        | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw`. Excludes 26 legacy `ibl-paw`-era sessions (1646 frames) — see `configs/datasets/ibl.yaml` |
+| cheese-2d     | 665          | 291         | four views (L/R/BC/TC); custom visibility post-processing. No exclusions |
+| cazettes-side | 830          | 217         | left-view; bilateral kps lateralized via `{side}`. No exclusions |
+
+**What `exclude` means.** `exclude.sessions` drops whole sessions from *both* splits before anything
+else runs; `exclude.keypoints` drops source keypoints entirely (e.g. `cheese-2d`'s `ref(head-post)`,
+a rig fiducial rather than anatomy). Exclusion is about *provenance and view*, not label quality —
+excluded frames are usually labeled just fine, they simply don't belong in this dataset's identity.
+Note the difference from visibility: an excluded frame is absent from the CSV, whereas an unlabeled
+keypoint in a kept frame is present with `visible=1`.
 
 ---
 
@@ -181,7 +196,7 @@ _raw/<dataset>/                    data/head-fixed/
 
 ### Canonical keypoint vocabulary (`configs/keypoints.yaml`)
 
-Single source of truth for all 41 keypoint names and their ordering. Every output CSV — per-dataset
+Single source of truth for all 43 keypoint names and their ordering. Every output CSV — per-dataset
 and merged — has columns in this order. Datasets that don't label a keypoint carry `visible=0` for it.
 
 ### Visibility convention
@@ -194,7 +209,7 @@ and merged — has columns in this order. Datasets that don't label a keypoint c
 
 Lightning Pose's loss function is visibility-aware: `vis=0` frames are excluded from loss for that
 keypoint. This means single-dataset and merged models all share the same LP config
-(`configs/model.yaml`, 41 keypoints).
+(`configs/model.yaml`, 43 keypoints).
 
 ### `configs/datasets/<name>.yaml` format
 
@@ -240,8 +255,8 @@ DataFrame.
 ```
 mouse-pose/
   configs/
-    keypoints.yaml              canonical keypoint vocabulary (41 kps)
-    model.yaml                  LP model config (41 keypoints); data_dir/csv_file
+    keypoints.yaml              canonical keypoint vocabulary (43 kps)
+    model.yaml                  LP model config (43 keypoints); data_dir/csv_file
                                  overridden per-run by train_sweep*.py
     datasets/
       <dataset>.yaml            per-dataset conversion config
@@ -294,11 +309,22 @@ whether a run finished locally or on Lightning AI.
    `scripts/build_dataset.py` — neither list is derived from `configs/datasets/`, both must be
    updated by hand or the new dataset silently won't be included in default `--tag all`-style runs
    or per-dataset evaluation
-4. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml` 
-   (plus update `data.num_keypoints`) if new keypoints are added
+4. Add new keypoints to `configs/keypoints.yaml` **and** `configs/model.yaml` — same names in
+   the same order, plus `data.num_keypoints`. Neither file is derived from the other, so
+   `convert_dataset.py` cross-checks them and refuses to write anything if they disagree
+   (a length mismatch breaks training; a same-length reordering silently mislabels every
+   prediction, since CSV column order comes from `keypoints.yaml` but the names come from
+   `model.yaml`)
 5. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
 6. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
-7. Rebuild any merged datasets with `scripts/build_dataset.py`
+7. **Rebuild every merged tag with `scripts/build_dataset.py` — not just the ones that should
+   contain the new dataset.** A new dataset invalidates the whole tag set: the `n=all` tag is now
+   missing a dataset, and every existing `n−1` leave-one-out tag now omits *two* datasets rather
+   than one, so none of them mean what their name says anymore. Rerun every command in
+   [`docs/build_dataset.md`](docs/build_dataset.md#commands) with the new dataset added, plus one
+   new leave-one-out command that omits it. The new dataset's `n=1` tag comes free from step 5.
+   Results trained against the old tags stay valid for the old dataset set — freeze them as a
+   version (see [Dataset versioning](#dataset-versioning)) rather than mixing them with new ones
 
 ### Renaming or deprecating a dataset
 
