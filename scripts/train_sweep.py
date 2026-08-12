@@ -37,6 +37,7 @@ Usage examples:
 
 import argparse
 import subprocess
+import sys
 
 from mouse_pose.train import (
     build_combos,
@@ -77,6 +78,9 @@ def main():
     losses       = [l for l in args.losses_to_use.split(",") if l]
 
     combos = build_combos(csv_files, backbones, train_frames, seeds)
+    # Collected rather than raised so one bad combo doesn't abort the sweep, but the
+    # process can still exit non-zero instead of reporting success after every job died.
+    failures: list[str] = []
     print(f"Total jobs: {len(combos)}")
 
     if args.skip_existing and not args.eval_only:
@@ -98,19 +102,30 @@ def main():
                     subprocess.run(cmd, check=True)
                 except subprocess.CalledProcessError as e:
                     print(f"  ERROR: training failed (exit {e.returncode}), skipping eval...")
+                    failures.append(f"{label} (training exit {e.returncode})")
                     continue
 
         if not args.dry_run:
             if not output_dir.exists():
                 print(f"  WARNING: output dir not found, skipping eval: {output_dir}")
+                failures.append(f"{label} (no output dir)")
                 continue
             try:
                 evaluate_model(output_dir, csv_file)
             except Exception as e:
                 print(f"  ERROR: evaluation failed: {e}")
+                failures.append(f"{label} (evaluation: {e})")
 
     if args.dry_run:
         print(f"\n(dry run — {len(combos)} commands printed, nothing executed)")
+        return
+
+    print(f"\nComplete: {len(combos) - len(failures)}/{len(combos)} succeeded.")
+    if failures:
+        print("Failed:")
+        for f in failures:
+            print(f"  {f}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

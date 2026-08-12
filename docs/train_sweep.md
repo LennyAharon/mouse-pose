@@ -20,6 +20,39 @@ versioning convention in the main README: point it at the unversioned `results/h
 path, run the sweep, then rename to `results/head-fixed_vN` once everything finishes — keeping the
 data and results version numbers in lockstep.
 
+Lightning Pose asserts that `data.video_dir` (`<data_dir>/videos`) is a real directory before
+training starts, even though the head-fixed datasets train from extracted frames and never predict
+on video. `build_dataset.py` doesn't create it, so make it once per data dir — an empty directory is
+enough, and without it every run dies at startup on a bare `AssertionError`:
+
+```bash
+mkdir -p <data_dir>/videos
+```
+
+## Smoke test first
+
+`--dry_run` only prints commands; it cannot tell you whether Lightning Pose will accept them.
+Run one `--debug` job before any real sweep — it trains three two-step epochs and then evaluates,
+exercising compose → train → validate → checkpoint → evaluate → cleanup in a couple of minutes:
+
+```bash
+python scripts/train_sweep.py --debug \
+    --csv_files "CollectedData_cheese-2d_train.csv" \
+    --train_frames "1" --seeds "0" --backbones "vits_dino"
+```
+
+Expect four `Mean pixel error:` lines — one per dataset in `EVAL_DATASETS` — and
+`Deleted 1 checkpoint file(s)`. The pixel errors are meaningless (six training steps); what is
+being checked is that every stage runs and that `eval/<dataset>/pixel_error.csv` has 43 columns.
+
+**Delete the output afterwards.** A debug run writes to exactly the same
+`<tag>/<losses>/tf1/<backbone>/seed<N>` path a real run uses, so leaving it there causes
+`--skip_existing` to skip that combo and keep the garbage numbers:
+
+```bash
+rm -rf <results_dir>/cheese-2d_train
+```
+
 ## Phase 1 — n=1 and n=all
 
 15 jobs: 5 tags (4 single-dataset baselines + 1 all-dataset merge) × 3 seeds. Always `--dry_run` first to
