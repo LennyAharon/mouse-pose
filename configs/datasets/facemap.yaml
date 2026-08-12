@@ -1,29 +1,23 @@
 exclude:
   keypoints:
+    - nosebridge
+    - nose_bottom
     - nose_r
+    - whisker_c1
+    - whisker_c2
+    - whisker_d1
     - paw
   sessions:
-    - cam0_DR3_2020_10_27_1
-    - cam0_TX56_2020_10_22_1
-    - cam0_TX57_2020_10_21_1
-    - cam0_TX60_2020_10_22_1
-    - cam0_TX61_2020_10_21_1
-    - cam0_VR2_2020_10_26_1
-
+    
 keypoints:
   lowerlip: lowerlip
   mouth: mouth
-  nose_bottom: nose_bottom
   nose_tip: nose_tip
   nose_top: nose_top
-  nosebridge: nose_bridge
   eye_back: eye_back_{side}
   eye_bottom: eye_bottom_{side}
   eye_front: eye_front_{side}
   eye_top: eye_top_{side}
-  whisker_c1: whisker_c1_{side}
-  whisker_c2: whisker_c2_{side}
-  whisker_d1: whisker_d1_{side}
 
 sessions:
   AD1_2021_07_19_1_cam0: left
@@ -35,6 +29,12 @@ sessions:
   AD2_2021_07_19_5_cam0: left
   AD2_2021_07_19_5_cam1: left
   bias_video_cam_1_date_2020_10_23_time_11_15_35_v001: left
+  cam0_DR3_2020_10_27_1: right
+  cam0_TX56_2020_10_22_1: right
+  cam0_TX57_2020_10_21_1: right
+  cam0_TX60_2020_10_22_1: right
+  cam0_TX61_2020_10_21_1: right
+  cam0_VR2_2020_10_26_1: right
   cam1_DR3_2020_10_27_1: left
   cam1_TX56_2020_10_22_1: left
   cam1_TX57_2020_10_21_1: left
