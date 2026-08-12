@@ -5,7 +5,7 @@ data:
   data_dir: /media/mattw/poseinterface/data/head-fixed
   video_dir: ${data.data_dir}/videos
   csv_file: CollectedData.csv
-  num_keypoints: 43
+  num_keypoints: 36
   keypoint_names:
   # ── eye ───────────────────────────────────────────────────────────────────
   - eye_back_left
@@ -24,7 +24,6 @@ data:
   - tongue_end_right
   - tongue_end_left
   # ── nose / mouth (midline) ────────────────────────────────────────────────
-  - nose_bridge
   - nose_tip
   - nose_top
   - nose_bottom
@@ -34,12 +33,6 @@ data:
   - tongue_tip
   - tongue_center
   # ── whiskers ──────────────────────────────────────────────────────────────
-  - whisker_c1_left
-  - whisker_c1_right
-  - whisker_c2_left
-  - whisker_c2_right
-  - whisker_d1_left
-  - whisker_d1_right
   - pad_top_left
   - pad_top_right
   - pad_side_left
