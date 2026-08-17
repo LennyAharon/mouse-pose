@@ -1,0 +1,27 @@
+exclude:
+  keypoints:
+    - earroot
+    - lickport
+    - noseright
+  sessions:
+
+keypoints:
+  earlateral: ear_bottom_{side}
+  eartip: ear_tip_{side}
+  eyelateral: eye_back_{side}
+  eyemedial: eye_front_{side}
+  lowerjaw: lowerlip
+  nosebottom: nose_bottom
+  noseroot: nose_top
+  nosetip: nose_tip
+  tonguetip: tongue_tip
+  rightpawcenter: wrist_right
+  leftpawcenter: wrist_left
+
+sessions:
+  iter1_images: right
+  iter2_images: right
+  iter3_images: right
+  iter4_images: right
+  iter5_images: right
+  iter6_images: right
