@@ -1,0 +1,13 @@
+# Stable ordered registry of source datasets for the head-fixed corpus.
+#
+# The list position IS the dataset id: samplers, per-dataset heads, and saved
+# checkpoints all identify a dataset by its index here. Append new datasets at
+# the end — never reorder or remove entries, or every artifact trained against
+# the old ordering silently misroutes. Names must match the <dataset> path
+# component under labeled-data/<dataset>/<session>/<frame>.
+datasets:
+  - facemap
+  - ibl
+  - cheese-2d
+  - cazettes-side
+  - kondo

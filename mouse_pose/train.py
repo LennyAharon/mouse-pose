@@ -23,15 +23,18 @@ import numpy as np
 import pandas as pd
 
 from mouse_pose.paths import load_paths, repo_root
+from mouse_pose.registry import load_registry
 
 _paths      = load_paths()
 DATA_DIR    = Path(_paths["data_dir"])
 RESULTS_DIR = Path(_paths["results_dir"])
 CONFIG_FILE = repo_root() / "configs" / "model.yaml"
 
-# Every model is evaluated against each dataset's test CSV. Pixel error is NaN
-# for keypoints absent from a given dataset; the plotting script handles filtering.
-EVAL_DATASETS = ["facemap", "ibl", "cheese-2d", "cazettes-side", "kondo"]
+# Every model is evaluated against each dataset's test CSV, in registry order
+# (configs/dataset_registry.yaml — the one place the dataset list is maintained).
+# Pixel error is NaN for keypoints absent from a given dataset; the plotting
+# script handles filtering.
+EVAL_DATASETS = load_registry()
 
 
 # ── naming / output dirs ─────────────────────────────────────────────────────
