@@ -84,6 +84,12 @@ def main():
     parser.add_argument("--seeds",        default="0",                   help='semicolon-separated rng seeds, e.g. "0;1;2"')
     parser.add_argument("--backbones",    default="resnet50_animal_ap10k", help='semicolon-separated backbone names')
     parser.add_argument("--losses_to_use", default="",                   help='comma-separated loss names; empty = supervised only')
+    parser.add_argument(
+        "--sampling_temperatures", default="",
+        help='semicolon-separated multi-dataset sampling temperatures, e.g. "1;2;inf". '
+             "1 = stock frame-proportional loader (no path component, same outputs as "
+             "before this flag existed); empty = one stock run.",
+    )
     parser.add_argument("--debug",         action="store_true",          help="Smoke-test run (3 epochs)")
     parser.add_argument("--dry_run",       action="store_true",          help="Print jobs without launching")
     parser.add_argument("--skip_existing", action="store_true",          help="Skip combos whose output dir already exists")
@@ -116,12 +122,16 @@ def main():
     seeds        = parse_semicolon_list(args.seeds)
     backbones    = parse_semicolon_list(args.backbones)
     losses       = [l for l in args.losses_to_use.split(",") if l]
+    temperatures = [t for t in args.sampling_temperatures.split(";") if t]
 
-    combos = build_combos(csv_files, backbones, train_frames, seeds)
+    combos = build_combos(csv_files, backbones, train_frames, seeds, temperatures)
     print(f"Total jobs: {len(combos)}")
 
     if args.skip_existing:
-        combos = [c for c in combos if not make_output_dir(*c, losses).exists()]
+        combos = [
+            c for c in combos
+            if not make_output_dir(c[0], c[1], c[2], c[3], losses, c[4]).exists()
+        ]
         print(f"After skipping existing: {len(combos)} remaining")
 
     # Identical for every job (depend only on data_dir/env, not the combo) — computed once,
@@ -138,12 +148,13 @@ def main():
         runs on an evaluated one, so a combo that dies partway leaves nothing behind on
         shared storage.
         """
-        csv_file, backbone, train_frames_n, seed = combo
-        output_dir = make_output_dir(csv_file, backbone, train_frames_n, seed, losses)
-        name       = make_job_name(csv_file, backbone, train_frames_n, seed, losses)
+        csv_file, backbone, train_frames_n, seed, temperature = combo
+        output_dir = make_output_dir(csv_file, backbone, train_frames_n, seed, losses, temperature)
+        name       = make_job_name(csv_file, backbone, train_frames_n, seed, losses, temperature)
         stages     = [
             " ".join(make_train_command(
                 csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug,
+                temperature,
             )),
             " ".join(make_eval_command(output_dir, csv_file)),
         ]

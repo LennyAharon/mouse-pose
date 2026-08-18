@@ -60,27 +60,38 @@ def sanitize(s: str) -> str:
     return str(s).replace("/", "_").replace(".", "_")
 
 
-def make_output_dir(csv_file, backbone, train_frames, seed, losses) -> Path:
-    return (
-        RESULTS_DIR
-        / csv_stem(csv_file)
-        / losses_tag(losses)
-        / f"tf{train_frames}"
-        / sanitize(backbone)
-        / f"seed{seed}"
-    )
+def temperature_tag(temperature) -> str | None:
+    """Path/name component for a sampling temperature; None when the run is stock.
+
+    T=1 (or unset) deliberately gets no component at all, so existing frame-
+    proportional results keep their paths and --skip_existing keeps recognizing
+    them — T=1 IS the stock loader, not a new condition.
+    """
+    if temperature in (None, 1, "1"):
+        return None
+    return f"sampling-T{temperature}"
 
 
-def make_job_name(csv_file, backbone, train_frames, seed, losses) -> str:
+def make_output_dir(csv_file, backbone, train_frames, seed, losses, temperature=None) -> Path:
+    parts = [csv_stem(csv_file), losses_tag(losses)]
+    if (tag := temperature_tag(temperature)) is not None:
+        parts.append(tag)
+    parts += [f"tf{train_frames}", sanitize(backbone), f"seed{seed}"]
+    return RESULTS_DIR.joinpath(*parts)
+
+
+def make_job_name(csv_file, backbone, train_frames, seed, losses, temperature=None) -> str:
     """Lightning job name for one sweep combo (unused locally, but shares the
     same inputs as make_output_dir so job name <-> output dir stay traceable)."""
-    return "__".join([
+    parts = [
         sanitize(csv_stem(csv_file)),
         sanitize(backbone),
         losses_tag(losses),
-        f"tf{train_frames}",
-        f"s{seed}",
-    ])
+    ]
+    if (tag := temperature_tag(temperature)) is not None:
+        parts.append(sanitize(tag))
+    parts += [f"tf{train_frames}", f"s{seed}"]
+    return "__".join(parts)
 
 
 # ── sweep combo generation ───────────────────────────────────────────────────
@@ -89,15 +100,18 @@ def parse_semicolon_list(s: str) -> list[str]:
     return s.split(";")
 
 
-def build_combos(csv_files, backbones, train_frames, seeds) -> list[tuple]:
-    """Cartesian product of one sweep, in (csv_file, backbone, train_frames, seed) order."""
-    return list(product(csv_files, backbones, train_frames, seeds))
+def build_combos(csv_files, backbones, train_frames, seeds, temperatures=None) -> list[tuple]:
+    """Cartesian product of one sweep, in (csv_file, backbone, train_frames, seed,
+    temperature) order. temperatures=None means one stock (frame-proportional) run."""
+    temperatures = temperatures if temperatures else [None]
+    return list(product(csv_files, backbones, train_frames, seeds, temperatures))
 
 
 # ── command building ─────────────────────────────────────────────────────────
 
 def make_train_command(
     csv_file, backbone, train_frames, seed, losses, output_dir, debug=False,
+    temperature=None,
 ) -> list[str]:
     """Build the `litpose train ...` argv for one sweep combo."""
     lr = 5e-5 if "vit" in backbone else 1e-3
@@ -112,6 +126,15 @@ def make_train_command(
         f"training.rng_seed_data_pt={seed}",
         f"training.optimizer_params.learning_rate={lr}",
     ]
+
+    if temperature_tag(temperature) is not None:
+        # temperature sampling routes by per-example dataset id, so the registry must
+        # reach the dataset class; quote "inf" so Hydra passes it through as a string
+        registry_hydra = f"[{','.join(EVAL_DATASETS)}]"
+        overrides += [
+            f"training.sampling_temperature='{temperature}'",
+            f"data.dataset_names={registry_hydra}",
+        ]
 
     if "vitb_sam" in backbone:
         overrides.append("training.train_batch_size=16")

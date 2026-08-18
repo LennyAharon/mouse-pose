@@ -5,6 +5,10 @@ data:
   data_dir: /media/mattw/poseinterface/data/head-fixed
   video_dir: ${data.data_dir}/videos
   csv_file: CollectedData.csv
+  # Ordered source-dataset registry for multi-dataset runs (null = stock single-corpus
+  # behavior). The sweep fills this from configs/dataset_registry.yaml when a run needs
+  # per-example dataset ids (temperature sampling, per-dataset heads).
+  dataset_names: null
   num_keypoints: 36
   keypoint_names:
   # ── eye ───────────────────────────────────────────────────────────────────
@@ -60,6 +64,10 @@ training:
   train_prob: 0.95
   val_prob: 0.05
   train_frames: 1
+  # Multi-dataset sampling temperature over supervision mass (q_d ∝ (n_d·k̄_d)^(1/T) / k̄_d).
+  # null/1 = stock frame-proportional loader; "inf" = equal supervision per dataset.
+  # Values > 1 require data.dataset_names (the sweep sets it from the dataset registry).
+  sampling_temperature: null
   num_gpus: 1
   unfreezing_step: 1000
   min_steps: 12000
