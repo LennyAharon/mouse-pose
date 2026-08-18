@@ -142,14 +142,15 @@ def make_train_command(
     if debug:
         # Step-based keys, not epoch-based: model.yaml schedules by step, and LP asserts
         # the two styles are never mixed. limit_train_batches pins an epoch to two steps
-        # regardless of tag size, so the run still reaches the epoch boundary where
-        # validation and checkpointing happen. Milestones must stay <= max_steps.
+        # regardless of tag size; validation is step-based (val_check_interval, with
+        # check_val_every_n_epoch null in model.yaml), so shrink the interval to fire
+        # within the six debug steps. Milestones must stay <= max_steps.
         overrides += [
             "+training.limit_train_batches=2",
             "training.min_steps=2",
             "training.max_steps=6",
             "training.unfreezing_step=1",
-            "training.check_val_every_n_epoch=1",
+            "training.val_check_interval=2",
             "training.lr_scheduler_params.multisteplr.milestone_steps=[2]",
             "eval.predict_vids_after_training=false",
         ]
