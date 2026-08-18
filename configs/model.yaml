@@ -97,6 +97,10 @@ model:
   model_type: heatmap
   heatmap_loss_type: mse
   model_name: test
+  # shared = one canonical 36-keypoint head (stock LP). per_dataset = a complete,
+  # independent head per registry dataset, routed by dataset id; requires
+  # data.dataset_names (the sweep sets both together).
+  head_mode: shared
 
 dali:
   general:

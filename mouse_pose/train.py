@@ -60,6 +60,17 @@ def sanitize(s: str) -> str:
     return str(s).replace("/", "_").replace(".", "_")
 
 
+def head_mode_tag(head_mode) -> str | None:
+    """Path/name component for a head mode; None when the run is stock (shared).
+
+    'shared' (or unset) gets no component, so existing shared-head results keep
+    their paths and --skip_existing keeps recognizing them.
+    """
+    if head_mode in (None, "shared"):
+        return None
+    return f"head-{head_mode}"
+
+
 def temperature_tag(temperature) -> str | None:
     """Path/name component for a sampling temperature; None when the run is stock.
 
@@ -72,15 +83,21 @@ def temperature_tag(temperature) -> str | None:
     return f"sampling-T{temperature}"
 
 
-def make_output_dir(csv_file, backbone, train_frames, seed, losses, temperature=None) -> Path:
+def make_output_dir(
+    csv_file, backbone, train_frames, seed, losses, temperature=None, head_mode=None,
+) -> Path:
     parts = [csv_stem(csv_file), losses_tag(losses)]
+    if (tag := head_mode_tag(head_mode)) is not None:
+        parts.append(tag)
     if (tag := temperature_tag(temperature)) is not None:
         parts.append(tag)
     parts += [f"tf{train_frames}", sanitize(backbone), f"seed{seed}"]
     return RESULTS_DIR.joinpath(*parts)
 
 
-def make_job_name(csv_file, backbone, train_frames, seed, losses, temperature=None) -> str:
+def make_job_name(
+    csv_file, backbone, train_frames, seed, losses, temperature=None, head_mode=None,
+) -> str:
     """Lightning job name for one sweep combo (unused locally, but shares the
     same inputs as make_output_dir so job name <-> output dir stay traceable)."""
     parts = [
@@ -88,6 +105,8 @@ def make_job_name(csv_file, backbone, train_frames, seed, losses, temperature=No
         sanitize(backbone),
         losses_tag(losses),
     ]
+    if (tag := head_mode_tag(head_mode)) is not None:
+        parts.append(sanitize(tag))
     if (tag := temperature_tag(temperature)) is not None:
         parts.append(sanitize(tag))
     parts += [f"tf{train_frames}", f"s{seed}"]
@@ -100,18 +119,22 @@ def parse_semicolon_list(s: str) -> list[str]:
     return s.split(";")
 
 
-def build_combos(csv_files, backbones, train_frames, seeds, temperatures=None) -> list[tuple]:
+def build_combos(
+    csv_files, backbones, train_frames, seeds, temperatures=None, head_modes=None,
+) -> list[tuple]:
     """Cartesian product of one sweep, in (csv_file, backbone, train_frames, seed,
-    temperature) order. temperatures=None means one stock (frame-proportional) run."""
+    temperature, head_mode) order. temperatures=None means one stock frame-proportional
+    run; head_modes=None means one stock shared-head run."""
     temperatures = temperatures if temperatures else [None]
-    return list(product(csv_files, backbones, train_frames, seeds, temperatures))
+    head_modes   = head_modes if head_modes else [None]
+    return list(product(csv_files, backbones, train_frames, seeds, temperatures, head_modes))
 
 
 # ── command building ─────────────────────────────────────────────────────────
 
 def make_train_command(
     csv_file, backbone, train_frames, seed, losses, output_dir, debug=False,
-    temperature=None,
+    temperature=None, head_mode=None,
 ) -> list[str]:
     """Build the `litpose train ...` argv for one sweep combo."""
     lr = 5e-5 if "vit" in backbone else 1e-3
@@ -127,14 +150,17 @@ def make_train_command(
         f"training.optimizer_params.learning_rate={lr}",
     ]
 
-    if temperature_tag(temperature) is not None:
-        # temperature sampling routes by per-example dataset id, so the registry must
-        # reach the dataset class; quote "inf" so Hydra passes it through as a string
+    # temperature sampling and per-dataset heads both route by per-example dataset id,
+    # so either one pulls the registry into the config (added once, not per condition)
+    needs_registry = temperature_tag(temperature) is not None or head_mode_tag(head_mode) is not None
+    if needs_registry:
         registry_hydra = f"[{','.join(EVAL_DATASETS)}]"
-        overrides += [
-            f"training.sampling_temperature='{temperature}'",
-            f"data.dataset_names={registry_hydra}",
-        ]
+        overrides.append(f"data.dataset_names={registry_hydra}")
+    if temperature_tag(temperature) is not None:
+        # quote "inf" so Hydra passes it through as a string
+        overrides.append(f"training.sampling_temperature='{temperature}'")
+    if head_mode_tag(head_mode) is not None:
+        overrides.append(f"model.head_mode={head_mode}")
 
     if "vitb_sam" in backbone:
         overrides.append("training.train_batch_size=16")

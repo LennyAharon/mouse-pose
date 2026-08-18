@@ -90,6 +90,11 @@ def main():
              "1 = stock frame-proportional loader (no path component, same outputs as "
              "before this flag existed); empty = one stock run.",
     )
+    parser.add_argument(
+        "--head_modes", default="",
+        help='semicolon-separated head modes, e.g. "shared;per_dataset". shared = stock '
+             "single head (no path component); empty = one shared run.",
+    )
     parser.add_argument("--debug",         action="store_true",          help="Smoke-test run (3 epochs)")
     parser.add_argument("--dry_run",       action="store_true",          help="Print jobs without launching")
     parser.add_argument("--skip_existing", action="store_true",          help="Skip combos whose output dir already exists")
@@ -123,14 +128,15 @@ def main():
     backbones    = parse_semicolon_list(args.backbones)
     losses       = [l for l in args.losses_to_use.split(",") if l]
     temperatures = [t for t in args.sampling_temperatures.split(";") if t]
+    head_modes   = [h for h in args.head_modes.split(";") if h]
 
-    combos = build_combos(csv_files, backbones, train_frames, seeds, temperatures)
+    combos = build_combos(csv_files, backbones, train_frames, seeds, temperatures, head_modes)
     print(f"Total jobs: {len(combos)}")
 
     if args.skip_existing:
         combos = [
             c for c in combos
-            if not make_output_dir(c[0], c[1], c[2], c[3], losses, c[4]).exists()
+            if not make_output_dir(c[0], c[1], c[2], c[3], losses, c[4], c[5]).exists()
         ]
         print(f"After skipping existing: {len(combos)} remaining")
 
@@ -148,13 +154,17 @@ def main():
         runs on an evaluated one, so a combo that dies partway leaves nothing behind on
         shared storage.
         """
-        csv_file, backbone, train_frames_n, seed, temperature = combo
-        output_dir = make_output_dir(csv_file, backbone, train_frames_n, seed, losses, temperature)
-        name       = make_job_name(csv_file, backbone, train_frames_n, seed, losses, temperature)
+        csv_file, backbone, train_frames_n, seed, temperature, head_mode = combo
+        output_dir = make_output_dir(
+            csv_file, backbone, train_frames_n, seed, losses, temperature, head_mode,
+        )
+        name       = make_job_name(
+            csv_file, backbone, train_frames_n, seed, losses, temperature, head_mode,
+        )
         stages     = [
             " ".join(make_train_command(
                 csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug,
-                temperature,
+                temperature, head_mode,
             )),
             " ".join(make_eval_command(output_dir, csv_file)),
         ]
