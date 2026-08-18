@@ -62,6 +62,7 @@ from mouse_pose.train import (
     make_job_name,
     make_output_dir,
     make_preflight_command,
+    make_publish_command,
     make_train_command,
     parse_semicolon_list,
 )
@@ -88,6 +89,25 @@ def main():
     parser.add_argument("--skip_existing", action="store_true",          help="Skip combos whose output dir already exists")
     parser.add_argument("--allow_stock_lp", action="store_true",        help="Allow released lightning-pose, not the local clone")
     parser.add_argument("--machine",       default="T4_SMALL",           help="Lightning Machine type, e.g. T4_SMALL, A10G, L4")
+    parser.add_argument(
+        "--publish_dir", default=None,
+        help="Teamspace folder to copy each finished run into, e.g. "
+             "/teamspace/gcs_folders/head-fixed-nips26. Required in practice: a Job's "
+             "filesystem is torn down when it ends, so without this the results are lost. "
+             "Copied only after evaluation succeeds, so failed jobs publish nothing.",
+    )
+    parser.add_argument(
+        "--single_job", action="store_true",
+        help="Run every combo sequentially inside ONE job instead of one job per combo. "
+             "Snapshot, preflight and extract are then paid once rather than per combo. "
+             "Remember to raise --max_runtime to cover the whole sequence.",
+    )
+    parser.add_argument(
+        "--max_runtime", type=int, default=None,
+        help="Seconds of machine time to allocate per job. Lightning defaults to 3h, which "
+             "is not enough for a multi-combo --single_job run — the machine is reclaimed "
+             "mid-training and the remaining combos never run.",
+    )
     parser.add_argument("--poll_interval", type=int, default=30,         help="Seconds between job-status polls")
     args = parser.parse_args()
 
@@ -111,20 +131,48 @@ def main():
     preflight_cmd = make_preflight_command(args.allow_stock_lp)
     extract_cmd   = make_extract_command()
 
-    jobs_spec = []
-    for csv_file, backbone, train_frames_n, seed in combos:
+    def combo_block(combo) -> tuple[str, "Path", str]:
+        """(job name, output dir, `train && eval && publish` chain) for one combo.
+
+        Internally `&&`: evaluation only runs on a trained model, and publishing only
+        runs on an evaluated one, so a combo that dies partway leaves nothing behind on
+        shared storage.
+        """
+        csv_file, backbone, train_frames_n, seed = combo
         output_dir = make_output_dir(csv_file, backbone, train_frames_n, seed, losses)
         name       = make_job_name(csv_file, backbone, train_frames_n, seed, losses)
-        train_cmd  = make_train_command(csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug)
-        eval_cmd   = make_eval_command(output_dir, csv_file)
-        full_cmd   = " && ".join([
-            preflight_cmd, extract_cmd, " ".join(train_cmd), " ".join(eval_cmd),
-        ])
-        jobs_spec.append((name, output_dir, full_cmd))
+        stages     = [
+            " ".join(make_train_command(
+                csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug,
+            )),
+            " ".join(make_eval_command(output_dir, csv_file)),
+        ]
+        if args.publish_dir:
+            stages.append(make_publish_command(output_dir, args.publish_dir))
+        return name, output_dir, " && ".join(stages)
+
+    jobs_spec = []
+    if args.single_job:
+        # Combos are separated by `;`, not `&&`, so one bad seed doesn't cancel the rest of
+        # the sequence. Which combos actually succeeded is then read off the publish
+        # destination rather than the job's exit status: a combo only publishes if its own
+        # train+eval chain completed, so a missing directory *is* the failure report.
+        # Parenthesized as a group so preflight/extract still gate the whole sequence —
+        # bare, `A && B && C ; D` would run D even when the preflight killed the job.
+        blocks   = [combo_block(c) for c in combos]
+        body     = " ; ".join(f"( {cmd} )" for _n, _o, cmd in blocks)
+        name     = f"{blocks[0][0]}__x{len(blocks)}" if blocks else "empty"
+        full_cmd = " && ".join([preflight_cmd, extract_cmd, f"( {body} )"])
+        jobs_spec.append((name, [o for _n, o, _c in blocks], full_cmd))
+    else:
+        for combo in combos:
+            name, output_dir, chain = combo_block(combo)
+            full_cmd = " && ".join([preflight_cmd, extract_cmd, chain])
+            jobs_spec.append((name, [output_dir], full_cmd))
 
     if args.dry_run:
         print("\n--- Job list ---")
-        for name, _output_dir, cmd in jobs_spec:
+        for name, _output_dirs, cmd in jobs_spec:
             print(f"\n{name}:\n  {cmd}")
         print(f"\n(dry run — {len(jobs_spec)} jobs printed, nothing launched)")
         return
@@ -133,12 +181,19 @@ def main():
 
     machine = getattr(Machine, args.machine)
     studio  = Studio()
+    run_kw  = {"max_runtime": args.max_runtime} if args.max_runtime else {}
 
     jobs = {}
-    for name, output_dir, cmd in jobs_spec:
-        output_dir.mkdir(parents=True, exist_ok=True)
+    for name, output_dirs, cmd in jobs_spec:
+        # Only pre-create local output dirs when results land locally. With --publish_dir
+        # the job writes to its own ephemeral filesystem and publishes elsewhere, so these
+        # would just be empty directories in the local results tree — which a later local
+        # --skip_existing would read as "already done" and skip.
+        if not args.publish_dir:
+            for output_dir in output_dirs:
+                output_dir.mkdir(parents=True, exist_ok=True)
         print(f"Launching: {name}")
-        job = Job.run(command=cmd, name=name, machine=machine, studio=studio)
+        job = Job.run(command=cmd, name=name, machine=machine, studio=studio, **run_kw)
         jobs[name] = job
         time.sleep(2)
 

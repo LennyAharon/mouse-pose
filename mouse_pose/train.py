@@ -224,6 +224,39 @@ def make_extract_command() -> str:
     )
 
 
+def make_publish_command(output_dir: Path, publish_root: Path) -> str:
+    """Shell snippet that copies a finished run directory to persistent storage, meant to
+    run last in a Lightning job's command chain.
+
+    A Job's filesystem is an isolated snapshot that is torn down when the job ends, so
+    anything written to `output_dir` is gone unless it is copied somewhere that outlives
+    the compute. A teamspace folder is the only channel available: a Job cannot write back
+    into the launching Studio (it holds a snapshot, not a live mount), and `path_mappings`
+    /`artifacts_remote` on `Job.run` apply to docker jobs only, not `studio=` ones.
+
+    Deliberately a copy at the end rather than training directly into the folder. Teamspace
+    folders are S3/GCS-backed FUSE mounts, so the repeated checkpoint and tb_log writes a
+    training run makes would pay network latency for data that `evaluate_model` deletes
+    minutes later anyway. Copying once moves only what is kept — configs, eval CSVs, logs.
+
+    The bigger reason is failure behavior. Chained with `&&` after evaluation, this runs
+    only if training *and* evaluation both succeeded, so a job that dies partway through
+    leaves nothing behind on shared storage. Training straight into the folder would instead
+    publish a half-written directory that looks complete enough for `--skip_existing` to
+    skip — exactly the stale-directory failure that lost the earlier `cazettes-side` seeds.
+
+    Mirrors the run's path under `publish_root`, so a published tree has the same
+    `<tag>/<losses>/tf<N>/<backbone>/seed<N>` layout as a local one and can be copied back
+    into a local results dir wholesale.
+
+    Returns a shell string (not an argv list, like make_extract_command) — it needs shell
+    quoting, and is only meaningful for Lightning jobs.
+    """
+    rel  = Path(output_dir).resolve().relative_to(RESULTS_DIR.resolve())
+    dest = Path(publish_root) / rel
+    return f'mkdir -p "{dest}" && cp -a "{output_dir}/." "{dest}/"'
+
+
 # ── evaluation ────────────────────────────────────────────────────────────────
 
 def evaluate_model(output_dir: Path, csv_file: str) -> None:
