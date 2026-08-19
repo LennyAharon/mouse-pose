@@ -101,6 +101,13 @@ model:
   # independent head per registry dataset, routed by dataset id; requires
   # data.dataset_names (the sweep sets both together).
   head_mode: shared
+  # Blind-mode combination (per_dataset heads, no dataset identity at test time):
+  # per keypoint, supporting heads vote on coordinates with weight conf^gamma; heads
+  # below conf_floor are dropped, and if none clear it the single most confident
+  # supporting head is used verbatim so low confidence stays visible. Calibrate on
+  # known datasets (oracle vs blind) before trusting zero-shot numbers.
+  blind_gamma: 2.0
+  blind_conf_floor: 0.0
 
 dali:
   general:

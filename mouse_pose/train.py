@@ -312,11 +312,16 @@ def make_publish_command(output_dir: Path, publish_root: Path) -> str:
 
 # ── evaluation ────────────────────────────────────────────────────────────────
 
-def evaluate_model(output_dir: Path, csv_file: str) -> None:
+def evaluate_model(output_dir: Path, csv_file: str, keep_checkpoints: bool = False) -> None:
     """Evaluate a trained model against every per-dataset test CSV, then clean
-    up the scratch prediction files litpose leaves behind in output_dir and
-    delete model checkpoints (*.ckpt) — evaluation predictions/pixel-errors
-    under output_dir/eval/ are what's kept long-term, not the weights."""
+    up the scratch prediction files litpose leaves behind in output_dir and,
+    unless keep_checkpoints, delete model checkpoints (*.ckpt) — evaluation
+    predictions/pixel-errors under output_dir/eval/ are what's kept long-term.
+
+    keep_checkpoints=True is required for any model whose weights are needed
+    after evaluation: per-dataset-head models (blind/oracle re-scoring runs all
+    heads over the test sets again) and all-data or leave-one-out models kept
+    for zero-/few-shot adaptation."""
     from lightning_pose.api import Model
     from lightning_pose.metrics import pixel_error
 
@@ -378,11 +383,15 @@ def evaluate_model(output_dir: Path, csv_file: str) -> None:
     if image_preds.exists():
         shutil.rmtree(image_preds)
 
-    n_deleted = 0
-    for ckpt in output_dir.rglob("*.ckpt"):
-        ckpt.unlink()
-        n_deleted += 1
-    print(f"  Deleted {n_deleted} checkpoint file(s)")
+    if keep_checkpoints:
+        n_kept = len(list(output_dir.rglob("*.ckpt")))
+        print(f"  Kept {n_kept} checkpoint file(s) (--keep_checkpoints)")
+    else:
+        n_deleted = 0
+        for ckpt in output_dir.rglob("*.ckpt"):
+            ckpt.unlink()
+            n_deleted += 1
+        print(f"  Deleted {n_deleted} checkpoint file(s)")
 
 
 def _main():
@@ -400,11 +409,16 @@ def _main():
         help="Train CSV filename the model was trained on (for logging only). "
              "Inferred from output_dir's path structure if omitted.",
     )
+    parser.add_argument(
+        "--keep_checkpoints", action="store_true",
+        help="Retain *.ckpt files after evaluation (needed for blind/oracle "
+             "re-scoring of per-dataset-head models and zero-/few-shot adaptation).",
+    )
     args = parser.parse_args()
     csv_file = args.csv_file or infer_csv_file(args.output_dir)
     print(f"output_dir: {args.output_dir}")
     print(f"csv_file:   {csv_file}")
-    evaluate_model(args.output_dir, csv_file)
+    evaluate_model(args.output_dir, csv_file, keep_checkpoints=args.keep_checkpoints)
 
 
 if __name__ == "__main__":

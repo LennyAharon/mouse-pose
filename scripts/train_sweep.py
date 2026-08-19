@@ -80,6 +80,7 @@ def main():
     parser.add_argument("--dry_run",       action="store_true",          help="Print commands without running")
     parser.add_argument("--skip_existing", action="store_true",          help="Skip combos whose output dir already exists")
     parser.add_argument("--eval_only",     action="store_true",          help="Skip training; only run evaluation on existing model dirs")
+    parser.add_argument("--keep_checkpoints", action="store_true",        help="Retain *.ckpt after eval (needed for blind/oracle re-scoring and zero-shot)")
     args = parser.parse_args()
 
     csv_files    = parse_semicolon_list(args.csv_files)
@@ -136,7 +137,7 @@ def main():
                 failures.append(f"{label} (no output dir)")
                 continue
             try:
-                evaluate_model(output_dir, csv_file)
+                evaluate_model(output_dir, csv_file, keep_checkpoints=args.keep_checkpoints)
             except Exception as e:
                 print(f"  ERROR: evaluation failed: {e}")
                 failures.append(f"{label} (evaluation: {e})")
