@@ -1,0 +1,192 @@
+data:
+  image_resize_dims:
+    height: 256
+    width: 256
+  data_dir: /media/mattw/poseinterface/data/head-fixed
+  video_dir: ${data.data_dir}/videos
+  csv_file: CollectedData.csv
+  # Ordered source-dataset registry for multi-dataset runs (null = stock single-corpus
+  # behavior). The sweep fills this from configs/dataset_registry.yaml when a run needs
+  # per-example dataset ids (temperature sampling, per-dataset heads).
+  dataset_names: null
+  num_keypoints: 36
+  keypoint_names:
+  # ── eye ───────────────────────────────────────────────────────────────────
+  - eye_back_left
+  - eye_back_right
+  - eye_bottom_left
+  - eye_bottom_right
+  - eye_front_left
+  - eye_front_right
+  - eye_top_left
+  - eye_top_right
+  - pupil_center_left
+  - pupil_center_right
+  # ── nose / mouth (lateralized) ────────────────────────────────────────────
+  - upperlip_right
+  - upperlip_left
+  - tongue_end_right
+  - tongue_end_left
+  # ── nose / mouth (midline) ────────────────────────────────────────────────
+  - nose_tip
+  - nose_top
+  - nose_bottom
+  - pad_center
+  - mouth
+  - lowerlip
+  - tongue_tip
+  - tongue_center
+  # ── whiskers ──────────────────────────────────────────────────────────────
+  - pad_top_left
+  - pad_top_right
+  - pad_side_left
+  - pad_side_right
+  # ── ears ──────────────────────────────────────────────────────────────────
+  - ear_top_left
+  - ear_top_right
+  - ear_tip_left
+  - ear_tip_right
+  - ear_bottom_left
+  - ear_bottom_right
+  - ear_base_left
+  - ear_base_right
+  # ── paw ───────────────────────────────────────────────────────────────────
+  - wrist_left
+  - wrist_right
+  columns_for_singleview_pca: null
+
+training:
+  imgaug:
+    Rotate:
+      p: 0.4
+      kwargs:
+        rotate: [-25, 25]
+    MotionBlur:
+      p: 0.5
+      kwargs:
+        k: 5
+        angle: [-90, 90]
+    CoarseDropout:
+      p: 0.5
+      kwargs:
+        p: 0.02
+        size_percent: 0.3
+        per_channel: 0.5
+    CoarseSalt:
+      p: 0.5
+      kwargs:
+        p: 0.01
+        size_percent: [0.05, 0.1]
+    CoarsePepper:
+      p: 0.5
+      kwargs:
+        p: 0.01
+        size_percent: [0.05, 0.1]
+    ElasticTransformation:
+      p: 0.5
+      kwargs:
+        alpha: [0, 10]
+        sigma: 5
+    AllChannelsHistogramEqualization:
+      p: 0.1
+    AllChannelsCLAHE:
+      p: 0.1
+    Emboss:
+      p: 0.1
+      kwargs:
+        alpha: [0, 0.5]
+        strength: [0.5, 1.5]
+    CropAndPad:
+      p: 0.4
+      kwargs:
+        percent: [-0.15, 2.0]
+        keep_size: true
+  imgaug_hflip: true
+  train_batch_size: 32
+  val_batch_size: 64
+  test_batch_size: 64
+  train_prob: 0.95
+  val_prob: 0.05
+  train_frames: 1
+  # Multi-dataset sampling temperature over supervision mass (q_d ∝ (n_d·k̄_d)^(1/T) / k̄_d).
+  # null/1 = stock frame-proportional loader; "inf" = equal supervision per dataset.
+  # Values > 1 require data.dataset_names (the sweep sets it from the dataset registry).
+  sampling_temperature: null
+  num_gpus: 1
+  unfreezing_step: 1000
+  min_steps: 12000
+  max_steps: 12000
+  log_every_n_steps: 10
+  # Validation is step-based, not epoch-based: sampling_temperature changes epoch length
+  # (~306 batches at T=1 vs ~93 at T=inf), so an epoch-based cadence would validate ~3x
+  # more often at high temperature and confound the sampling axis. Lightning only counts
+  # val_check_interval in global steps when check_val_every_n_epoch is null — both keys
+  # are needed. 1000 steps -> 12 validation points over a 12,000-step run.
+  check_val_every_n_epoch: null
+  val_check_interval: 1000
+  rng_seed_data_pt: 0
+  rng_seed_model_pt: 0
+  optimizer: Adam
+  optimizer_params:
+    learning_rate: 1e-3
+  lr_scheduler: multisteplr
+  lr_scheduler_params:
+    multisteplr:
+      milestone_steps: [4000, 6000, 8000]
+      gamma: 0.5
+
+model:
+  losses_to_use: []
+  backbone: resnet50_animal_ap10k
+  model_type: heatmap
+  heatmap_loss_type: mse
+  model_name: test
+  # shared = one canonical 36-keypoint head (stock LP). per_dataset = a complete,
+  # independent head per registry dataset, routed by dataset id; requires
+  # data.dataset_names (the sweep sets both together).
+  head_mode: shared
+  # Blind-mode combination (per_dataset heads, no dataset identity at test time):
+  # per keypoint, supporting heads vote on coordinates with weight conf^gamma; heads
+  # below conf_floor are dropped, and if none clear it the single most confident
+  # supporting head is used verbatim so low confidence stays visible. Calibrate on
+  # known datasets (oracle vs blind) before trusting zero-shot numbers.
+  blind_gamma: 2.0
+  blind_conf_floor: 0.0
+
+dali:
+  general:
+    seed: 123456
+  base:
+    train:
+      sequence_length: 32
+    predict:
+      sequence_length: 64
+  context:
+    train:
+      batch_size: 16
+    predict:
+      sequence_length: 64
+
+losses:
+  pca_singleview:
+    log_weight: 10.7
+    components_to_keep: 0.99
+    epsilon: null
+  temporal:
+    log_weight: 10.7
+    epsilon: 10.0
+    prob_threshold: 0.05
+
+eval:
+  predict_vids_after_training: false
+  save_vids_after_training: false
+  test_videos_directory: ${data.data_dir}/videos
+  confidence_thresh_for_vid: 0.90
+
+callbacks:
+  anneal_weight:
+    attr_name: total_unsupervised_importance
+    init_val: 0.0
+    increase_factor: 0.01
+    final_val: 1.0
+    freeze_until_epoch: 60
