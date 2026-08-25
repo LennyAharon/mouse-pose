@@ -121,6 +121,20 @@ per-keypoint breakdown with each keypoint's teaching datasets; view mismatch
 Metric convention: mean pixel error over labeled keypoints, always excluding
 `pupil_center_right` (hflip-only channel — never score it).
 
+**Comparing training recipes (augmentation especially): use coverage-matched curves,
+not a fixed confidence threshold.** Recipe changes shift the confidence distribution
+itself, so "error at conf ≥ 0.9" confounds accuracy with calibration — sort pooled
+predictions by confidence and compare mean error at equal coverage fractions
+(70/90/100%). A fixed threshold has already hidden both a real win and a real
+regression in this project.
+
+**Recipe of record (2026-08-25): shared head × T=2 × per-dataset zoom augmentation**
+(`configs/model_zoomaug.yaml`, requires the `zoom_aug_lp` Lightning Pose branch).
+All-data trunk: `zoom-aug-exp/face+ibl+cheese+caz+kondo-T2-zoomaug/seed0`. History and
+adoption evidence: plan §14. Known limit: transfer *up-scale* (toward closeup rigs)
+degrades by design. `configs/model_zoomphoto.yaml` is a rejected-but-preserved variant
+(helps dark/noisy targets like ibl only).
+
 ## Inference on unseen video
 
 The shared-head model runs on video directly (no dataset id needed):
