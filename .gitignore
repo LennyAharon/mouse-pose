@@ -1,6 +1,9 @@
 # Machine-specific — never commit
 paths.yaml
 
+# Local Claude Code skills and settings — never commit
+.claude/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
