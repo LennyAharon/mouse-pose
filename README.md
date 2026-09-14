@@ -196,7 +196,7 @@ _raw/<dataset>/                    data/head-fixed/
 
 ### Canonical keypoint vocabulary (`configs/keypoints.yaml`)
 
-Single source of truth for all 43 keypoint names and their ordering. Every output CSV — per-dataset
+Single source of truth for all 36 keypoint names and their ordering. Every output CSV — per-dataset
 and merged — has columns in this order. Datasets that don't label a keypoint carry `visible=0` for it.
 
 ### Visibility convention
@@ -209,7 +209,7 @@ and merged — has columns in this order. Datasets that don't label a keypoint c
 
 Lightning Pose's loss function is visibility-aware: `vis=0` frames are excluded from loss for that
 keypoint. This means single-dataset and merged models all share the same LP config
-(`configs/model.yaml`, 43 keypoints).
+(`configs/model.yaml`, 36 keypoints).
 
 ### `configs/datasets/<name>.yaml` format
 
@@ -255,8 +255,8 @@ DataFrame.
 ```
 mouse-pose/
   configs/
-    keypoints.yaml              canonical keypoint vocabulary (43 kps)
-    model.yaml                  LP model config (43 keypoints); data_dir/csv_file
+    keypoints.yaml              canonical keypoint vocabulary (36 kps)
+    model.yaml                  LP model config (36 keypoints); data_dir/csv_file
                                  overridden per-run by train_sweep*.py
     datasets/
       <dataset>.yaml            per-dataset conversion config
