@@ -3,8 +3,8 @@
 #   trunk : init = zoomaug leave-<DS>-out super-mouse trunk, lr 1e-5  -> fewshot-exp/
 #   dino  : init = DINOv3 backbone + random head (LP default), lr 5e-5 -> fewshot-exp-dino/
 #   trunk5: init = same trunk as `trunk`, lr 5e-5 (identical protocol to dino) -> fewshot-exp-lr5/
-#   trunk5-hf: trunk5 + head filters of the supported keypoints frozen (lightning-pose-dev,
-#             branch fewshot_head, model.head_freeze_keypoints) -> fewshot-exp-headfreeze/
+#   trunk5-hf: trunk5 + head filters of the supported keypoints frozen
+#             (model.head_freeze_keypoints) -> fewshot-exp-headfreeze/
 #   trunk5-bf: trunk5-hf + backbone frozen (unfreezing_step=1e6) -> fewshot-exp-backfreeze/
 #   lora     : trunk + LoRA on the backbone (base frozen), head trainable -> fewshot-exp-lora-r<R>[-lr<L>]/
 #   anchor-video: anchor-lora + the trunk distilled on unlabeled video (env STEPS, ANCHOR_VIDEO_DIR) -> fewshot-exp-anchor-lora-video[-conf<C>][-s<STEPS>]/
@@ -39,7 +39,7 @@ case "$ARM" in
          CKPT_OVR="+model.checkpoint='$CKPT'" ;;
   anchor|anchor-lora|anchor-video)
          # Anchored fine-tuning: the frozen trunk distills its heatmaps into every keypoint it
-         # trained that the target frame does not label (model.anchor, lightning-pose-dev).
+         # trained that the target frame does not label (model.anchor).
          # anchor: full FT at 5e-5; anchor-lora: LoRA r16 adapters 5e-5 + head 5e-4. env ANCHOR_W (1.0).
          AW="${ANCHOR_W:-1.0}"; AC="${ANCHOR_CONF:-0}"; SUF=""; [ "$AW" != "1.0" ] && SUF="-w$AW"; [ "$AC" != "0" ] && SUF="$SUF-conf$AC"
          if [ "$ARM" = anchor ]; then ROOT="$RESULTS/fewshot-exp-anchor$SUF"; LR="5e-05"; else ROOT="$RESULTS/fewshot-exp-anchor-lora$SUF"; LR="${HEAD_LR:-5e-4}"; fi
@@ -62,8 +62,7 @@ PY
 )
          EXTRA_OVR="+model.anchor.weight=$AW +model.anchor.mode=unlabeled +model.anchor.conf_power=$AC +model.anchor.keypoints=$AKP"
          [ "$ARM" != anchor ] && EXTRA_OVR="$EXTRA_OVR +model.lora.rank=${LORA_RANK:-16} +model.lora.alpha=$((2 * ${LORA_RANK:-16})) +model.lora.lr=${LORA_LR:-5e-5}"
-         [ "$ARM" = anchor-video ] && EXTRA_OVR="$EXTRA_OVR data.video_dir=$VDIR model.losses_to_use=[anchor_video] callbacks.anneal_weight.init_val=1.0 callbacks.anneal_weight.freeze_until_epoch=0 dali.base.train.sequence_length=16"
-         export PYTHONPATH=/teamspace/studios/this_studio/lightning-pose-dev ;;
+         [ "$ARM" = anchor-video ] && EXTRA_OVR="$EXTRA_OVR data.video_dir=$VDIR model.losses_to_use=[anchor_video] callbacks.anneal_weight.init_val=1.0 callbacks.anneal_weight.freeze_until_epoch=0 dali.base.train.sequence_length=16" ;;
   xfer)  # full FT (trunk5 protocol) from an arbitrary source checkpoint: env SRC_CKPT (path), SRC_TAG (name)
          ROOT="$RESULTS/fewshot-exp-xfer-${SRC_TAG:?SRC_TAG required}"; LR="5e-05"; LRPAT="learning_rate: 5.0e-05"
          CKPT="${SRC_CKPT:?SRC_CKPT required}"; [ -f "$CKPT" ] || { echo "ABORT: SRC_CKPT not found: $CKPT"; exit 1; }
@@ -81,8 +80,7 @@ others = set().union(*[set(inv[o]["trainable"]) for o in inv if o != ds])
 print(",".join(k for k in inv[ds]["eval"] if k in others and k != "pupil_center_right"))
 PY
 )
-         EXTRA_OVR="+model.head_freeze_keypoints=[$KEEP]"
-         export PYTHONPATH=/teamspace/studios/this_studio/lightning-pose-dev ;;   # branch fewshot_head
+         EXTRA_OVR="+model.head_freeze_keypoints=[$KEEP]" ;;
   trunk5-bf) ROOT="$RESULTS/fewshot-exp-backfreeze"; LR="5e-05"; LRPAT="learning_rate: 5.0e-05"
          CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
          CKPT_OVR="+model.checkpoint='$CKPT'"
@@ -97,8 +95,7 @@ others = set().union(*[set(inv[o]["trainable"]) for o in inv if o != ds])
 print(",".join(k for k in inv[ds]["eval"] if k in others and k != "pupil_center_right"))
 PY
 )
-         EXTRA_OVR="+model.head_freeze_keypoints=[$KEEP] training.unfreezing_step=1000000"
-         export PYTHONPATH=/teamspace/studios/this_studio/lightning-pose-dev ;;
+         EXTRA_OVR="+model.head_freeze_keypoints=[$KEEP] training.unfreezing_step=1000000" ;;
   lora|dino-lora)
          # LoRA on the backbone (base frozen), head fully trainable. Env: LORA_RANK (16),
          # LORA_LR (global lr). Root name carries rank (+ lr when overridden).
@@ -114,8 +111,7 @@ PY
              ROOT="$RESULTS/fewshot-exp-dino-lora-$SUFFIX"; CKPT_OVR=""
          fi
          EXTRA_OVR="+model.lora.rank=$RANK +model.lora.alpha=$((2 * RANK))"
-         [ -n "$LLR" ] && EXTRA_OVR="$EXTRA_OVR +model.lora.lr=$LLR"
-         export PYTHONPATH=/teamspace/studios/this_studio/lightning-pose-dev ;;
+         [ -n "$LLR" ] && EXTRA_OVR="$EXTRA_OVR +model.lora.lr=$LLR" ;;
   replay|replay-lora)
          # Replay fine-tuning: the N target frames (same split as the plain cell) mixed with the
          # n-1 corpus, equal supervision per dataset (T=inf), per-dataset zoom aug, 4000 steps.
@@ -126,8 +122,7 @@ PY
          CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
          CKPT_OVR="+model.checkpoint='$CKPT'"
          EXTRA_OVR="training.sampling_temperature='inf' data.dataset_names=['facemap','ibl','cheese-2d','cazettes-side','kondo']"
-         [ "$ARM" = replay-lora ] && EXTRA_OVR="$EXTRA_OVR +model.lora.rank=$RANK +model.lora.alpha=$((2 * RANK)) +model.lora.lr=${LORA_LR:-5e-4}"
-         export PYTHONPATH=/teamspace/studios/this_studio/lightning-pose-dev ;;
+         [ "$ARM" = replay-lora ] && EXTRA_OVR="$EXTRA_OVR +model.lora.rank=$RANK +model.lora.alpha=$((2 * RANK)) +model.lora.lr=${LORA_LR:-5e-4}" ;;
   *) echo "unknown arm $ARM"; exit 2 ;;
 esac
 REPLAY="${REPLAY:-0}"
@@ -160,6 +155,8 @@ if [ "${AUG:-}" = zoom ]; then
     AUG_OVR="data.dataset_names=['facemap','ibl','cheese-2d','cazettes-side','kondo']"
     ROOT="$ROOT-zoomaug"
 fi
+# distinct root for non-default step counts (video arm already appended its own)
+if [ "${STEPS:-2000}" != 2000 ] && [[ "$ROOT" != *"-s${STEPS}" ]]; then ROOT="$ROOT-s${STEPS}"; fi
 OUT="$ROOT/$DS/tf$N-draw$DRAW"
 LOG="$ROOT/$DS-tf$N-draw$DRAW.log"
 mkdir -p "$ROOT"
