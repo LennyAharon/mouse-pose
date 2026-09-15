@@ -130,26 +130,13 @@ kind of storage.
 
 ## Preprocessing
 
-Some datasets require pseudo-label generation before the standard convert step.
+Some datasets need custom work before the standard convert step (pseudo-label
+generation, pulling frames from a non-DLC source format, etc.). Each one has its own
+README under `scripts/preprocessing/`.
 
-### ibl
-
-Runs the [iblvideo](https://github.com/int-brain-lab/iblvideo) Lightning Pose pipeline
-(eye, nose, tongue networks) on per-session videos built from `_raw/ibl-paw` labeled frames,
-then merges predictions with paw labels. All pseudo-labels were subsequently reviewed and
-corrected by hand in the Lightning Pose app (July 2026), so `_raw/ibl` now holds full human
-annotations rather than raw pseudo-labels. `_raw/ibl-paw` (wrist-only) is deprecated —
-`ibl` is a strict superset and should be used instead.
-
-```bash
-# Run pipeline (iblvideo2 env)
-conda run -n iblvideo2 python scripts/preprocessing/ibl-face/create_ibl_face_dataset.py
-
-# Render check images
-conda run -n iblvideo2 python scripts/preprocessing/ibl-face/plot_ibl_face_check.py
-```
-
-See `scripts/preprocessing/ibl-face/README.md` for full details.
+**Before starting a new one, see [`scripts/preprocessing/README.md`](scripts/preprocessing/README.md)**
+— it has the checklist of decisions (new keypoints, laterality, multi-view merging,
+train/test split) that need a human call rather than an inferred default.
 
 ---
 
@@ -181,7 +168,7 @@ _raw/<dataset>/                    data/head-fixed/
 
 ### Canonical keypoint vocabulary (`configs/keypoints.yaml`)
 
-Single source of truth for all 41 keypoint names and their ordering. Every output CSV — per-dataset
+Single source of truth for all keypoint names and their ordering. Every output CSV — per-dataset
 and merged — has columns in this order. Datasets that don't label a keypoint carry `visible=0` for it.
 
 ### Visibility convention
@@ -193,8 +180,8 @@ and merged — has columns in this order. Datasets that don't label a keypoint c
 | `0`   | Keypoint is not part of this dataset |
 
 Lightning Pose's loss function is visibility-aware: `vis=0` frames are excluded from loss for that
-keypoint. This means single-dataset and merged models all share the same LP config
-(`configs/model.yaml`, 41 keypoints).
+keypoint. This means single-dataset and merged models all share the same LP config 
+(`configs/model.yaml`).
 
 ### `configs/datasets/<name>.yaml` format
 
@@ -240,9 +227,8 @@ DataFrame.
 ```
 mouse-pose/
   configs/
-    keypoints.yaml              canonical keypoint vocabulary (41 kps)
-    model.yaml                  LP model config (41 keypoints); data_dir/csv_file
-                                 overridden per-run by train_sweep*.py
+    keypoints.yaml              canonical keypoint vocabulary
+    model.yaml                  LP model config; data_dir/csv_file overridden per-run by train_sweep*.py
     datasets/
       <dataset>.yaml            per-dataset conversion config
 
@@ -288,17 +274,39 @@ whether a run finished locally or on Lightning AI.
 
 ### Adding a new dataset
 
-1. Place raw data under `_raw/<name>/` with the standard DLC layout
-2. Create `configs/datasets/<name>.yaml` (see format above)
+This is three separable stages. **Stage 1 does not commit you to stages 2 or 3** —
+converting a dataset to LP format to look at it is a normal, complete stopping point on
+its own, and shouldn't be followed by corpus integration unless that's explicitly wanted — see 
+the [Preprocessing](#preprocessing) section.
+
+**Stage 1 — convert to LP format.** Get the raw data into the standard DLC layout:
+```
+_raw/<name>/
+  labeled-data/<session>/<frame>.png
+  CollectedData.csv        ← train split
+  CollectedData_test.csv   ← test split
+```
+If the source is already DLC-shaped, this may just be placing files. Otherwise it needs a
+custom script under `scripts/preprocessing/<name>/` — see
+[`scripts/preprocessing/README.md`](scripts/preprocessing/README.md) for the checklist of
+things to ask about (new keypoints, laterality, multi-view merging, train/test split) before
+writing one. Output is a standalone, inspectable LP project — nothing here touches the
+canonical keypoint vocabulary or any other dataset.
+
+**Stage 2 — add to the corpus.** Only once you've confirmed this dataset should actually
+be merged in:
+1. Create `configs/datasets/<name>.yaml` (see format above)
+2. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml`
+   (plus update `data.num_keypoints`) if the dataset introduces any
 3. Add `<name>` to `EVAL_DATASETS` in `mouse_pose/train.py` **and** `ALL_DATASETS` in
    `scripts/build_dataset.py` — neither list is derived from `configs/datasets/`, both must be
    updated by hand or the new dataset silently won't be included in default `--tag all`-style runs
    or per-dataset evaluation
-4. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml` 
-   (plus update `data.num_keypoints`) if new keypoints are added
+4. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
 5. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
-6. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
-7. Rebuild any merged datasets with `scripts/build_dataset.py`
+
+**Stage 3 — rebuild the combined dataset.** Re-run `scripts/build_dataset.py` for any merged
+tags that should now include the new dataset.
 
 ### Renaming or deprecating a dataset
 
