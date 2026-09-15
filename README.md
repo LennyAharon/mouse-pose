@@ -290,20 +290,25 @@ If the source is already DLC-shaped, this may just be placing files. Otherwise i
 custom script under `scripts/preprocessing/<name>/` — see
 [`scripts/preprocessing/README.md`](scripts/preprocessing/README.md) for the checklist of
 things to ask about (new keypoints, laterality, multi-view merging, train/test split) before
-writing one. Output is a standalone, inspectable LP project — nothing here touches the
-canonical keypoint vocabulary or any other dataset.
+writing one. Output is a standalone, inspectable LP project (include a `project.yaml` so it
+opens directly in the LP labeling app) — nothing here touches the canonical keypoint
+vocabulary or any other dataset.
+
+A draft `configs/datasets/<name>.yaml` (see format above) can be written here too, unprompted
+— it's a single, self-contained file that's trivial to delete if the dataset never goes past
+stage 1. That's different from everything in stage 2 below, which threads `<name>` through
+several shared files in ways that are much less clean to undo.
 
 **Stage 2 — add to the corpus.** Only once you've confirmed this dataset should actually
 be merged in:
-1. Create `configs/datasets/<name>.yaml` (see format above)
-2. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml`
+1. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml`
    (plus update `data.num_keypoints`) if the dataset introduces any
-3. Add `<name>` to `EVAL_DATASETS` in `mouse_pose/train.py` **and** `ALL_DATASETS` in
+2. Add `<name>` to `EVAL_DATASETS` in `mouse_pose/train.py` **and** `ALL_DATASETS` in
    `scripts/build_dataset.py` — neither list is derived from `configs/datasets/`, both must be
    updated by hand or the new dataset silently won't be included in default `--tag all`-style runs
    or per-dataset evaluation
-4. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
-5. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
+3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
+4. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
 
 **Stage 3 — rebuild the combined dataset.** Re-run `scripts/build_dataset.py` for any merged
 tags that should now include the new dataset.

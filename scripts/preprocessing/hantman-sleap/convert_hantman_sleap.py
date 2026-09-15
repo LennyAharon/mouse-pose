@@ -34,6 +34,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import sleap_io as sio
+import yaml
 from PIL import Image
 
 from mouse_pose.paths import load_paths
@@ -175,6 +176,17 @@ def main() -> None:
             Image.fromarray(img).save(dst)
             n_saved += 1
     print(f"  images: {n_saved} saved, {len(all_images) - n_saved} already present")
+
+    # project.yaml lets the LP labeling app open this as a project directly. The
+    # source here (raw SLEAP) has no equivalent file, so this is written from
+    # scratch -- schema_version/view_names follow the convention other _raw/
+    # datasets' project.yaml files use.
+    project = {"keypoint_names": keypoints, "schema_version": 1, "view_names": []}
+    with open(out_dir / "project.yaml", "w") as f:
+        yaml.safe_dump(project, f, default_flow_style=False, sort_keys=False)
+    print(f"  project.yaml written ({len(keypoints)} keypoints, view_names: [])")
+
+    (out_dir / "videos").mkdir(exist_ok=True)
 
     print("\nDone.")
 

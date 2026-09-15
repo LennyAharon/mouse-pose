@@ -4,7 +4,8 @@ Builds `_raw/hantman` (side + front views combined) from raw SLEAP output at
 `_raw/_dlc/hantman/{side,front}_v*.slp`.
 
 **Status: stage 1 only.** `_raw/hantman/` has been built and is a usable standalone LP
-project, but hantman is **not** in the combined corpus — `configs/keypoints.yaml` /
+project (openable directly in the Lightning Pose labeling app via its `project.yaml`),
+but hantman is **not** in the combined corpus — `configs/keypoints.yaml` /
 `configs/model.yaml` don't have `digit2`/`digit4`, and `hantman` isn't in
 `ALL_DATASETS` / `EVAL_DATASETS`. A draft `configs/datasets/hantman.yaml` exists but
 isn't usable until the keypoints are added. Don't do stage 2 (see
@@ -48,6 +49,11 @@ Output keypoints: `digit2`, `digit4`, `pellet`, `wrist`. (`pellet` — the reach
 not a mouse body part — is dropped at the `configs/datasets/hantman.yaml` level, not
 here, since exclusion is a `convert_dataset.py`-level concern.)
 
+The source has no `project.yaml` of its own (raw SLEAP has no such concept), so one is
+written from scratch — `keypoint_names` from the merged skeleton, `view_names: []`
+since both views were merged into one project — plus an empty `videos/`, so the result
+opens correctly in the Lightning Pose labeling app.
+
 ## Design notes (decided by the user, not inferred)
 
 - **Reaching hand:** all sessions map `wrist`/`digit2`/`digit4` → `_right` in
@@ -62,7 +68,7 @@ here, since exclusion is a `convert_dataset.py`-level concern.)
 
 | Script | Env | Purpose |
 |---|---|---|
-| `convert_hantman_sleap.py` | `pose` | Full pipeline; writes `_raw/hantman/{labeled-data,CollectedData.csv,CollectedData_test.csv}` |
+| `convert_hantman_sleap.py` | `pose` | Full pipeline; writes `_raw/hantman/{labeled-data,CollectedData.csv,CollectedData_test.csv,project.yaml,videos/}` |
 
 ## Usage
 
