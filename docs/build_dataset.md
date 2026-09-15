@@ -1,5 +1,11 @@
 # Building the head-fixed combined dataset
 
+**Historical snapshot.** Every frame count in this doc (per-dataset and per-tag) is a
+frozen fact about the specific `data/head-fixed_v2` build described below — datasets get
+relabeled/expanded over time (e.g. `ibl` has grown since this build), so these numbers
+will not match current CSVs. For current counts, see README.md's "Currently converted
+datasets" table or just check the CSVs directly; don't treat anything here as live.
+
 This walks through the exact commands used to build `data/head-fixed_v2`, and — more
 importantly — *why* the dataset is shaped the way it is. The goal of the head-fixed
 experiment is to answer: **does adding more datasets to the training mix improve or
@@ -131,6 +137,8 @@ datasets are included in a given tag. (Seed is moot for the `--n_frames -1` full
 taking every frame doesn't involve a random choice.)
 
 ### Result: 14 tags, 28 CSVs
+
+Counts below are as of this specific build (see historical-snapshot note at top) — not current.
 
 | Tag | Datasets | Train frames | Purpose |
 |---|---|---|---|

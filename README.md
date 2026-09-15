@@ -170,6 +170,8 @@ _raw/<dataset>/                    data/head-fixed/
 
 Single source of truth for all keypoint names and their ordering. Every output CSV — per-dataset
 and merged — has columns in this order. Datasets that don't label a keypoint carry `visible=0` for it.
+The current count changes as datasets are added — read `configs/model.yaml`'s `data.num_keypoints`
+directly rather than citing a number here or anywhere else in docs; it goes stale immediately.
 
 ### Visibility convention
 
@@ -274,39 +276,22 @@ whether a run finished locally or on Lightning AI.
 
 ### Adding a new dataset
 
-This is three separable stages. **Stage 1 does not commit you to stages 2 or 3** —
-converting a dataset to LP format to look at it is a normal, complete stopping point on
-its own, and shouldn't be followed by corpus integration unless that's explicitly wanted — see 
-the [Preprocessing](#preprocessing) section.
+Dataset onboarding is three stages — see
+[`scripts/preprocessing/README.md`](scripts/preprocessing/README.md) for the full model,
+what to ask before starting, and stage 1 (convert to LP format) in detail. This section
+covers stages 2 and 3, which live in this repo's shared config rather than in
+`scripts/preprocessing/`.
 
-**Stage 1 — convert to LP format.** Get the raw data into the standard DLC layout:
-```
-_raw/<name>/
-  labeled-data/<session>/<frame>.png
-  CollectedData.csv        ← train split
-  CollectedData_test.csv   ← test split
-```
-If the source is already DLC-shaped, this may just be placing files. Otherwise it needs a
-custom script under `scripts/preprocessing/<name>/` — see
-[`scripts/preprocessing/README.md`](scripts/preprocessing/README.md) for the checklist of
-things to ask about (new keypoints, laterality, multi-view merging, train/test split) before
-writing one. Output is a standalone, inspectable LP project (include a `project.yaml` so it
-opens directly in the LP labeling app) — nothing here touches the canonical keypoint
-vocabulary or any other dataset.
-
-A draft `configs/datasets/<name>.yaml` (see format above) can be written here too, unprompted
-— it's a single, self-contained file that's trivial to delete if the dataset never goes past
-stage 1. That's different from everything in stage 2 below, which threads `<name>` through
-several shared files in ways that are much less clean to undo.
-
-**Stage 2 — add to the corpus.** Only once you've confirmed this dataset should actually
+**Stage 2 — add to the corpus.** Only once you've confirmed the dataset should actually
 be merged in:
-1. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml`
-   (plus update `data.num_keypoints`) if the dataset introduces any
-2. Add `<name>` to `EVAL_DATASETS` in `mouse_pose/train.py` **and** `ALL_DATASETS` in
-   `scripts/build_dataset.py` — neither list is derived from `configs/datasets/`, both must be
-   updated by hand or the new dataset silently won't be included in default `--tag all`-style runs
-   or per-dataset evaluation
+1. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml` (keep
+   `data.num_keypoints` in sync — it's a plain count, not derived from the list) if the
+   dataset introduces any
+2. Add `<name>` to `ALL_DATASETS` in `mouse_pose/datasets.py` — this single list drives
+   both `scripts/build_dataset.py`'s default `--datasets` set and the per-dataset
+   evaluation in `mouse_pose/train.py`. It isn't derived from `configs/datasets/`, so it
+   must be updated by hand or the new dataset silently won't be included in default
+   `--tag all`-style runs or per-dataset evaluation
 3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
 4. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
 
@@ -322,7 +307,7 @@ don't cross-check each other. When renaming (e.g. `ibl-face` → `ibl`) or depre
 1. `_raw/<old-name>/` → `_raw/<new-name>/` (physical rename; `convert_dataset.py` resolves the
    raw directory as `<raw_dir>/<dataset-name>`, so these must match)
 2. `configs/datasets/<old-name>.yaml` → `configs/datasets/<new-name>.yaml`
-3. `ALL_DATASETS` in `scripts/build_dataset.py` and `EVAL_DATASETS` in `mouse_pose/train.py`
+3. `ALL_DATASETS` in `mouse_pose/datasets.py`
 4. Any hardcoded raw-dir constants inside preprocessing scripts (e.g.
    `scripts/preprocessing/ibl-face/create_ibl_face_dataset.py` had `IBL_FACE_DIR` hardcoded to
    `"ibl-face"` independent of the config filename)

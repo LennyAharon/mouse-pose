@@ -3,13 +3,10 @@
 Builds `_raw/hantman` (side + front views combined) from raw SLEAP output at
 `_raw/_dlc/hantman/{side,front}_v*.slp`.
 
-**Status: stage 1 only.** `_raw/hantman/` has been built and is a usable standalone LP
-project (openable directly in the Lightning Pose labeling app via its `project.yaml`),
-but hantman is **not** in the combined corpus — `configs/keypoints.yaml` /
-`configs/model.yaml` don't have `digit2`/`digit4`, and `hantman` isn't in
-`ALL_DATASETS` / `EVAL_DATASETS`. A draft `configs/datasets/hantman.yaml` exists but
-isn't usable until the keypoints are added. Don't do stage 2 (see
-[`scripts/preprocessing/README.md`](../README.md)) until explicitly asked.
+**Status: stage 1 only** (see [`scripts/preprocessing/README.md`](../README.md) for what
+that means). A draft `configs/datasets/hantman.yaml` exists — mapping `wrist`/`digit2`/
+`digit4` → `_right`, excluding `pellet` — but isn't usable yet since `digit2`/`digit4`
+aren't in `configs/keypoints.yaml`/`model.yaml`.
 
 ## Why a custom converter
 
@@ -81,10 +78,6 @@ conda run -n pose python scripts/preprocessing/hantman-sleap/convert_hantman_sle
 
 ## Stage 2 (not yet done — for when it's asked for)
 
-```bash
-# add digit2_{left,right}, digit4_{left,right} to configs/keypoints.yaml and
-# configs/model.yaml (bump data.num_keypoints), add "hantman" to ALL_DATASETS
-# (scripts/build_dataset.py) and EVAL_DATASETS (mouse_pose/train.py), then:
-conda run -n pose python scripts/convert_dataset.py --dataset hantman
-python scripts/build_dataset.py --tag <tag> --datasets hantman ...
-```
+Add `digit2_left/right`, `digit4_left/right` to `configs/keypoints.yaml`/`model.yaml`,
+then follow the generic template in
+[`scripts/preprocessing/README.md`](../README.md#documenting-a-stage-1-only-dataset).

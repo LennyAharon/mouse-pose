@@ -18,8 +18,9 @@ Node naming is inconsistent between the two skeletons ("digit 4" in side vs.
 "digit4" in front) -- normalized to "digit4" here so both views produce the
 same source column name for configs/datasets/hantman.yaml.
 
-Split is subject-level and pooled across both views: a subject is the first
-'_'-delimited token in a session name ({subject}_{date}_{view}_{version}),
+Split is subject-level and pooled across both views, via mouse_pose.subject_split
+(shared with scripts/preprocessing/hantman-mv/convert_hantman_mv.py): a subject is
+the first '_'-delimited token in a session name ({subject}_{date}_{view}_{version}),
 uppercased so casing slips in the source filenames (e.g. "jcr130" vs "JCR130")
 don't split the same animal across train/test. All of a subject's sessions --
 side and front alike -- land in the same split.
@@ -38,6 +39,7 @@ import yaml
 from PIL import Image
 
 from mouse_pose.paths import load_paths
+from mouse_pose.subject_split import subject_of, subject_split
 
 SCORER = "hantman"
 TEST_FRACTION = 0.15
@@ -50,10 +52,6 @@ def _find_slp(source_dir: Path, view: str) -> Path:
     if len(matches) != 1:
         raise RuntimeError(f"expected exactly one {view}_v*.slp in {source_dir}, found {matches}")
     return matches[0]
-
-
-def _subject_of(session: str) -> str:
-    return session.split("_")[0].upper()
 
 
 def _load_view(source_dir: Path, view: str) -> tuple[list, dict]:
@@ -90,7 +88,7 @@ def _load_view(source_dir: Path, view: str) -> tuple[list, dict]:
                 img = img[..., 0]
             images[rel_path] = img.astype(np.uint8)
 
-        row = {"index": rel_path, "session": session, "subject": _subject_of(session)}
+        row = {"index": rel_path, "session": session, "subject": subject_of(session)}
         for node, (x, y) in zip(inst.skeleton.nodes, inst.numpy()):
             name = node.name.replace(" ", "")
             row[f"{name}_x"] = x
@@ -108,30 +106,6 @@ def _rows_to_df(rows: list[dict], keypoints: list[str]) -> pd.DataFrame:
     index = [r["index"] for r in rows]
     data = [[r.get(f"{kp}_{coord}", np.nan) for kp in keypoints for coord in ("x", "y")] for r in rows]
     return pd.DataFrame(data, columns=columns, index=index)
-
-
-def _split_subjects(rows: list[dict], seed: int) -> tuple[set, set]:
-    """Subject-level train/test split, pooled across views, targeting TEST_FRACTION of frames."""
-    counts: dict[str, int] = {}
-    for r in rows:
-        counts[r["subject"]] = counts.get(r["subject"], 0) + 1
-
-    subjects = list(counts.keys())
-    np.random.default_rng(seed).shuffle(subjects)
-
-    total = sum(counts.values())
-    target = total * TEST_FRACTION
-
-    test_subjects = set()
-    test_count = 0
-    for s in subjects:
-        if test_count >= target:
-            break
-        test_subjects.add(s)
-        test_count += counts[s]
-
-    train_subjects = set(subjects) - test_subjects
-    return train_subjects, test_subjects
 
 
 def main() -> None:
@@ -154,7 +128,10 @@ def main() -> None:
     keypoints = sorted({k[:-2] for r in all_rows for k in r if k.endswith("_x")})
     print(f"\nkeypoints found: {keypoints}")
 
-    train_subjects, test_subjects = _split_subjects(all_rows, args.seed)
+    counts: dict[str, int] = {}
+    for r in all_rows:
+        counts[r["subject"]] = counts.get(r["subject"], 0) + 1
+    train_subjects, test_subjects = subject_split(counts, args.seed, TEST_FRACTION)
     print(f"subjects: {len(train_subjects)} train, {len(test_subjects)} test "
           f"(pooled across both views)")
 

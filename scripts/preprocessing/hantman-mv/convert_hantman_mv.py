@@ -19,8 +19,8 @@ labeled (unlabeled context frames), so a wholesale directory copy would pull
 in a lot of unused images.
 
 Split is subject-level (first '_'-delimited token of the session name,
-uppercased against casing slips), same convention as scripts/preprocessing/
-hantman-sleap/convert_hantman_sleap.py.
+uppercased against casing slips), via mouse_pose.subject_split -- shared with
+scripts/preprocessing/hantman-sleap/convert_hantman_sleap.py.
 
 Usage:
     conda run -n pose python scripts/preprocessing/hantman-mv/convert_hantman_mv.py
@@ -30,48 +30,19 @@ import argparse
 import shutil
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import yaml
 
 from mouse_pose.paths import load_paths
+from mouse_pose.subject_split import subject_of, subject_split
 
-# Target ~10-15% of frames in test. The greedy split below only ever overshoots
-# (it stops as soon as the running total reaches the target), and subject sizes
-# here are uneven enough that aiming for the range's upper edge (0.15) regularly
-# overshoots past it -- aiming for the midpoint leaves room for that overshoot
-# while still landing in range.
+# Target ~10-15% of frames in test. The greedy split in subject_split() only ever
+# overshoots (it stops as soon as the running total reaches the target), and subject
+# sizes here are uneven enough that aiming for the range's upper edge (0.15) regularly
+# overshoots past it -- aiming for the midpoint leaves room for that overshoot while
+# still landing in range.
 TEST_FRACTION = 0.125
 VIEW_CSVS = ["CollectedData_side.csv", "CollectedData_front.csv"]
-
-
-def _subject_of(session: str) -> str:
-    return session.split("_")[0].upper()
-
-
-def _split_subjects(df: pd.DataFrame, seed: int) -> tuple[set, set]:
-    """Subject-level train/test split targeting TEST_FRACTION of frames."""
-    subject_of_row = pd.Series(
-        [_subject_of(Path(p).parts[-2]) for p in df.index], index=df.index
-    )
-    counts = subject_of_row.value_counts().to_dict()
-
-    subjects = list(counts.keys())
-    np.random.default_rng(seed).shuffle(subjects)
-
-    total = len(df)
-    target = total * TEST_FRACTION
-
-    test_subjects = set()
-    test_count = 0
-    for s in subjects:
-        if test_count >= target:
-            break
-        test_subjects.add(s)
-        test_count += counts[s]
-
-    train_subjects = set(subjects) - test_subjects
-    return train_subjects, test_subjects
 
 
 def copy_images(index: pd.Index, source_dir: Path, out_dir: Path) -> int:
@@ -107,12 +78,13 @@ def main() -> None:
     combined = pd.concat(dfs)
     print(f"\ncombined: {len(combined)} frames, {len(combined.columns) // 2} keypoints")
 
-    train_subjects, test_subjects = _split_subjects(combined, args.seed)
+    subject_of_row = pd.Series(
+        [subject_of(Path(p).parts[-2]) for p in combined.index], index=combined.index
+    )
+    counts = subject_of_row.value_counts().to_dict()
+    train_subjects, test_subjects = subject_split(counts, args.seed, TEST_FRACTION)
     print(f"subjects: {len(train_subjects)} train, {len(test_subjects)} test")
 
-    subject_of_row = pd.Series(
-        [_subject_of(Path(p).parts[-2]) for p in combined.index], index=combined.index
-    )
     for split_name, split_subjects in (("train", train_subjects), ("test", test_subjects)):
         split_df = combined.loc[subject_of_row.isin(split_subjects)]
         csv_name = "CollectedData.csv" if split_name == "train" else "CollectedData_test.csv"

@@ -28,12 +28,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from mouse_pose.datasets import ALL_DATASETS
 from mouse_pose.paths import load_paths
 
 _paths   = load_paths()
 DATA_DIR = Path(_paths["data_dir"])
-
-ALL_DATASETS = ["facemap", "ibl", "cheese-2d", "cazettes-side", "kondo"]
 
 
 def read_csv(path: Path) -> pd.DataFrame:

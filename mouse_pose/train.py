@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from mouse_pose.datasets import ALL_DATASETS
 from mouse_pose.paths import load_paths, repo_root
 
 _paths      = load_paths()
@@ -31,7 +32,7 @@ CONFIG_FILE = repo_root() / "configs" / "model.yaml"
 
 # Every model is evaluated against each dataset's test CSV. Pixel error is NaN
 # for keypoints absent from a given dataset; the plotting script handles filtering.
-EVAL_DATASETS = ["facemap", "ibl", "cheese-2d", "cazettes-side", "kondo"]
+EVAL_DATASETS = ALL_DATASETS
 
 
 # ── naming / output dirs ─────────────────────────────────────────────────────

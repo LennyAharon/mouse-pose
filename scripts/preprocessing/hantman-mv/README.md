@@ -3,13 +3,11 @@
 Builds `_raw/hantman-mv` (single-view) from the multi-view DLC project at
 `_raw/_dlc/hantman-mv`.
 
-**Status: stage 1 only.** `_raw/hantman-mv/` is a usable standalone LP project, but
-this dataset is **not** in the combined corpus — no `configs/datasets/hantman-mv.yaml`,
-no canonical-vocab mapping, not in `ALL_DATASETS`/`EVAL_DATASETS`. Don't do stage 2 (see
-[`scripts/preprocessing/README.md`](../README.md)) until explicitly asked. Unlike
-`hantman` (the older, 4-keypoint reaching dataset — see `../hantman-sleap/`),
-`hantman-mv` has a fuller 17-keypoint finger/paw/pellet skeleton and is a separate
-dataset entirely; nothing here merges the two.
+**Status: stage 1 only** (see [`scripts/preprocessing/README.md`](../README.md) for what
+that means) — no `configs/datasets/hantman-mv.yaml` yet either. Unlike `hantman` (the
+older, 4-keypoint reaching dataset — see `../hantman-sleap/`), `hantman-mv` has a fuller
+17-keypoint finger/paw/pellet skeleton and is a separate dataset entirely; nothing here
+merges the two.
 
 ## Why a custom converter
 
@@ -67,10 +65,7 @@ conda run -n pose python scripts/preprocessing/hantman-mv/convert_hantman_mv.py 
 
 ## Stage 2 (not yet done — for when it's asked for)
 
-```bash
-# write configs/datasets/hantman-mv.yaml, add any new canonical keypoints to
-# configs/keypoints.yaml / configs/model.yaml, add "hantman-mv" to ALL_DATASETS
-# (scripts/build_dataset.py) and EVAL_DATASETS (mouse_pose/train.py), then:
-conda run -n pose python scripts/convert_dataset.py --dataset hantman-mv
-python scripts/build_dataset.py --tag <tag> --datasets hantman-mv ...
-```
+Write `configs/datasets/hantman-mv.yaml` (the 17-keypoint mapping is undecided — see
+`scripts/preprocessing/README.md`'s new-keypoints question), then follow the generic
+template in
+[`scripts/preprocessing/README.md`](../README.md#documenting-a-stage-1-only-dataset).

@@ -1,5 +1,9 @@
 # Replicating the head-fixed training sweep
 
+**Historical snapshot** (see [`build_dataset.md`](build_dataset.md) for the same note) —
+any frame count mentioned below is a frozen fact about `data/head-fixed_v2` specifically,
+not a current number.
+
 `results/head-fixed_v1` is the completed sweep from before this dataset rebuild — trained on
 `data/head-fixed_v1`, which used the now-deprecated `ibl-paw` (wrist-only) dataset. This doc gives
 the exact commands to reproduce the *same sweep design* (same tags, `train_frames`, seeds, backbone)
