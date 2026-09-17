@@ -12,6 +12,10 @@ keypoints:
   tipTongue: tongue_tip
   middleTongue: tongue_center
   pupilCenter: pupil_center_{side}
+  ear_top: ear_top_{side}
+  ear_tip: ear_tip_{side}
+  ear_bottom: ear_bottom_{side}
+  ear_base: ear_base_{side}
 
 sessions:
   EA114_HeadFixFlippingSTIM_Box07_220704a_Body0cropped: left
