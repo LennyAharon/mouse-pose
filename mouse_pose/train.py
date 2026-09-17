@@ -15,6 +15,7 @@ so evaluation has to be its own chainable command:
 """
 
 import argparse
+import json
 import shutil
 from itertools import product
 from pathlib import Path
@@ -134,7 +135,7 @@ def build_combos(
 
 def make_train_command(
     csv_file, backbone, train_frames, seed, losses, output_dir, debug=False,
-    temperature=None, head_mode=None,
+    temperature=None, head_mode=None, config_file=None,
 ) -> list[str]:
     """Build the `litpose train ...` argv for one sweep combo."""
     lr = 5e-5 if "vit" in backbone else 1e-3
@@ -182,7 +183,7 @@ def make_train_command(
         ]
 
     return (
-        ["litpose", "train", str(CONFIG_FILE),
+        ["litpose", "train", str(config_file or CONFIG_FILE),
          "--output_dir", str(output_dir),
          "--overrides"] + overrides
     )
@@ -323,7 +324,8 @@ def evaluate_model(output_dir: Path, csv_file: str, keep_checkpoints: bool = Fal
     heads over the test sets again) and all-data or leave-one-out models kept
     for zero-/few-shot adaptation."""
     from lightning_pose.api import Model
-    from lightning_pose.metrics import pixel_error
+    from PIL import Image
+    from mouse_pose.comparison import comparison_summary, visible_errors
 
     output_dir = Path(output_dir)
 
@@ -349,31 +351,22 @@ def evaluate_model(output_dir: Path, csv_file: str, keep_checkpoints: bool = Fal
         if labels_df.index[0] == labels_df.index.name:
             labels_df = labels_df.iloc[1:]
 
-        shared_idx = preds_df.index.intersection(labels_df.index)
-        if len(shared_idx) == 0:
-            print("  WARNING: no shared frames between predictions and labels — skipping")
-            continue
-        preds_df  = preds_df.loc[shared_idx]
-        labels_df = labels_df.loc[shared_idx]
-        n = len(shared_idx)
-
-        kps = labels_df.columns.get_level_values(1).unique().tolist()
-        xy  = ["x", "y"]
-        preds_cols  = preds_df.columns.get_level_values(2).isin(xy)
-        labels_cols = labels_df.columns.get_level_values(2).isin(xy)
-        preds_arr  = preds_df.loc[:, preds_cols].to_numpy().reshape(n, len(kps), 2)
-        labels_arr = labels_df.loc[:, labels_cols].to_numpy().reshape(n, len(kps), 2)
-
-        error    = pixel_error(labels_arr, preds_arr)
-        error_df = pd.DataFrame(error, index=shared_idx, columns=kps)
+        error_df = visible_errors(labels_df, preds_df)
+        preds_df = preds_df.loc[labels_df.index]
+        diagonals = []
+        for name in labels_df.index:
+            with Image.open(DATA_DIR / name) as image:
+                diagonals.append(float(np.linalg.norm(image.size)))
+        summary = comparison_summary(error_df, np.asarray(diagonals))
 
         save_dir = output_dir / "eval" / eval_name
         save_dir.mkdir(parents=True, exist_ok=True)
         preds_df.to_csv(save_dir / "predictions.csv")
         error_df.to_csv(save_dir / "pixel_error.csv")
 
-        mean_err = float(np.nanmean(error))
-        print(f"    Mean pixel error: {mean_err:.2f} px  →  {save_dir}")
+        (save_dir / "comparison_metrics.json").write_text(json.dumps(summary, indent=2) + "\n")
+        mean_err = summary["no_lips"]["mean_px"]
+        print(f"    Mean pixel error (excluding lips): {mean_err:.2f} px  →  {save_dir}")
 
     for fname in ("predictions.csv", "predictions_pixel_error.csv"):
         p = output_dir / fname

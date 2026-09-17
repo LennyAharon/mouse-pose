@@ -1,5 +1,8 @@
 # Head-Fixed Combined Pose Estimation Dataset
 
+Current consolidated zero-shot research recipes, comparison metrics, and recovery instructions:
+[zero-shot baseline](docs/zero_shot_baseline.md).
+
 Pipeline for merging multiple labeled datasets into a single standardized training set for Lightning Pose.
 
 ## Installation

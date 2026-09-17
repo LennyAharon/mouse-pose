@@ -38,8 +38,11 @@ Usage examples:
 import argparse
 import subprocess
 import sys
+from pathlib import Path
+
 
 from mouse_pose.train import (
+    RESULTS_DIR,
     build_combos,
     csv_stem,
     evaluate_model,
@@ -81,7 +84,12 @@ def main():
     parser.add_argument("--skip_existing", action="store_true",          help="Skip combos whose output dir already exists")
     parser.add_argument("--eval_only",     action="store_true",          help="Skip training; only run evaluation on existing model dirs")
     parser.add_argument("--keep_checkpoints", action="store_true",        help="Retain *.ckpt after eval (needed for blind/oracle re-scoring and zero-shot)")
+    parser.add_argument("--config_file", type=Path, help="Explicit training recipe YAML")
+    parser.add_argument("--output_root", type=Path, help="Separate root for new experiment results")
+    parser.add_argument("--stop_on_failure", action="store_true", help="Stop a sequential sweep on its first failure")
     args = parser.parse_args()
+    if args.config_file is not None and not args.config_file.is_file():
+        parser.error("--config_file must exist")
 
     csv_files    = parse_semicolon_list(args.csv_files)
     train_frames = parse_semicolon_list(args.train_frames)
@@ -97,17 +105,19 @@ def main():
     failures: list[str] = []
     print(f"Total jobs: {len(combos)}")
 
+    def output_for(combo):
+        output = make_output_dir(combo[0], combo[1], combo[2], combo[3], losses, combo[4], combo[5])
+        return args.output_root / output.relative_to(RESULTS_DIR) if args.output_root else output
+
     if args.skip_existing and not args.eval_only:
         combos = [
             c for c in combos
-            if not make_output_dir(c[0], c[1], c[2], c[3], losses, c[4], c[5]).exists()
+            if not output_for(c).exists()
         ]
         print(f"After skipping existing: {len(combos)} remaining")
 
     for csv_file, backbone, train_frames_n, seed, temperature, head_mode in combos:
-        output_dir = make_output_dir(
-            csv_file, backbone, train_frames_n, seed, losses, temperature, head_mode,
-        )
+        output_dir = output_for((csv_file, backbone, train_frames_n, seed, temperature, head_mode))
         label = f"{csv_stem(csv_file)} | tf={train_frames_n} | {backbone} | seed={seed}"
         if temperature:
             label += f" | T={temperature}"
@@ -118,7 +128,7 @@ def main():
         if not args.eval_only:
             cmd = make_train_command(
                 csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug,
-                temperature, head_mode,
+                temperature, head_mode, config_file=args.config_file,
             )
             print("   " + " ".join(cmd))
 
@@ -129,6 +139,8 @@ def main():
                 except subprocess.CalledProcessError as e:
                     print(f"  ERROR: training failed (exit {e.returncode}), skipping eval...")
                     failures.append(f"{label} (training exit {e.returncode})")
+                    if args.stop_on_failure:
+                        break
                     continue
 
         if not args.dry_run:
@@ -141,6 +153,8 @@ def main():
             except Exception as e:
                 print(f"  ERROR: evaluation failed: {e}")
                 failures.append(f"{label} (evaluation: {e})")
+                if args.stop_on_failure:
+                    break
 
     if args.dry_run:
         print(f"\n(dry run — {len(combos)} commands printed, nothing executed)")
