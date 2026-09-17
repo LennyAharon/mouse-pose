@@ -51,45 +51,40 @@ rows across both views).
 - Source `labeled-data/` also contains stray `*.jpgZone.Identifier` files (Windows
   download artifacts) — ignored, not copied.
 
-## Manual keypoint additions (2026-09-15)
+## Changelog
 
-`eye_back`, `eye_top`, `eye_front`, `eye_bottom`, `nose_tip`, `nose_bottom` were added
-directly to `_raw/hantman-mv/project.yaml` and both `CollectedData*.csv` files as empty
-(`NaN`) columns on every existing row — a schema extension to label via the LP app, not
-new label data (no source provided any values for them).
+### 2026-09-17 (MW)
+- Added `ear_top`, `ear_tip`, `ear_bottom`, and `ear_base` as new keypoints (all rows
+  empty — ears are never visible in this view) to `project.yaml` + both
+  `CollectedData*.csv` files, and mapped `ear_*: ear_*_{side}` in
+  [`configs/datasets/hantman-mv.yaml`](../../../configs/datasets/hantman-mv.yaml). All
+  four canonical names already existed in `configs/keypoints.yaml`/`model.yaml`.
+- Added an exemption (`_HANTMAN_MV_LEFT_SUPPRESS_EXEMPT`) to `_post_process_hantman_mv`
+  in `scripts/convert_dataset.py` so `ear_*_left` stays at the default `visible=1`
+  (matching `ear_*_right`) instead of being swept into the blanket `_left → visible=0`
+  rule described under "Stage 2" below. Without it the ear keypoints would've ended up
+  asymmetric (right actively suppressed, left excluded from loss entirely), unlike the
+  symmetric treatment in `cazettes-side`/`facemap`. The pre-existing `eye_*_left`/
+  digit/wrist `_left` columns are unaffected and still forced to `visible=0`.
 
-**This is a manual edit to the stage-1 output, not something `convert_hantman_mv.py`
-reproduces.** The raw source (`_raw/_dlc/hantman-mv`) still only has the original
-17 finger/paw/pellet keypoints, and the script builds its output purely from that
-source's CSV columns. Re-running the script from scratch would regenerate only those
-17 and silently drop this extension — if that ever happens, redo this addition
-afterward (or fold it into the script first, if these face keypoints should always be
-part of the schema going forward).
+### 2026-09-15 (MW)
+- Added `eye_back`, `eye_top`, `eye_front`, `eye_bottom`, `nose_tip`, and `nose_bottom`
+  as new keypoints (all rows empty) to `project.yaml` + both `CollectedData*.csv`
+  files — a schema extension to label via the LP app later, not new label data (no
+  source ever provided values for them).
+- Computed a new `wrist_new` column from three existing keypoints:
+  `mid = nanmean(d2_base, d3_base)` (x/y independently), then
+  `wrist_new = (mid + hand_middle) / 2` — `NaN` whenever either input is `NaN`.
+  183/192 train rows and 24/30 test rows got a real value under this formula; some
+  values were **manually corrected afterward**, so the CSVs no longer match the formula
+  exactly row-for-row — treat it as how the column originated, not a reproducible
+  derivation of its current values. Maps to `wrist_{side}` (reuses existing canonical
+  `wrist_left`/`wrist_right` — no new vocab needed).
 
-## Computed keypoint: wrist_new (2026-09-15)
-
-`wrist_new` was added directly to `_raw/hantman-mv/project.yaml` and both
-`CollectedData*.csv` files as a new column, computed per-row (not sourced from the raw
-DLC export, which has no such point) from three existing keypoints:
-
-1. `mid = nanmean(d2_base, d3_base)`, x and y independently — the mean of whichever of
-   the two is present; `NaN` only if both are `NaN`.
-2. `wrist_new = (mid + hand_middle) / 2` — a plain average, so `wrist_new` is `NaN`
-   whenever either `mid` (i.e. both `d2_base` and `d3_base`) or `hand_middle` is `NaN`.
-
-192/192 train rows and 30/30 test rows were checked against this formula directly;
-183 train rows and 24 test rows got a real value, the rest `NaN` per the rule above.
-
-**Manually corrected afterward.** Some `wrist_new` values were hand-adjusted after this
-computation (presumably where the formula placed the point somewhere visibly wrong), so
-the current CSVs are not guaranteed to match the formula above exactly row-for-row — treat
-the formula as how the column originated, not as a reproducible derivation of its current
-values.
-
-**Also not reproduced by `convert_hantman_mv.py`**, for the same reason as the manual
-keypoint additions above — a re-run from the raw source would drop it. Maps to
-`wrist_{side}` in `configs/datasets/hantman-mv.yaml` (stage 2), reusing the existing
-canonical `wrist_left`/`wrist_right` — no new canonical keypoint needed for this one.
+**Neither addition above is reproduced by `convert_hantman_mv.py`.** Both are manual
+edits to the stage-1 output; the raw source (`_raw/_dlc/hantman-mv`) still only has the
+original 17 finger/paw/pellet keypoints, and a from-scratch re-run would regenerate only
+those and silently drop these additions.
 
 ## Scripts
 
@@ -112,7 +107,7 @@ conda run -n pose python scripts/preprocessing/hantman-mv/convert_hantman_mv.py 
 newly added to `configs/keypoints.yaml`/`configs/model.yaml`), `eye_back`/`eye_top`/
 `eye_front`/`eye_bottom` (lateralized, already canonical), `nose_tip`/`nose_bottom`
 (midline, already canonical), and the computed `wrist_new` (lateralized to
-`wrist_{side}`, already canonical — see "Computed keypoint" above). All 54 sessions are
+`wrist_{side}`, already canonical — see the 2026-09-15 Changelog entry above). All 54 sessions are
 declared `right` (single hand, per the raw source). Everything else — the digit
 `_middle`/`_base` joints, `hand_middle`/`hand_lateral`/`hand_medial`, source `wrist`,
 `pellet` — is excluded.
@@ -122,9 +117,11 @@ counterpart of a lateralized keypoint `visible=1` ("in dataset, unlabeled") rath
 `visible=0` ("not part of this dataset") — training on that would teach the model to
 predict a suppressed heatmap for a side that was simply never assessed. A
 `POST_PROCESS["hantman-mv"]` entry in `scripts/convert_dataset.py` forces every `_left`
-column to `visible=0` after the standard split processing. Same pattern as `cheese-2d`'s
-post-process function, simpler here since there's only one side/one scoring rule instead
-of per-session left/right/null.
+column to `visible=0` after the standard split processing, **except** the four
+`ear_*_left` columns (see the 2026-09-17 Changelog entry above), which are
+deliberately left at `visible=1` instead. Same pattern as `cheese-2d`'s post-process
+function, simpler here since there's only one side/one scoring rule instead of
+per-session left/right/null.
 
 To actually run stage 2:
 ```bash
