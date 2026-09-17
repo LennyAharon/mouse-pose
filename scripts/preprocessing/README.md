@@ -61,6 +61,15 @@ than picking a default and mentioning it after the fact.
    both invisible without lab context. Don't guess from an image; ask. Also goes into
    the draft `configs/datasets/<name>.yaml`.
 
+   If a dataset only ever assesses one side (e.g. every session lateralized to
+   `right`), `convert_dataset.py`'s default per-split processing still marks the
+   unassessed `_left` counterpart `visible=1` ("in dataset, unlabeled") rather than
+   `visible=0` ("not part of this dataset") — training on that teaches the model to
+   predict a suppressed heatmap for a side that was never captured at all. Add a
+   `POST_PROCESS["<name>"]` function in `scripts/convert_dataset.py` to force those
+   columns to `visible=0`; see `cheese-2d` (per-session left/right/null) and
+   `hantman-mv` (every session the same side, so simpler) for two versions of this.
+
 3. **Multi-view sources.** If the raw data has more than one camera view (or more
    generally, more than one natural sub-grouping), should each view become its own
    dataset entry (like `petersen-side` / `petersen-top`), or should they be merged
