@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from mouse_pose.datasets import ALL_DATASETS
 from mouse_pose.paths import load_paths, repo_root
 from mouse_pose.registry import load_registry
 

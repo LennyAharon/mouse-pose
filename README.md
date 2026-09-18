@@ -143,26 +143,13 @@ kind of storage.
 
 ## Preprocessing
 
-Some datasets require pseudo-label generation before the standard convert step.
+Some datasets need custom work before the standard convert step (pseudo-label
+generation, pulling frames from a non-DLC source format, etc.). Each one has its own
+README under `scripts/preprocessing/`.
 
-### ibl
-
-Runs the [iblvideo](https://github.com/int-brain-lab/iblvideo) Lightning Pose pipeline
-(eye, nose, tongue networks) on per-session videos built from `_raw/ibl-paw` labeled frames,
-then merges predictions with paw labels. All pseudo-labels were subsequently reviewed and
-corrected by hand in the Lightning Pose app (July 2026), so `_raw/ibl` now holds full human
-annotations rather than raw pseudo-labels. `_raw/ibl-paw` (wrist-only) is deprecated —
-`ibl` is a strict superset and should be used instead.
-
-```bash
-# Run pipeline (iblvideo2 env)
-conda run -n iblvideo2 python scripts/preprocessing/ibl-face/create_ibl_face_dataset.py
-
-# Render check images
-conda run -n iblvideo2 python scripts/preprocessing/ibl-face/plot_ibl_face_check.py
-```
-
-See `scripts/preprocessing/ibl-face/README.md` for full details.
+**Before starting a new one, see [`scripts/preprocessing/README.md`](scripts/preprocessing/README.md)**
+— it has the checklist of decisions (new keypoints, laterality, multi-view merging,
+train/test split) that need a human call rather than an inferred default.
 
 ---
 
@@ -205,8 +192,10 @@ _raw/<dataset>/                    data/head-fixed/
 
 ### Canonical keypoint vocabulary (`configs/keypoints.yaml`)
 
-Single source of truth for all 36 keypoint names and their ordering. Every output CSV — per-dataset
+Single source of truth for all keypoint names and their ordering. Every output CSV — per-dataset
 and merged — has columns in this order. Datasets that don't label a keypoint carry `visible=0` for it.
+The current count changes as datasets are added — read `configs/model.yaml`'s `data.num_keypoints`
+directly rather than citing a number here or anywhere else in docs; it goes stale immediately.
 
 ### Visibility convention
 
@@ -217,8 +206,8 @@ and merged — has columns in this order. Datasets that don't label a keypoint c
 | `0`   | Keypoint is not part of this dataset |
 
 Lightning Pose's loss function is visibility-aware: `vis=0` frames are excluded from loss for that
-keypoint. This means single-dataset and merged models all share the same LP config
-(`configs/model.yaml`, 36 keypoints).
+keypoint. This means single-dataset and merged models all share the same LP config 
+(`configs/model.yaml`).
 
 ### `configs/datasets/<name>.yaml` format
 
@@ -264,9 +253,8 @@ DataFrame.
 ```
 mouse-pose/
   configs/
-    keypoints.yaml              canonical keypoint vocabulary (36 kps)
-    model.yaml                  LP model config (36 keypoints); data_dir/csv_file
-                                 overridden per-run by train_sweep*.py
+    keypoints.yaml              canonical keypoint vocabulary
+    model.yaml                  LP model config; data_dir/csv_file overridden per-run by train_sweep*.py
     datasets/
       <dataset>.yaml            per-dataset conversion config
 
@@ -313,28 +301,31 @@ whether a run finished locally or on Lightning AI.
 
 ### Adding a new dataset
 
-1. Place raw data under `_raw/<name>/` with the standard DLC layout
-2. Create `configs/datasets/<name>.yaml` (see format above)
-3. Add `<name>` to `EVAL_DATASETS` in `mouse_pose/train.py` **and** `ALL_DATASETS` in
-   `scripts/build_dataset.py` — neither list is derived from `configs/datasets/`, both must be
-   updated by hand or the new dataset silently won't be included in default `--tag all`-style runs
-   or per-dataset evaluation
-4. Add new keypoints to `configs/keypoints.yaml` **and** `configs/model.yaml` — same names in
-   the same order, plus `data.num_keypoints`. Neither file is derived from the other, so
-   `convert_dataset.py` cross-checks them and refuses to write anything if they disagree
-   (a length mismatch breaks training; a same-length reordering silently mislabels every
-   prediction, since CSV column order comes from `keypoints.yaml` but the names come from
-   `model.yaml`)
-5. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
-6. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
-7. **Rebuild every merged tag with `scripts/build_dataset.py` — not just the ones that should
-   contain the new dataset.** A new dataset invalidates the whole tag set: the `n=all` tag is now
-   missing a dataset, and every existing `n−1` leave-one-out tag now omits *two* datasets rather
-   than one, so none of them mean what their name says anymore. Rerun every command in
-   [`docs/build_dataset.md`](docs/build_dataset.md#commands) with the new dataset added, plus one
-   new leave-one-out command that omits it. The new dataset's `n=1` tag comes free from step 5.
-   Results trained against the old tags stay valid for the old dataset set — freeze them as a
-   version (see [Dataset versioning](#dataset-versioning)) rather than mixing them with new ones
+Dataset onboarding is three stages — see
+[`scripts/preprocessing/README.md`](scripts/preprocessing/README.md) for the full model,
+what to ask before starting, and stage 1 (convert to LP format) in detail. This section
+covers stages 2 and 3, which live in this repo's shared config rather than in
+`scripts/preprocessing/`.
+
+**Stage 2 — add to the corpus.** Only once you've confirmed the dataset should actually
+be merged in:
+1. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml` (keep
+   `data.num_keypoints` in sync — it's a plain count, not derived from the list) if the
+   dataset introduces any
+2. Append `<name>` to `configs/dataset_registry.yaml` — the list position is the dataset id
+   (samplers, per-dataset heads and checkpoints identify datasets by index), so append at the
+   end and never reorder. It drives `scripts/build_dataset.py`'s default `--datasets` set, the
+   per-dataset evaluation in `mouse_pose/train.py` and `mouse_pose.datasets.ALL_DATASETS`
+   (derived from it). It isn't derived from `configs/datasets/`, so it must be updated by
+   hand or the new dataset silently won't be included
+3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
+4. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
+
+**Stage 3 — rebuild the combined dataset, as a new data version.** A new dataset (or new
+keypoints) invalidates the whole tag set: the `n=all` tag now misses a dataset and every `n−1`
+leave-one-out tag omits two. Register the change, point `paths.yaml` at the next
+`data/head-fixed-v<N>` and rebuild every merged tag there (`docs/data_versioning.md`,
+`skills/dataset-update`); results trained on the old tags stay valid for the old version.
 
 ### Renaming or deprecating a dataset
 
@@ -345,7 +336,7 @@ don't cross-check each other. When renaming (e.g. `ibl-face` → `ibl`) or depre
 1. `_raw/<old-name>/` → `_raw/<new-name>/` (physical rename; `convert_dataset.py` resolves the
    raw directory as `<raw_dir>/<dataset-name>`, so these must match)
 2. `configs/datasets/<old-name>.yaml` → `configs/datasets/<new-name>.yaml`
-3. `ALL_DATASETS` in `scripts/build_dataset.py` and `EVAL_DATASETS` in `mouse_pose/train.py`
+3. `ALL_DATASETS` in `mouse_pose/datasets.py`
 4. Any hardcoded raw-dir constants inside preprocessing scripts (e.g.
    `scripts/preprocessing/ibl-face/create_ibl_face_dataset.py` had `IBL_FACE_DIR` hardcoded to
    `"ibl-face"` independent of the config filename)

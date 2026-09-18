@@ -9,7 +9,7 @@ data:
   # behavior). The sweep fills this from configs/dataset_registry.yaml when a run needs
   # per-example dataset ids (temperature sampling, per-dataset heads).
   dataset_names: null
-  num_keypoints: 36
+  num_keypoints: 44
   keypoint_names:
   # ── eye ───────────────────────────────────────────────────────────────────
   - eye_back_left
@@ -53,6 +53,14 @@ data:
   # ── paw ───────────────────────────────────────────────────────────────────
   - wrist_left
   - wrist_right
+  - d1_tip_left
+  - d1_tip_right
+  - d2_tip_left
+  - d2_tip_right
+  - d3_tip_left
+  - d3_tip_right
+  - d4_tip_left
+  - d4_tip_right
   columns_for_singleview_pca: null
 
 training:

@@ -89,8 +89,32 @@ def _post_process_cheese2d(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     return df
 
 
+# hantman-mv: every session is lateralized to "right" (configs/datasets/hantman-mv.yaml)
+# -- the left side was never filmed/assessed at all, not merely unlabeled-in-frame.
+# process_split()'s default (vis=1, "in dataset but unlabeled") would train the model to
+# output a suppressed heatmap for a side that was simply never captured. Force vis=0
+# ("not part of this dataset") for every _left column instead.
+#
+# Exception: the ear_* keypoints are deliberately mapped with all-empty source columns
+# (see scripts/preprocessing/hantman-mv/README.md) specifically to get the default vis=1
+# suppression signal on *both* sides, matching cazettes-side/facemap -- so they're excluded
+# from this override rather than forced to vis=0.
+_HANTMAN_MV_LEFT_SUPPRESS_EXEMPT = frozenset([
+    "ear_top_left", "ear_tip_left", "ear_bottom_left", "ear_base_left",
+])
+
+
+def _post_process_hantman_mv(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    for kp in df.columns.get_level_values(1).unique():
+        if kp.endswith("_left") and kp not in _HANTMAN_MV_LEFT_SUPPRESS_EXEMPT:
+            vis_col = (SCORER, kp, "visible")
+            df[vis_col] = np.where(df[vis_col].to_numpy() == 1.0, 0.0, df[vis_col].to_numpy())
+    return df
+
+
 POST_PROCESS: dict[str, object] = {
     "cheese-2d": _post_process_cheese2d,
+    "hantman-mv": _post_process_hantman_mv,
 }
 
 

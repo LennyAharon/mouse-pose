@@ -1,13 +1,13 @@
 exclude:
   keypoints:
     - earroot
+    - earlateral
+    - eartip
     - lickport
     - noseright
   sessions:
 
 keypoints:
-  earlateral: ear_bottom_{side}
-  eartip: ear_tip_{side}
   eyelateral: eye_back_{side}
   eyemedial: eye_front_{side}
   lowerjaw: lowerlip
