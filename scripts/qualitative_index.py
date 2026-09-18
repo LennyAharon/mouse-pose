@@ -2,7 +2,7 @@
 """
 Build <results_dir>/qualitative/INDEX.md from the README.md front matter of every evaluation folder.
 
-Each qualitative delivery is a folder `<results_dir>/qualitative/<YYYY-MM-DD>-<topic>/` whose
+Each qualitative delivery is a folder `<results_dir>/qualitative/<topic>-<MM-DD>/` whose
 README.md starts with a YAML block:
 
     ---

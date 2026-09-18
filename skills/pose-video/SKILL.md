@@ -76,7 +76,7 @@ the same pattern (paths module + conventions doc) applies to any other project.
 
 ## Output hygiene
 
-- Write to a NEW folder `<results_dir>/qualitative/<YYYY-MM-DD>-<topic>/` with a README.md whose
+- Write to a NEW folder `<results_dir>/qualitative/<topic>-<MM-DD>/` with a README.md whose
   front matter (title, date, data_version, question, models, outputs, finding) feeds
   `scripts/qualitative_index.py`; never overwrite an existing video set (`eval-suite` skill).
 - cv2's `mp4v` doesn't play in VS Code/browsers — always re-encode:

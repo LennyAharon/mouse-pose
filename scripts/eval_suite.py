@@ -63,7 +63,7 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results_dir", type=Path, default=Path(load_paths()["results_dir"]))
     ap.add_argument("--run", action="append", default=[], metavar="NAME=PATH")
-    ap.add_argument("--out", type=Path, help="output folder (default: <results_dir>/qualitative/<date>-eval-suite)")
+    ap.add_argument("--out", type=Path, help="output folder (default: <results_dir>/qualitative/eval-suite-<MM-DD>)")
     args = ap.parse_args()
 
     runs = discover(args.results_dir)
@@ -72,7 +72,7 @@ def main() -> None:
     if not runs:
         raise SystemExit(f"no evaluated runs under {args.results_dir}/trunks or /dedicated")
     datasets = load_registry()
-    out = args.out or args.results_dir / "qualitative" / f"{date.today()}-eval-suite"
+    out = args.out or args.results_dir / "qualitative" / f"eval-suite-{date.today():%m-%d}"
     out.mkdir(parents=True, exist_ok=True)
 
     rows, kp_rows = [], []

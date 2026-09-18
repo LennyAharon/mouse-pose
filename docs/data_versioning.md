@@ -98,11 +98,11 @@ raw frames instead of copying (v1 holds copies, 2.3 GB; every later version is l
 ## Skills (repo-level, agent-agnostic)
 
 Skills live in `mouse-pose/skills/<name>/SKILL.md` and are symlinked into the studio's
-`.claude/skills/` and `.cursor/skills/`, so Claude Code, Cursor and any other agent read the same
-file. `dataset-update` runs when a dataset changes; `train-plan` reports which recipe-of-record models
+`.claude/skills/`, `.cursor/skills/` and `.agents/skills/` (Codex), so Claude Code, Cursor, Codex and
+any other agent read the same file. `dataset-update` runs when a dataset changes; `train-plan` reports which recipe-of-record models
 exist or are missing (and runs only what the user names); `eval-suite` is the post-training
 evaluation battery and the folder convention for every qualitative deliverable
-(`<results_dir>/qualitative/<date>-<topic>/README.md` with front matter, indexed into
+(`<results_dir>/qualitative/<topic>-<MM-DD>/README.md` with front matter, indexed into
 `qualitative/INDEX.md` by `scripts/qualitative_index.py`); `pose-video` renders overlays.
 
 ## v1 (done 2026-09-18)

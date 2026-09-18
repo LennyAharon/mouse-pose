@@ -6,7 +6,7 @@ description: Standard evaluation of trained models for a corpus version, and the
 # Evaluation suite and qualitative deliverables
 
 Every evaluation, standard or ad hoc, lives in its own folder
-`<results_dir>/qualitative/<YYYY-MM-DD>-<topic>/` with a `README.md` whose YAML front matter has
+`<results_dir>/qualitative/<topic>-<MM-DD>/` with a `README.md` whose YAML front matter has
 `title, date, data_version, question, models, outputs, finding` (see `scripts/qualitative_index.py`
 docstring) and the script that produced the outputs. `python scripts/qualitative_index.py` rebuilds
 `qualitative/INDEX.md` from those READMEs — run it after every delivery. Nothing is written into a
