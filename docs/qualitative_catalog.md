@@ -690,7 +690,7 @@ Findings: eye contours and nose points are smooth (0.1-0.4 px/frame, no jumps) a
 Jumps concentrate in few keypoints and are periodic with licking on ibl (upperlip_left ~6 Hz,
 pad_center). Confidence >= 0.7 does NOT imply accuracy: on ibl right, ear_top_left and
 upperlip_left sit on the paw (within 5-11 px of the predicted wrist), smooth and wrong; on facemap
-cam0 (a camera excluded from facemap's training set), ear and upperlip/pad_side points land on the
+cam0 (600 cam0 training frames exist, labeled as the right eye), ear and upperlip/pad_side points land on the
 eye contour. cheese-2d mouth in view R oscillates ~5 Hz, consistent with chewing (chew_record).
 
 ### Learned vs transferred glitchiness (same folder, 2026-09-14)

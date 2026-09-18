@@ -168,7 +168,7 @@ two things to go stale. Run `convert_dataset.py` and it prints `N frames exclude
 
 | Dataset       | Train frames | Test frames | Notes |
 |---------------|--------------|-------------|-------|
-| facemap       | 1800         | 100         | left-view; bilateral kps lateralized via `{side}`. Excludes 6 `cam0_*` sessions (600 frames) — the opposite-camera recordings of `cam1_*` sessions that are kept |
+| facemap       | 2400         | 100         | cam1 (left side, 1800 frames → left eye contour) + cam0 (right side, 600 frames → right eye contour); bilateral kps lateralized via `{side}` |
 | ibl           | 5962         | 1446        | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw`. Excludes 26 legacy `ibl-paw`-era sessions (1646 frames) — see `configs/datasets/ibl.yaml` |
 | cheese-2d     | 665          | 291         | four views (L/R/BC/TC); custom visibility post-processing. No exclusions |
 | cazettes-side | 830          | 217         | left-view; bilateral kps lateralized via `{side}`. No exclusions |
