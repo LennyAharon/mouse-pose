@@ -1,25 +1,41 @@
 # Data versioning — how dataset iterations, built data and results stay together
 
-The corpus will change many times (new datasets, re-labeled or re-split existing ones). The rule
-that keeps this sane: **one data version = one built-data directory + one results directory, with
-the same version suffix, and a changelog entry.** Nothing else changes: `paths.yaml` selects the
-version, every script already routes through it.
+The corpus will change many times: the label CSVs of one dataset get replaced (the frames never
+change), or a new dataset arrives. Two levels of versioning:
+
+- **Dataset version** `<dataset>@v<k>`: the hash of that dataset's raw `CollectedData*.csv` files,
+  registered in `poseinterface/DATASET_VERSIONS.json` with a date and a note
+  (`python scripts/data_manifest.py --register <dataset> --note "..."`).
+- **Corpus version** `head-fixed-v<N>`: one built-data directory + one results directory with the
+  same suffix, whose `MANIFEST.json` records which dataset version each dataset was built from.
+
+The rule that keeps this sane: **a model is reusable in a new corpus version only if every dataset
+it trained on has the same dataset version.** Dedicated single-dataset models of unchanged datasets
+are reused (symlinked); anything that touched a changed dataset (its dedicated model, every
+leave-one-out trunk that includes it, the all-data model, few-shot cells on it) is retrained.
+`data_manifest.py --diff` prints both lists. Nothing else changes: `paths.yaml` selects the corpus
+version, every script already routes through it. The `dataset-update` skill (`skills/`) walks
+through an update end to end.
 
 ## Layout
 
 ```
 poseinterface/
   DATA_VERSIONS.md                 the changelog: one section per version (below)
+  DATASET_VERSIONS.json            registry: per dataset, its versions (raw CSV hash, date, note)
   _raw/                            source datasets, APPEND-ONLY
-    facemap/  ibl/  cheese-2d/  cazettes-side/  kondo/      as delivered
-    ibl-v2/                        a CHANGED dataset gets a new raw folder; never edit a raw folder in place
+    facemap/  ibl/  cheese-2d/  cazettes-side/  kondo/      as delivered (frames + v1 label CSVs)
+    ibl-v2/                        a CHANGED dataset = new raw folder holding the new CSVs, with
+                                   labeled-data -> ../ibl/labeled-data (frames never change);
+                                   configs/datasets/ibl.yaml gets `raw_folder: ibl-v2`
     <new-dataset>/                 a new dataset is just a new folder
   data/
     head-fixed-v1/                 = today's data/head-fixed, frozen once results exist for it
     head-fixed-v2/                 next build (convert + build with paths.yaml pointing here)
       MANIFEST.json                auto-written by scripts/data_manifest.py: per-dataset counts,
                                    sessions, keypoints, views, raw source folder + hash of its CSVs
-      CollectedData_<ds>_{train,test}.csv, CollectedData_<tag>_{train,test}.csv, labeled-data/, videos/
+      CollectedData_<ds>_{train,test}.csv, CollectedData_<tag>_{train,test}.csv, videos/
+      labeled-data/<ds> -> shared frames (convert_dataset.py --link_frames), so a version costs MBs, not GBs
       derived/                     experiment-derived CSVs (masked, pseudo-label, replay) — not in the root
   results/
     head-fixed-v1/                 = today's results/head-fixed (cleaned, frozen)
@@ -48,9 +64,10 @@ can always be traced to the data version it was trained on even without the READ
    however small (one session excluded, one keypoint renamed, a fixed label), is a new version.
    Building a version is minutes; mixing results from two data states is unrecoverable.
 3. **Raw folders are never edited in place.** A re-labeled or re-split dataset arrives as a new raw
-   folder (`ibl-v2/`); `configs/datasets/<name>.yaml` says which raw folder a dataset name reads
-   from. The manifest records the raw folder and a hash of its CSVs, so "which labels did v3 use"
-   is answered by the manifest, not by memory.
+   folder (`ibl-v2/`, frames symlinked from the original); `raw_folder:` in
+   `configs/datasets/<name>.yaml` says which raw folder a dataset name reads from. Register it
+   (`--register`) before building. The manifest records the dataset version, so "which labels did
+   v3 use" is answered by the manifest, not by memory.
 4. **Results never cross versions.** `results_dir` and `data_dir` always share a suffix. A model
    from v1 evaluated on v2 data is a v2 experiment: it lives in `results/head-fixed-v2/probes/`
    with the v1 checkpoint path recorded in its README.
@@ -75,15 +92,17 @@ can always be traced to the data version it was trained on even without the READ
 
 ## Space
 
-`labeled-data/` is 2.3 GB per version because `convert_dataset.py` copies images from `_raw`. For
-datasets that did not change between versions the images are identical, so a later optimization is
-to hard-link them (`cp -al`) or symlink the unchanged `labeled-data/<dataset>` folders to the
-previous version. Not needed for the first few iterations.
+Frames never change, so `convert_dataset.py --link_frames` symlinks `labeled-data/<dataset>` to the
+raw frames instead of copying (v1 holds copies, 2.3 GB; every later version is label CSVs only).
 
-## What happens to v1 (proposal, needs the go-ahead)
+## Skills (repo-level, agent-agnostic)
 
-Rename `data/head-fixed` → `data/head-fixed-v1` and `results/head-fixed` → `results/head-fixed-v1`,
-leave symlinks `head-fixed → head-fixed-v1` in both places so every existing path (analysis
-scripts, the other session's worktrees, the catalogs) keeps working, set `paths.yaml` to the `-v1`
-names explicitly. v1's `MANIFEST.json` and `DATA_VERSIONS.md` entry are generated from the current
-inventory. Nothing is copied or deleted.
+Skills live in `mouse-pose/skills/<name>/SKILL.md` and are symlinked into the studio's
+`.claude/skills/` and `.cursor/skills/`, so Claude Code, Cursor and any other agent read the same
+file. `dataset-update` is the one to run when a dataset changes; `pose-video` renders overlays.
+
+## v1 (done 2026-09-18)
+
+`data/head-fixed` → `data/head-fixed-v1`, `results/head-fixed` → `results/head-fixed-v1`, with
+`head-fixed` symlinks left in both places so every existing path keeps working; `paths.yaml` names
+the `-v1` directories explicitly. All five datasets registered as `<dataset>@v1`.

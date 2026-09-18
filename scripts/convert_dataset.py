@@ -312,8 +312,10 @@ def process_split(
     return result
 
 
-def copy_images(index: pd.Index, raw_dataset_dir: Path, out_dir: Path) -> int:
-    """Copy images from raw_dataset_dir into out_dir. Returns number of files copied."""
+def copy_images(index: pd.Index, raw_dataset_dir: Path, out_dir: Path, link: bool = False) -> int:
+    """Copy images from raw_dataset_dir into out_dir, or with ``link`` symlink each frame to the
+    raw file (resolved, so a raw folder whose labeled-data is itself a symlink to the original
+    frames links to the real files). Returns number of files created."""
     copied = 0
     for new_path in index:
         parts   = Path(new_path).parts  # ('labeled-data', dataset, session, frame)
@@ -322,7 +324,10 @@ def copy_images(index: pd.Index, raw_dataset_dir: Path, out_dir: Path) -> int:
         dst = out_dir / new_path
         dst.parent.mkdir(parents=True, exist_ok=True)
         if not dst.exists():
-            shutil.copy2(src, dst)
+            if link:
+                dst.symlink_to(src.resolve())
+            else:
+                shutil.copy2(src, dst)
             copied += 1
     return copied
 
@@ -343,9 +348,13 @@ def main() -> None:
     parser.add_argument("--data_dir",   type=Path, default=DATA_DIR, help=f"Output directory (default: from paths.yaml)")
     parser.add_argument("--train_csv",  default=TRAIN_CSV,           help=f"Train CSV filename (default: {TRAIN_CSV})")
     parser.add_argument("--test_csv",   default=TEST_CSV,            help=f"Test CSV filename (default: {TEST_CSV})")
+    parser.add_argument("--link_frames", action="store_true",
+                        help="symlink frames to the raw files instead of copying (frames never change between "
+                             "data versions; see docs/data_versioning.md)")
     args = parser.parse_args()
 
-    raw_dataset_dir = args.raw_dir / args.dataset
+    _cfg_raw = (load_dataset_config(CONFIGS_DIR, args.dataset) or {}).get("raw_folder")
+    raw_dataset_dir = args.raw_dir / (_cfg_raw or args.dataset)   # raw_folder: <name>-v2 for relabeled data
 
     print("Loading configs...")
     canonical_kps = load_canonical_keypoints(CONFIGS_DIR)
@@ -388,7 +397,7 @@ def main() -> None:
         processed.to_csv(out_csv)
         print(f"  Saved {out_csv.name}")
 
-        n_copied = copy_images(processed.index, raw_dataset_dir, args.data_dir)
+        n_copied = copy_images(processed.index, raw_dataset_dir, args.data_dir, link=args.link_frames)
         n_exist  = len(processed) - n_copied
         print(f"  Images: {n_copied} copied, {n_exist} already present")
 

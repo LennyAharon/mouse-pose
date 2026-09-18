@@ -44,6 +44,12 @@ Reads `configs/datasets/<dataset-name>.yaml`. Outputs to `data/head-fixed/`:
 
 Re-running is safe — images are skipped if already present.
 
+Two options for data versioning (`docs/data_versioning.md`): `--link_frames` symlinks each frame to the
+raw file instead of copying it (frames never change between data versions, only label CSVs do), and a
+`raw_folder: <name>-v2` key in `configs/datasets/<dataset>.yaml` reads the CSVs from a re-labeled raw
+folder while the dataset keeps its name. Register a changed dataset first:
+`python scripts/data_manifest.py --register <dataset> --note "what changed"`.
+
 ### 3. Build a merged training set (run as needed)
 
 ```bash
