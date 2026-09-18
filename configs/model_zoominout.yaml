@@ -150,7 +150,7 @@ training:
   # val_check_interval in global steps when check_val_every_n_epoch is null — both keys
   # are needed. 1000 steps -> 12 validation points over a 12,000-step run.
   check_val_every_n_epoch: null
-  val_check_interval: 1000
+  val_check_interval: 250
   rng_seed_data_pt: 0
   rng_seed_model_pt: 0
   optimizer: Adam
