@@ -9,9 +9,8 @@ data:
   # behavior). The sweep fills this from configs/dataset_registry.yaml when a run needs
   # per-example dataset ids (temperature sampling, per-dataset heads).
   dataset_names: null
-  num_keypoints: 36
+  num_keypoints: 44
   keypoint_names:
-  # ── eye ───────────────────────────────────────────────────────────────────
   - eye_back_left
   - eye_back_right
   - eye_bottom_left
@@ -22,12 +21,10 @@ data:
   - eye_top_right
   - pupil_center_left
   - pupil_center_right
-  # ── nose / mouth (lateralized) ────────────────────────────────────────────
   - upperlip_right
   - upperlip_left
   - tongue_end_right
   - tongue_end_left
-  # ── nose / mouth (midline) ────────────────────────────────────────────────
   - nose_tip
   - nose_top
   - nose_bottom
@@ -36,12 +33,10 @@ data:
   - lowerlip
   - tongue_tip
   - tongue_center
-  # ── whiskers ──────────────────────────────────────────────────────────────
   - pad_top_left
   - pad_top_right
   - pad_side_left
   - pad_side_right
-  # ── ears ──────────────────────────────────────────────────────────────────
   - ear_top_left
   - ear_top_right
   - ear_tip_left
@@ -50,9 +45,16 @@ data:
   - ear_bottom_right
   - ear_base_left
   - ear_base_right
-  # ── paw ───────────────────────────────────────────────────────────────────
   - wrist_left
   - wrist_right
+  - d1_tip_left
+  - d1_tip_right
+  - d2_tip_left
+  - d2_tip_right
+  - d3_tip_left
+  - d3_tip_right
+  - d4_tip_left
+  - d4_tip_right
   columns_for_singleview_pca: null
 
 training:

@@ -11,7 +11,7 @@ data:
   - cheese-2d
   - cazettes-side
   - kondo
-  num_keypoints: 36
+  num_keypoints: 44
   keypoint_names:
   - eye_back_left
   - eye_back_right
@@ -49,6 +49,14 @@ data:
   - ear_base_right
   - wrist_left
   - wrist_right
+  - d1_tip_left
+  - d1_tip_right
+  - d2_tip_left
+  - d2_tip_right
+  - d3_tip_left
+  - d3_tip_right
+  - d4_tip_left
+  - d4_tip_right
   columns_for_singleview_pca: null
 training:
   imgaug:

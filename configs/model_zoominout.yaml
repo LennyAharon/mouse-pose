@@ -9,7 +9,7 @@ data:
   # behavior). The sweep fills this from configs/dataset_registry.yaml when a run needs
   # per-example dataset ids (temperature sampling, per-dataset heads).
   dataset_names: null
-  num_keypoints: 36
+  num_keypoints: 44
   keypoint_names:
   # ── eye ───────────────────────────────────────────────────────────────────
   - eye_back_left
@@ -53,6 +53,15 @@ data:
   # ── paw ───────────────────────────────────────────────────────────────────
   - wrist_left
   - wrist_right
+  # ── digit tips (hantman-mv) ──
+  - d1_tip_left
+  - d1_tip_right
+  - d2_tip_left
+  - d2_tip_right
+  - d3_tip_left
+  - d3_tip_right
+  - d4_tip_left
+  - d4_tip_right
   columns_for_singleview_pca: null
 
 training:
@@ -118,6 +127,7 @@ training:
     kondo: [-0.33, 0.5]
     cazettes-side: [-0.375, 0.25]
     ibl: [-0.4, 0.15]
+    hantman-mv: [-0.4, 0.15]   # same apparent scale as ibl (eye->nose 23% of width)
   imgaug_hflip: true
   train_batch_size: 32
   val_batch_size: 64

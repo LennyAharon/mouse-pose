@@ -31,18 +31,31 @@ CSVs, snapshots them to `_raw_versions/<dataset>@v<k>/`, and appends the version
 `poseinterface/DATASET_VERSIONS.json`. Repeat per changed/added dataset. If the vocabulary
 (`configs/keypoints.yaml`) changed too, say so in the note: it means nothing is reusable.
 
+## 3b. Vocabulary (only if keypoints were added or removed)
+
+`configs/keypoints.yaml` is the single source of truth. Add/remove the canonical names there
+(append new ones at the END: channel order is baked into every checkpoint), then
+`python scripts/sync_keypoint_configs.py` rewrites `data.keypoint_names` and `data.num_keypoints`
+in every `configs/model*.yaml` and `configs/zero_shot/*.yaml`; `--check` (exit 1 on drift) is
+also run by step 4 before converting. New dataset needing its own zoom range: add it to
+`imgaug_per_dataset_zoom` in `configs/model_zoominout.yaml` (measure eye->nose as % of frame width
+against the other rigs; same scale as an existing rig = same range).
+
 ## 4. Build the next corpus version
 
 1. Next free N: `ls poseinterface/data | grep head-fixed-v`. Set `paths.yaml` `data_dir` and
    `results_dir` to `head-fixed-v<N>` (both, same N).
-2. `python scripts/convert_dataset.py --dataset <ds>` for every dataset (changed and unchanged;
+2. `python scripts/sync_keypoint_configs.py --check`, then
+   `python scripts/convert_dataset.py --dataset <ds> --link_frames` for every dataset (changed and unchanged;
    unchanged ones reproduce the same CSVs — needed so the version is self-contained), then
    `python scripts/build_dataset.py` for the tags in use (`docs/build_dataset.md`).
    Frames: convert with `--link_frames` (symlink `labeled-data/<ds>` to the shared frame pool)
    once that flag exists; until then copies are acceptable.
 3. `python scripts/data_manifest.py` (writes `MANIFEST.json`), then
    `python scripts/data_manifest.py --diff v<N-1>` and paste its output into
-   `poseinterface/DATA_VERSIONS.md` under `## v<N> — <date>` with the user's one-line "why".
+   `poseinterface/DATA_VERSIONS.md` under `## v<N> — built <YYYY-MM-DD>` with: the user's one-line
+   "why", and per changed dataset the date the labels changed (the `date` of its entry in
+   `DATASET_VERSIONS.json`, i.e. when it was registered) and what changed.
 
 ## 5. Set up the results tree and the reuse decision
 
@@ -58,6 +71,12 @@ every dataset it was trained on is unchanged** (same raw hash and converter conf
 
 ## 6. Record it
 
+- Commit the repo changes (configs, registry, `docs/dataset_inventory.md`, any converter/config
+  edits) as ONE commit whose subject starts with `data v<N>:` and whose body lists the dataset
+  versions (`facemap@v2, hantman-mv@v1, ...`) and vocabulary size; push. Then append the commit
+  hash to the `## v<N>` entry in `poseinterface/DATA_VERSIONS.md` (`code: mouse-pose <hash>`),
+  so the data version and the code that built it are cross-referenced both ways.
 - `CLAUDE.md` "Phase" paragraph: current corpus version and date.
 - Memory: one note per corpus version bump (what changed, which models were reused/retrained).
 - Never touch `results/head-fixed-v<N-1>` afterwards except to read.
+- Next: the `train-plan` skill (what to train now).
