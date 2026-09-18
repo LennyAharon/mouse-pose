@@ -157,6 +157,9 @@ training:
   # are needed. 1000 steps -> 12 validation points over a 12,000-step run.
   check_val_every_n_epoch: null
   val_check_interval: 250
+  # extra best-checkpoints: one per listed validation metric, saved as *-best-<metric>.ckpt next
+  # to the canonical pooled-loss *-best.ckpt (lightning-pose >= d67d924, branch post_sub_lp)
+  ckpt_monitors_extra: [val_supervised_loss_T]
   rng_seed_data_pt: 0
   rng_seed_model_pt: 0
   optimizer: Adam
