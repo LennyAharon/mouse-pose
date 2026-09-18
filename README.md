@@ -272,8 +272,6 @@ mouse-pose/
     preprocessing/
       ibl-face/                 iblvideo pseudo-label pipeline
 
-  paper_figures/                plotting only: paper figures and LaTeX tables from finished
-                                 results (see paper_figures/README.md)
 
   mouse_pose/
     paths.py                    path resolution from paths.yaml
@@ -282,7 +280,6 @@ mouse-pose/
                                  (`python -m mouse_pose.train`) for evaluation only
     plots/
       plot_keypoints.py         keypoint overlay visualization
-      ensemble.py               pixel error vs ensemble std, shared by paper_figures/
 
 poseinterface/
   _raw/

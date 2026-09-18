@@ -10,7 +10,7 @@ lives elsewhere (`docs/build_dataset.md`, the experiment plan); this file is *ho
 - One conda env (`cloudspace`), always active. Run `python ...` / `litpose ...` directly —
   **never** `conda run -n pose` (that env does not exist here).
 - `lightning_pose` is installed **editable from the local `lightning-pose/` clone**
-  (branch `mouse_model`). The checked-out branch IS the installed version; edits take
+  (branch `super_mouse_paper`). The checked-out branch IS the installed version; edits take
   effect on the next Python process. Long-running sweeps import at launch — editing the
   clone mid-sweep silently splits the sweep across two code versions.
 - `paths.yaml` (repo root, gitignored) declares `raw_dir` / `data_dir` / `results_dir`.
@@ -129,7 +129,7 @@ predictions by confidence and compare mean error at equal coverage fractions
 regression in this project.
 
 **Recipe of record (2026-08-25): shared head × T=2 × per-dataset zoom augmentation**
-(`configs/model_zoomaug.yaml`, requires the `zoom_aug_lp` Lightning Pose branch).
+(`configs/model_zoomaug.yaml`, requires the `super_mouse_paper` Lightning Pose branch).
 All-data trunk: `zoom-aug-exp/face+ibl+cheese+caz+kondo-T2-zoomaug/seed0`. History and
 adoption evidence: plan §14. Known limit: transfer *up-scale* (toward closeup rigs)
 degrades by design. `configs/model_zoomphoto.yaml` is a rejected-but-preserved variant
