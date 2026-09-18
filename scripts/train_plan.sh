@@ -6,6 +6,7 @@
 #   scripts/train_plan.sh plan                      # table: stage / tag / status per seed
 #   scripts/train_plan.sh run all dedicated loo     # train the missing ones of these stages (detached)
 #   scripts/train_plan.sh run loo --seeds "0;1;2"   # more seeds
+#   scripts/train_plan.sh run all dedicated:hantman-mv  # one dataset's dedicated model
 #   scripts/train_plan.sh dry all                   # print the train_sweep commands only
 #   scripts/train_plan.sh status                    # tail the running plan's log
 #
@@ -36,6 +37,7 @@ rows() {
   for s in $STAGES; do case "$s" in
     all)       echo "all trunks $all_tag";;
     dedicated) for d in "${DATASETS[@]}"; do echo "dedicated dedicated $d"; done;;
+    dedicated:*) echo "dedicated dedicated ${s#dedicated:}";;          # a single dataset's model
     loo)       for d in "${DATASETS[@]}"; do echo "loo trunks $(loo_tag "$d")"; done;;
     *) echo "unknown stage $s" >&2; exit 2;; esac; done
 }
@@ -49,6 +51,8 @@ case "$cmd" in
       printf "%-10s %-38s" "$stage" "$tag"; for s in ${SEEDS//;/ }; do printf " %-8s" "$(status_of "$(out_dir "$area" "$tag" "$s")")"; done; echo
     done ;;
   dry|run)
+    # Lightning Pose asserts <data_dir>/videos exists even for labeled-frame training
+    [ -e "$DATA/videos" ] || { mkdir -p "$DATA/videos"; echo "created empty $DATA/videos"; }
     LOG="$RESULTS/_train_plan_$(date -u +%Y%m%d-%H%M).log"
     script=$(mktemp); echo "#!/bin/bash" > "$script"; echo "cd $(pwd)" >> "$script"
     rows | while read -r stage area tag; do

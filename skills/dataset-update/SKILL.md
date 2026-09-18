@@ -45,7 +45,9 @@ against the other rigs; same scale as an existing rig = same range).
 
 1. Next free N: `ls poseinterface/data | grep head-fixed-v`. Set `paths.yaml` `data_dir` and
    `results_dir` to `head-fixed-v<N>` (both, same N).
-2. `python scripts/sync_keypoint_configs.py --check`, then
+2. Videos never change between versions: `ln -s ../head-fixed-v<N-1>/videos data/head-fixed-v<N>/videos`
+   (and `videos_ibl_leftcam`); Lightning Pose refuses to train without a `videos` folder.
+   `python scripts/sync_keypoint_configs.py --check`, then
    `python scripts/convert_dataset.py --dataset <ds> --link_frames` for every dataset (changed and unchanged;
    unchanged ones reproduce the same CSVs — needed so the version is self-contained), then
    `python scripts/build_dataset.py` for the tags in use (`docs/build_dataset.md`).
