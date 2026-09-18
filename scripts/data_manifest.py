@@ -130,9 +130,14 @@ def diff(new: dict, old: dict) -> str:
     if new.get("canonical_keypoints") != old.get("canonical_keypoints"):
         out.append(f"- **vocabulary:** {old['n_canonical_keypoints']} → {new['n_canonical_keypoints']} keypoints")
     out.append(f"- merged tags: {', '.join(new['merged_tags']) or 'none'}")
-    unchanged = [n for n in sorted(set(nd) & set(od)) if nd[n].get("raw_csv_sha256") == od[n].get("raw_csv_sha256")
-                 and nd[n].get("converter_config_sha256") == od[n].get("converter_config_sha256")]
+    vocab_changed = new.get("canonical_keypoints") != old.get("canonical_keypoints")
+    unchanged = [] if vocab_changed else [
+        n for n in sorted(set(nd) & set(od)) if nd[n].get("raw_csv_sha256") == od[n].get("raw_csv_sha256")
+        and nd[n].get("converter_config_sha256") == od[n].get("converter_config_sha256")]
     changed = sorted((set(nd) | set(od)) - set(unchanged))
+    if vocab_changed:   # every model's output head is the vocabulary: nothing carries over
+        out.append("- VOCABULARY CHANGED: no model from the previous version is reusable (the head has a channel "
+                   "per canonical keypoint); retrain everything, including dedicated models of unchanged datasets")
     out.append(f"- REUSABLE dedicated models (dataset unchanged): {', '.join(unchanged) or 'none'}")
     out.append(f"- MUST RETRAIN: dedicated models of {', '.join(changed) or 'nothing'}; every leave-one-out trunk and "
                f"the all-data trunk (they train on {', '.join(changed) or 'no changed dataset'}); all few-shot cells on changed datasets")
