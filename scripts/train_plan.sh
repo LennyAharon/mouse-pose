@@ -9,7 +9,7 @@
 #   scripts/train_plan.sh run all dedicated:hantman-mv  # one dataset's dedicated model
 #   scripts/train_plan.sh dry all                   # print the train_sweep commands only
 #   scripts/train_plan.sh status                    # tail the running plan's log
-# Logs: <results_dir>/_logs/train_plan_<stamp>.log, one per `run`; kept as the record of what was
+# Logs: <results_dir>/_logs/train_plan_<stamp>_<stages>.log, one per `run`; kept as the record of what was
 # launched when (small text files), never needed by any script; delete freely once the run is done.
 #
 # Stages: all = the all-data trunk; dedicated = one model per dataset (its own frames only);
@@ -55,7 +55,7 @@ case "$cmd" in
   dry|run)
     # Lightning Pose asserts <data_dir>/videos exists even for labeled-frame training
     [ -e "$DATA/videos" ] || { mkdir -p "$DATA/videos"; echo "created empty $DATA/videos"; }
-    mkdir -p "$RESULTS/_logs"; LOG="$RESULTS/_logs/train_plan_$(date -u +%Y%m%d-%H%M).log"
+    mkdir -p "$RESULTS/_logs"; LOG="$RESULTS/_logs/train_plan_$(date -u +%Y%m%d-%H%M%S)_$(echo $STAGES | tr -s " :" "-").log"
     script=$(mktemp); echo "#!/bin/bash" > "$script"; echo "cd $(pwd)" >> "$script"
     rows | while read -r stage area tag; do
       echo "python scripts/train_sweep.py --config_file $CONFIG --csv_files CollectedData_${tag}_train.csv --train_frames 1 --seeds \"$SEEDS\" --backbones $BACKBONE --sampling_temperatures 2 --head_modes shared --keep_checkpoints --skip_existing --output_root $RESULTS/$area $([ "$cmd" = dry ] && echo --dry_run)" >> "$script"
