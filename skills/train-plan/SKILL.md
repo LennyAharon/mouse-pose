@@ -5,6 +5,10 @@ description: Run after a corpus version is built (or when the user asks what to 
 
 # Training plan
 
+**Never launch training on your own.** `plan` and `dry` are always safe and are what this skill
+runs by default. `run` starts GPU jobs and is only allowed when the user has named, in this
+conversation, the stages (and seeds) to run; if in doubt, show the table and ask.
+
 `scripts/train_plan.sh` knows the recipe of record (`configs/model_zoominout.yaml`: shared head,
 T=2, per-dataset zoom-in/out, 12k steps, ViT-S DINOv3) and the three model families. It never
 retrains something that exists (`--skip_existing`), so it can be re-run at any time.
@@ -16,7 +20,7 @@ retrains something that exists (`--skip_existing`), so it can be re-run at any t
 2. If a previous corpus version exists, tell the user which models the data change invalidated
    (`python scripts/data_manifest.py --no-write --diff v<N-1>`), and that a vocabulary change
    invalidates everything.
-3. Ask which stages and how many seeds. Suggested order: `all` first (it is what every downstream
+3. Ask which stages and how many seeds, and wait for the answer. Suggested order: `all` first (it is what every downstream
    experiment uses), then `dedicated` (upper-bound references, small and fast), then `loo` (only
    needed for zero-shot / few-shot transfer experiments). Seeds: 1 for everything first; 3 for
    `all` when ensembles or seed-variance are needed. One 12k-step trunk on the L4 takes roughly

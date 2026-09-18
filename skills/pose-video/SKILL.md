@@ -76,8 +76,9 @@ the same pattern (paths module + conventions doc) applies to any other project.
 
 ## Output hygiene
 
-- Write to a NEW descriptively-named folder under the project's results/qualitative
-  area; never overwrite an existing video set.
+- Write to a NEW folder `<results_dir>/qualitative/<YYYY-MM-DD>-<topic>/` with a README.md whose
+  front matter (title, date, data_version, question, models, outputs, finding) feeds
+  `scripts/qualitative_index.py`; never overwrite an existing video set (`eval-suite` skill).
 - cv2's `mp4v` doesn't play in VS Code/browsers — always re-encode:
   `ffmpeg -y -i x.mp4 -c:v libx264 -pix_fmt yuv420p out.mp4`. If `ffmpeg` isn't on
   PATH: `python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())"`.
@@ -98,7 +99,8 @@ the same pattern (paths module + conventions doc) applies to any other project.
   protocol), marks which roots are CURRENT vs superseded, and lists the five model
   roles (zero-shot trunk / anchored LoRA / plain LoRA / full FT / dedicated) with the
   exact paths and whether checkpoints survive for fresh predictions.
-- **Catalog of every figure/video already delivered — `docs/qualitative_catalog.md`.**
+- **Index of deliveries:** `<results_dir>/qualitative/INDEX.md` (generated; per-folder READMEs are the
+  source). v1's history is `docs/qualitative_catalog.md`.
   Read it before rendering: it lists what exists under `<results_dir>/qualitative/`,
   which model produced it, and the exact color/confidence conventions each delivery
   used (reuse them for consistency). Append new deliveries to it.
