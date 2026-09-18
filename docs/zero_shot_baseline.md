@@ -1,6 +1,7 @@
 # Consolidated research baseline — 2026-09-17
 
-Both working repositories now use `research/zero-shot-baseline`. Original `zoom_aug`
+Active branches are `post_sub_mm` in mouse-pose and `post_sub_lp` in Lightning Pose, renamed
+from `research/zero-shot-baseline` on 2026-09-18 without changing the baseline code. Original `zoom_aug`
 (mouse-pose) and `super_mouse_paper` (Lightning Pose) branches are preserved. Existing
 mouse-pose local edits were copied and hashed before integration, and remain uncommitted.
 This branch changes the installed code intentionally; previous experiment worktrees remain
