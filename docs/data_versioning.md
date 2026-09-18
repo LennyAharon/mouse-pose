@@ -1,7 +1,7 @@
 # Data versioning — how dataset iterations, built data and results stay together
 
-The corpus will change many times: the label CSVs of one dataset get replaced (the frames never
-change), or a new dataset arrives. Two levels of versioning:
+The corpus will change many times: the label CSVs of one dataset get replaced in `_raw` (the
+frames never change), or a new dataset arrives. Two levels of versioning:
 
 - **Dataset version** `<dataset>@v<k>`: the hash of that dataset's raw `CollectedData*.csv` files,
   registered in `poseinterface/DATASET_VERSIONS.json` with a date and a note
@@ -23,12 +23,12 @@ through an update end to end.
 poseinterface/
   DATA_VERSIONS.md                 the changelog: one section per version (below)
   DATASET_VERSIONS.json            registry: per dataset, its versions (raw CSV hash, date, note)
-  _raw/                            source datasets, APPEND-ONLY
-    facemap/  ibl/  cheese-2d/  cazettes-side/  kondo/      as delivered (frames + v1 label CSVs)
-    ibl-v2/                        a CHANGED dataset = new raw folder holding the new CSVs, with
-                                   labeled-data -> ../ibl/labeled-data (frames never change);
-                                   configs/datasets/ibl.yaml gets `raw_folder: ibl-v2`
-    <new-dataset>/                 a new dataset is just a new folder
+  _raw/                            source datasets, ALWAYS THE CURRENT labels
+    facemap/  ibl/  cheese-2d/  cazettes-side/  kondo/  <new-dataset>/
+                                   updated labels: overwrite CollectedData*.csv in place (frames never change),
+                                   then register; a new dataset is just a new folder
+  _raw_versions/<dataset>@v<k>/    label CSVs of every registered version (written by --register), so an
+                                   old corpus version can be rebuilt from raw if ever needed
   data/
     head-fixed-v1/                 = today's data/head-fixed, frozen once results exist for it
     head-fixed-v2/                 next build (convert + build with paths.yaml pointing here)
@@ -63,11 +63,11 @@ can always be traced to the data version it was trained on even without the READ
 2. **A data version is immutable once a results tree exists for it.** Any change to the built data,
    however small (one session excluded, one keypoint renamed, a fixed label), is a new version.
    Building a version is minutes; mixing results from two data states is unrecoverable.
-3. **Raw folders are never edited in place.** A re-labeled or re-split dataset arrives as a new raw
-   folder (`ibl-v2/`, frames symlinked from the original); `raw_folder:` in
-   `configs/datasets/<name>.yaml` says which raw folder a dataset name reads from. Register it
-   (`--register`) before building. The manifest records the dataset version, so "which labels did
-   v3 use" is answered by the manifest, not by memory.
+3. **`_raw` is the current truth; versions are snapshots.** Updated labels overwrite the CSVs in
+   `_raw/<dataset>/`; `--register` hashes them, snapshots them to `_raw_versions/<dataset>@v<k>/`
+   and records the version. Register BEFORE building, and never build a corpus version from raw
+   CSVs that are not registered (the manifest would say UNREGISTERED). (`raw_folder:` in a dataset
+   config remains available if a dataset must read from a differently named raw folder.)
 4. **Results never cross versions.** `results_dir` and `data_dir` always share a suffix. A model
    from v1 evaluated on v2 data is a v2 experiment: it lives in `results/head-fixed-v2/probes/`
    with the v1 checkpoint path recorded in its README.

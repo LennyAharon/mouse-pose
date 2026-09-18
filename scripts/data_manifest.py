@@ -13,8 +13,10 @@ machine-readable half of DATA_VERSIONS.md; `--diff` prints the human half.
     python scripts/data_manifest.py --register ibl --note "relabeled tongue"   # new dataset version
 
 Dataset versions live in <poseinterface>/DATASET_VERSIONS.json: per dataset, a list of
-{version, date, raw_folder, raw_csv_sha256, note}. A dataset's version is its raw CSV hash; the
-manifest names the version each dataset was built from, so a corpus version is the tuple.
+{version, date, raw_folder, raw_csv_sha256, note, snapshot}. _raw/<dataset> always holds the
+current labels (overwrite the CSVs in place, frames never change); --register hashes them and
+snapshots the CSVs to <poseinterface>/_raw_versions/<dataset>@v<k>/ so every version's raw labels
+survive. The manifest names the version each dataset was built from, so a corpus version is the tuple.
 """
 
 import argparse
@@ -66,6 +68,12 @@ def register(dataset: str, raw_dir: Path, repo: Path, note: str) -> dict:
         print(f"{dataset}: raw CSVs unchanged since {versions[-1]['version']} — nothing to register"); return reg
     entry = {"version": f"{dataset}@v{len(versions) + 1}", "date": str(date.today()), "raw_folder": raw_name,
              "raw_csv_sha256": h, "note": note}
+    # _raw/<dataset> always holds the CURRENT labels (the user overwrites the CSVs in place); the
+    # label CSVs of every registered version are snapshotted here so an old version can be rebuilt
+    snap = raw_dir.parent / "_raw_versions" / entry["version"]; snap.mkdir(parents=True, exist_ok=True)
+    for c in csvs:
+        (snap / c.name).write_bytes(c.read_bytes())
+    entry["snapshot"] = str(snap.relative_to(raw_dir.parent))
     versions.append(entry)
     registry_path(raw_dir).write_text(json.dumps(reg, indent=1) + "\n")
     print(f"registered {entry['version']}  [{h}]  {note}")

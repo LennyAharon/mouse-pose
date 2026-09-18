@@ -17,19 +17,19 @@ and one sentence on what changed (relabeled keypoints, added/removed sessions, n
 new split). New dataset: also its raw folder name, camera views, and which canonical keypoints
 it maps to (needs a new `configs/datasets/<name>.yaml`; see README "Adding a new dataset").
 
-## 2. Put the raw files in place, append-only
+## 2. Put the raw files in place
 
-- Updated labels for an existing dataset: put the new CSVs in a NEW raw folder
-  (`_raw/<dataset>-v<k>/`, next free k) with `labeled-data` symlinked to the original frames
-  (`ln -s ../<dataset>/labeled-data`), and point `raw_folder:` in `configs/datasets/<dataset>.yaml`
-  at it. Never overwrite the CSVs in the original raw folder.
-- New dataset: `_raw/<name>/` with the standard layout.
+- Updated labels for an existing dataset: the user overwrites `CollectedData*.csv` in
+  `_raw/<dataset>/` (frames stay). `_raw` always holds the current labels.
+- New dataset: `_raw/<name>/` with the standard layout, plus `configs/datasets/<name>.yaml` and the
+  registrations in `mouse_pose/datasets.py` (README "Adding a new dataset").
 
-## 3. Register the dataset version
+## 3. Register the dataset version (before building anything)
 
-`python scripts/data_manifest.py --register <dataset> --note "<what changed>"` appends the
-version (hash of the raw CSVs, date, note, raw folder) to `poseinterface/DATASET_VERSIONS.json`.
-Repeat per changed/added dataset.
+`python scripts/data_manifest.py --register <dataset> --note "<what changed>"` hashes the raw
+CSVs, snapshots them to `_raw_versions/<dataset>@v<k>/`, and appends the version to
+`poseinterface/DATASET_VERSIONS.json`. Repeat per changed/added dataset. If the vocabulary
+(`configs/keypoints.yaml`) changed too, say so in the note: it means nothing is reusable.
 
 ## 4. Build the next corpus version
 
