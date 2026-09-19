@@ -22,8 +22,6 @@ README.md starts with a YAML block:
 import argparse
 from pathlib import Path
 
-import yaml
-
 from mouse_pose.paths import load_paths
 
 
@@ -32,7 +30,13 @@ def front_matter(readme: Path) -> dict | None:
     if not text.startswith("---"):
         return None
     end = text.find("\n---", 3)
-    return yaml.safe_load(text[3:end]) if end > 0 else None
+    if end < 0:
+        return None
+    fm = {}
+    for line in text[3:end].strip().splitlines():  # plain "key: value" lines; values may contain colons
+        if ":" in line:
+            k, v = line.split(":", 1); fm[k.strip()] = v.strip()
+    return fm or None
 
 
 def main() -> None:
