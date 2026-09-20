@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
+#SBATCH --mem=32G          # ViT-S; raise to 64G+ and request more GPU memory for ViT-B / higher resolution
 #SBATCH --time=04:00:00
 # One array task = one model. orchestrate.py submits this file with --array=0-N and exports
 # JOBS_FILE (tab-separated: config, csv_file, seed, output_root; one cell per line) and REPO.

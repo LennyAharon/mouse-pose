@@ -13,23 +13,30 @@ job array per round.
 
 | what | count per round | notes |
 |---|---|---|
-| all-data trunk (Mighty Mouse) | 1 per seed | the model of record |
-| dedicated single-dataset models | 6 per seed | baselines |
-| leave-one-out trunks | 6 per seed | zero-shot transfer to an unseen lab |
-| ablations (schedule, augmentation, ...) | 1 to 7 per variant | same shape, different config |
-| few-shot adaptation cells | ~180, short | next stage, same pattern (not in this sketch) |
+| all-data trunk (Mighty Mouse) | 1 x 3 seeds = 3 | the model of record |
+| dedicated single-dataset models | 6 datasets x 3 seeds = 18 | baselines |
+| leave-one-out trunks | 6 = 6 | zero-shot transfer to an unseen lab |
+| anchored-LoRA few-shot adaptation | 6 datasets x 3 label budgets x 3 draws = 54 | short jobs, start from a leave-one-out trunk |
+| **total per round, six datasets** | **81** | |
 
-Three seeds of the recipe grid = 39 jobs. Rounds repeat every time the labeled corpus changes.
+Rounds repeat every time the labeled corpus changes, and the counts scale with the number of
+datasets (adding a lab adds 3 dedicated + 1 leave-one-out + 9 few-shot jobs). Ablations of the
+recipe (schedule, augmentation, sampling) add 1 to 7 jobs per variant on top.
+
+**Model size will grow.** The current backbone is ViT-S (DINOv3, 22M parameters). As experiments
+continue we will fit ViT-B (86M) and possibly larger DINOv3 backbones, at higher input resolution,
+so per-job GPU memory and time go up several-fold over the profile below; the job *shape* stays
+the same (still one model per single-GPU job), only the resource request changes.
 
 ## Per-job resource profile (measured on an NVIDIA L4, 24 GB)
 
 | resource | per job |
 |---|---|
-| GPU | 1, ~6 GB memory (ViT-S DINOv3, batch 32, 256x256 inputs) |
+| GPU | 1, ~6 GB memory (ViT-S DINOv3, batch 32, 256x256 inputs); ViT-B at the same batch is roughly 3 to 4x, and higher input resolution multiplies that again, so plan for 40 to 80 GB per job on the larger configurations |
 | CPU | 8 cores: image augmentation is CPU-bound and is the bottleneck; 2 jobs saturate 8 cores |
 | RAM | ~6 GB |
-| wall time | ~2.5 h for 12,000 steps on an L4 alone; 24,000-step schedule under test |
-| output | ~260 MB per job with checkpoint (103 MB checkpoint + predictions/metrics CSVs) |
+| wall time | ~2.5 h for 12,000 steps on an L4 alone; a 24,000-step schedule is under test and looks better, so budget 2x; ViT-B roughly 3x per step |
+| output | ~260 MB per job with checkpoint (103 MB checkpoint + predictions/metrics CSVs); ~400 MB for ViT-B |
 
 Expectation on a B200: GPU time per job well under an hour; the CPU augmentation pipeline then
 limits throughput unless more cores per job are available or augmentation moves to the GPU
@@ -83,3 +90,5 @@ downloaded once and cached (`~/.cache`), so the cache directory should be on sha
 4. Model cache and container: where to keep DINOv3 weights and whether a Singularity/Apptainer
    image is preferred over conda.
 5. Whether a small GPU partition exists for the many short few-shot jobs (~20 min each).
+6. Memory headroom: the larger backbones will need 40 to 80 GB per job; does the B200 partition
+   allow one job per GPU with the full 180 GB, or is GPU sharing (MIG or similar) in use?
