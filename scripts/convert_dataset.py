@@ -114,6 +114,7 @@ def _post_process_hantman_mv(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 
 POST_PROCESS: dict[str, object] = {
     "cheese-2d": _post_process_cheese2d,
+    "cheese-3d": _post_process_cheese2d,   # same rig, same views and session-side convention
     "hantman-mv": _post_process_hantman_mv,
 }
 
