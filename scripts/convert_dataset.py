@@ -71,7 +71,11 @@ def _post_process_cheese2d(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     sides = pd.Series(
         [cfg_sessions.get(Path(p).parts[-2]) for p in df.index], index=df.index
     )
-    is_null  = (sides == "null").to_numpy()
+    # YAML `null` loads as None, so head-on sessions (BC/TC, mapped to null in the config) arrive
+    # here as None, not the string "null". Until 2026-09-20 the comparison below was string-only and
+    # never matched: every unlabeled ear/eye in a head-on frame stayed visible=1 (suppression) instead
+    # of 0 (masked), and the model was trained that ears do not exist in BC/TC views.
+    is_null  = (sides.isna() | (sides == "null")).to_numpy()
     is_left  = (sides == "left").to_numpy()
     is_right = (sides == "right").to_numpy()
 
