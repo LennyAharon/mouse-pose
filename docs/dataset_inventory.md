@@ -14,18 +14,20 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 | `cazettes-side` | 830 | 41 | 217 | 11 | 8 | 9 | 8 |
 | `kondo` | 439 | 5 | 120 | 1 | 9 | 11 | 9 |
 | `hantman-mv` | 192 | 50 | 30 | 4 | 11 | 20 | 11 |
-| **total** | **10,488** | | **2,204** | | | | |
+| `cheese-3d` | 2,700 | 66 | 900 | 24 | 27 | 27 | 27 |
+| **total** | **13,188** | | **3,104** | | | | |
 
 ## Pairwise direct-keypoint overlap
 
-| | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` |
-|---|---|---|---|---|---|---|
-| `facemap` | 12 | 1 | 11 | 2 | 5 | 5 |
-| `ibl` | 1 | 6 | 1 | 4 | 3 | 2 |
-| `cheese-2d` | 11 | 1 | 27 | 3 | 6 | 6 |
-| `cazettes-side` | 2 | 4 | 3 | 8 | 6 | 3 |
-| `kondo` | 5 | 3 | 6 | 6 | 9 | 5 |
-| `hantman-mv` | 5 | 2 | 6 | 3 | 5 | 11 |
+| | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` | `cheese-3d` |
+|---|---|---|---|---|---|---|---|
+| `facemap` | 12 | 1 | 11 | 2 | 5 | 5 | 11 |
+| `ibl` | 1 | 6 | 1 | 4 | 3 | 2 | 1 |
+| `cheese-2d` | 11 | 1 | 27 | 3 | 6 | 6 | 27 |
+| `cazettes-side` | 2 | 4 | 3 | 8 | 6 | 3 | 3 |
+| `kondo` | 5 | 3 | 6 | 6 | 9 | 5 | 6 |
+| `hantman-mv` | 5 | 2 | 6 | 3 | 5 | 11 | 6 |
+| `cheese-3d` | 11 | 1 | 27 | 3 | 6 | 6 | 27 |
 
 ## `facemap`
 
@@ -67,3 +69,8 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 - **Excluded source keypoints:** d1_middle, d1_base, d2_middle, d2_base, d3_middle, d3_base, d4_middle, d4_base, hand_middle, hand_lateral, hand_medial, wrist, pellet
 - **Direct (11):** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right, eye_back_right, eye_bottom_right, eye_front_right, eye_top_right, nose_bottom, nose_tip, wrist_right
 - **Hflip-only trainable:** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left, eye_back_left, eye_bottom_left, eye_front_left, eye_top_left, wrist_left
+
+## `cheese-3d`
+
+- **Views:** 30 sessions left-view, 30 sessions right-view
+- **Direct (27):** ear_base_left, ear_base_right, ear_bottom_left, ear_bottom_right, ear_tip_left, ear_tip_right, ear_top_left, ear_top_right, eye_back_left, eye_back_right, eye_bottom_left, eye_bottom_right, eye_front_left, eye_front_right, eye_top_left, eye_top_right, lowerlip, nose_bottom, nose_tip, nose_top, pad_center, pad_side_left, pad_side_right, pad_top_left, pad_top_right, upperlip_left, upperlip_right
