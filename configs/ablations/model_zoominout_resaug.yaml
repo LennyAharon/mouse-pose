@@ -1,8 +1,8 @@
-# ABLATION 2 (branch pupil_scale_aug, 2026-09-20): recipe of record + resolution augmentation (Downscale,
-# needs lightning-pose branch pupil_scale_aug) + zoom-in only on the two pupil-labeled sources
-# (cazettes-side and ibl). Question: does making sharpness uninformative, while showing more large
-# pupils, let the all-data trunk place the facemap pupil at the eye centre? Compare with ablation 1
-# (model_zoominout_cazzoomin.yaml: cazettes zoom-in only, no Downscale) and the v4 baseline.
+# ABLATION 2 (branch pupil_scale_aug, 2026-09-21): recipe of record + resolution augmentation ONLY
+# (training.imgaug.Downscale; needs lightning-pose branch pupil_scale_aug). Per-dataset zoom ranges are
+# the recipe's (the cazettes zoom-in-only variant, ablation 1, did not move the facemap pupil and was
+# dropped 2026-09-21). Question: does making sharpness uninformative let the all-data trunk place the
+# facemap pupil at the eye centre? Compare with the v4 baseline.
 data:
   image_resize_dims:
     height: 256
@@ -137,8 +137,8 @@ training:
     facemap: [-0.15, 2.0]
     cheese-2d: [-0.25, 1.0]
     kondo: [-0.33, 0.5]
-    cazettes-side: [-0.4, 0.0]    # ABLATION 2: zoom-in only (sharp large pupils; cazettes is 750x800)
-    ibl: [-0.4, 0.0]              # ABLATION 2: zoom-in only (more large pupils; blurred, matched by Downscale)
+    cazettes-side: [-0.375, 0.25]
+    ibl: [-0.4, 0.15]
     hantman-mv: [-0.4, 0.15]   # same apparent scale as ibl (eye->nose 23% of width)
     cheese-3d: [-0.25, 1.0]    # same rig, cameras and 640x512 frames as cheese-2d
   imgaug_hflip: true
