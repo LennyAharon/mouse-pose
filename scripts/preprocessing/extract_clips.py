@@ -34,6 +34,11 @@ def main() -> None:
     )
     parser.add_argument("--clip-length", type=int, default=30, help="clip length in seconds")
     parser.add_argument(
+        "--skip-start", type=float, default=0.0,
+        help="ignore this many seconds at the start of each video when searching for "
+             "the highest-motion window (e.g. to skip past camera setup/handling)",
+    )
+    parser.add_argument(
         "--likelihood-thresh", type=float, default=0.9,
         help="only used with --preds-dir: likelihood threshold for keypoints counted "
              "toward the movement measure",
@@ -63,6 +68,7 @@ def main() -> None:
             preds_file=preds_file,
             clip_length=args.clip_length,
             likelihood_thresh=args.likelihood_thresh,
+            skip_start=args.skip_start,
             crf=args.crf,
             preset=args.preset,
         )

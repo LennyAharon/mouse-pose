@@ -23,6 +23,7 @@ def make_video_snippet(
     preds_file: Path | None = None,
     clip_length: int = 30,
     likelihood_thresh: float = 0.9,
+    skip_start: float = 0.0,
     crf: int = 23,
     preset: str = "medium",
 ) -> tuple[Path, int, float]:
@@ -37,6 +38,8 @@ def make_video_snippet(
     clip_length: length of the clip in seconds
     likelihood_thresh: when using preds_file, only count keypoints with a likelihood
         above this threshold (0-1) toward the movement measure
+    skip_start: ignore this many seconds at the start of the video when searching for
+        the highest-motion window (e.g. to skip past camera setup/handling)
     crf: h264 constant rate factor (lower = higher quality/larger file)
     preset: ffmpeg x264 preset (encode speed vs. compression efficiency tradeoff)
 
@@ -52,6 +55,8 @@ def make_video_snippet(
     n_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     video.release()
     win_len = int(fps * clip_length)
+    skip_frames = int(fps * skip_start)
+    n_frames_considered = n_frames - skip_frames
 
     out_dir.mkdir(parents=True, exist_ok=True)
     dst = out_dir / f"{video_file.stem}.short.mp4"
@@ -63,34 +68,32 @@ def make_video_snippet(
         "-preset", preset,
     ]
 
-    if win_len >= n_frames:
-        # video is already shorter than the requested clip length -- keep it all, just
-        # re-encode so the output format is still guaranteed h264/yuv420p/mp4
-        clip_start_idx = 0
-        clip_start_sec = 0.0
-        ffmpeg_cmd = ["ffmpeg", "-y", "-i", str(video_file), *encode_flags, str(dst)]
+    if win_len >= n_frames_considered:
+        # remaining video (after skip_start) is already shorter than the requested clip
+        # length -- keep all of it, just re-encode to guarantee h264/yuv420p/mp4
+        clip_start_idx = skip_frames
+        clip_start_sec = skip_start
     else:
-        # find the `clip_length`-second window with the highest average motion energy
+        # find the `clip_length`-second window with the highest average motion energy,
+        # considering only frames at or after skip_start
         if preds_file is None:
-            me = compute_video_motion_energy(video_file)
+            me = compute_video_motion_energy(video_file, start_frame=skip_frames)
         else:
             df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
             me = compute_motion_energy_from_prediction_df(df, likelihood_thresh)
+            me = me[skip_frames:]
         me_win = pd.Series(me).rolling(window=win_len, center=False).mean()
         # rolling() places each result at the window's right edge; shift back to the start
-        clip_start_idx = int(me_win.argmax() - win_len)
+        clip_start_idx = int(me_win.argmax() - win_len) + skip_frames
         clip_start_sec = clip_start_idx / fps
-        if np.isnan(clip_start_sec) or clip_start_sec < 0:
-            # all predictions were below likelihood_thresh -- fall back to the start
-            clip_start_idx, clip_start_sec = 0, 0.0
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-ss", str(clip_start_sec),
-            "-i", str(video_file),
-            "-t", str(clip_length),
-            *encode_flags,
-            str(dst),
-        ]
+        if np.isnan(clip_start_sec) or clip_start_idx < skip_frames:
+            # all predictions were below likelihood_thresh -- fall back to skip_start
+            clip_start_idx, clip_start_sec = skip_frames, skip_start
+
+    ffmpeg_cmd = ["ffmpeg", "-y", "-ss", str(clip_start_sec), "-i", str(video_file)]
+    if win_len < n_frames_considered:
+        ffmpeg_cmd += ["-t", str(clip_length)]
+    ffmpeg_cmd += [*encode_flags, str(dst)]
 
     if not dst.exists():
         subprocess.run(ffmpeg_cmd, check=True)
@@ -101,9 +104,12 @@ def make_video_snippet(
 def compute_video_motion_energy(
     video_file: Path,
     resize_dims: int = 32,
+    start_frame: int = 0,
 ) -> np.ndarray:
     """Per-frame motion energy: summed absolute pixel difference from the prior frame."""
-    frames = read_nth_frames(video_file=video_file, n=1, resize_dims=resize_dims)
+    frames = read_nth_frames(
+        video_file=video_file, n=1, resize_dims=resize_dims, start_frame=start_frame
+    )
     batches = frames.reshape(frames.shape[0], -1)
 
     diffs = np.concatenate([np.zeros((1, batches.shape[1])), np.diff(batches, axis=0)])
@@ -133,15 +139,19 @@ def read_nth_frames(
     video_file: Path,
     n: int = 1,
     resize_dims: int = 64,
+    start_frame: int = 0,
 ) -> np.ndarray:
-    """Read every nth frame of a video, resized to (resize_dims, resize_dims), as RGB."""
+    """Read every nth frame of a video from start_frame onward, resized to
+    (resize_dims, resize_dims), as RGB."""
     cap = cv2.VideoCapture(str(video_file))
     if not cap.isOpened():
         raise OSError(f"Error opening video file {video_file}")
+    if start_frame:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
     frames = []
     frame_counter = 0
-    frame_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) - start_frame
     with tqdm(total=frame_total, desc=f"scanning {video_file.name}") as pbar:
         while cap.isOpened():
             ret, frame = cap.read()
