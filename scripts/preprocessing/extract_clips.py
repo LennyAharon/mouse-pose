@@ -32,9 +32,9 @@ def main() -> None:
         help="directory of pose-prediction csvs (matched to videos by stem); if omitted, "
              "movement is measured from raw pixel differences instead",
     )
-    parser.add_argument("--clip-length", type=int, default=30, help="clip length in seconds")
+    parser.add_argument("--clip-length", type=int, default=15, help="clip length in seconds")
     parser.add_argument(
-        "--skip-start", type=float, default=0.0,
+        "--skip-start", type=float, default=60.0,
         help="ignore this many seconds at the start of each video when searching for "
              "the highest-motion window (e.g. to skip past camera setup/handling)",
     )

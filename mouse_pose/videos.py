@@ -21,9 +21,9 @@ def make_video_snippet(
     video_file: Path,
     out_dir: Path,
     preds_file: Path | None = None,
-    clip_length: int = 30,
+    clip_length: int = 15,
     likelihood_thresh: float = 0.9,
-    skip_start: float = 0.0,
+    skip_start: float = 60.0,
     crf: int = 23,
     preset: str = "medium",
 ) -> tuple[Path, int, float]:
