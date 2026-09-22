@@ -35,6 +35,8 @@ the same pattern (paths module + conventions doc) applies to any other project.
 
 ## Rendering craft
 
+- **Left vs right must be tellable apart** whenever a lateral pair is drawn as a group (digit
+  tips, wrists, ears): give the two sides two hues, never one hue for the pair.
 - **Color design:** distinct color per keypoint via a golden-ratio hue wheel
   (`h = (offset + i * 0.618034) % 1`, high saturation/value); if red is reserved for
   ground truth, exclude the red band (`h < 0.06 or h > 0.94 → shift`). Keep the SAME
@@ -105,3 +107,36 @@ the same pattern (paths module + conventions doc) applies to any other project.
   which model produced it, and the exact color/confidence conventions each delivery
   used (reuse them for consistency). Append new deliveries to it.
 - Operational reference: `docs/operations.md`.
+
+## Standing deliverable: the transfer panel (run this for every new trunk)
+
+The video the user asks for whenever a new all-data trunk finishes: one panel per camera view
+in the corpus, showing only the keypoints that view's dataset never supervises, so the whole
+transfer class is inspectable at a glance. Do not rebuild it from scratch — reuse
+
+    <results_dir>/qualitative/transfer-panel-09-20/render_transfer_panel.py   (latest copy)
+    python render_transfer_panel.py --model <run dir with eval/> --out <name>.mp4 \
+        [--conf 0.7] [--frames 60] [--panel 300] [--cols 5] [--fps 3]
+
+copied into the new delivery folder (`<topic>-<MM-DD>/`) so each delivery keeps its own script.
+Conventions it encodes, which the user has asked for repeatedly:
+
+- **Transfer = not in `trainable`** for that dataset (its own labels *and* the lateral partners
+  horizontal flips supervise). Looser definitions leak flip-supervised channels into the panel.
+- **Confidence floor 0.7**, markers solid, nothing below the floor drawn.
+- **`tongue_tip` and `pupil_center_right` are drawn in every view**, even where supervised; the
+  panel header then says "+ own tongue tip / R pupil". `pupil_center_right` is a **ring**, since
+  no dataset labels it and flips alone train it. This is the one sanctioned exception to the
+  project rule that it is never drawn.
+- **One saturated hue per keypoint group, never white or grey** (white markers on greyscale mouse
+  video are unreadable): eye cyan, pupil yellow, ear magenta, nose orange, whisker pad teal,
+  mouth/lips blue, tongue pink, wrist violet. **Digit tips are split by side: right green, left
+  red** (user request 2026-09-22: a transfer video must show at a glance whether a left or a right
+  digit channel fired; red is free here because this panel draws no ground truth). Apply the same
+  rule to any other lateral pair the user asks to tell apart. The banner auto-shrinks to the
+  canvas width, so a long run path never runs off the edge.
+- **Every panel carries its view name, its inherited-keypoint count, and a step/frame footer**;
+  the banner names the run, the floor and the colour key. No separate legend.png.
+- `VIEW_ORDER` in the script lists the (dataset, view) panels and `view_of()` maps a session
+  directory to its view. **A new dataset or camera means adding both**; views present in the data
+  but missing from `VIEW_ORDER` are appended at the end and reported, never dropped silently.
