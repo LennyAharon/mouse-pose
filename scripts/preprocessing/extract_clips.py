@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""
+Extract a fixed-length, high-motion clip from every video in a directory.
+
+For each source video, picks the `--clip-length`-second window with the most movement
+(measured from raw pixel differences, or from pose predictions if `--preds-dir` is
+given) and saves it as an h264/yuv420p mp4 in `--out-dir`, regardless of the source
+codec/container. See mouse_pose/videos.py:make_video_snippet for the core logic.
+
+Usage:
+    conda run -n pose python scripts/preprocessing/extract_clips.py \\
+        --video-dir /media/mattw/poseinterface/_raw/_dlc/cazettes-side/videos-avi \\
+        --out-dir /media/mattw/poseinterface/_raw/_dlc/cazettes-side/videos_test
+"""
+
+import argparse
+from pathlib import Path
+
+from mouse_pose.videos import make_video_snippet
+
+VIDEO_EXTENSIONS = (".avi", ".mp4", ".mov")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--video-dir", type=Path, required=True, help="directory of source videos")
+    parser.add_argument("--out-dir", type=Path, required=True, help="directory to save clips to")
+    parser.add_argument(
+        "--preds-dir", type=Path, default=None,
+        help="directory of pose-prediction csvs (matched to videos by stem); if omitted, "
+             "movement is measured from raw pixel differences instead",
+    )
+    parser.add_argument("--clip-length", type=int, default=30, help="clip length in seconds")
+    parser.add_argument(
+        "--likelihood-thresh", type=float, default=0.9,
+        help="only used with --preds-dir: likelihood threshold for keypoints counted "
+             "toward the movement measure",
+    )
+    parser.add_argument("--crf", type=int, default=23, help="h264 constant rate factor")
+    parser.add_argument("--preset", type=str, default="medium", help="ffmpeg x264 preset")
+    args = parser.parse_args()
+
+    video_files = sorted(
+        p for p in args.video_dir.iterdir() if p.suffix.lower() in VIDEO_EXTENSIONS
+    )
+    if not video_files:
+        raise FileNotFoundError(f"No videos found in {args.video_dir}")
+
+    for video_file in video_files:
+        preds_file = None
+        if args.preds_dir is not None:
+            candidate = args.preds_dir / f"{video_file.stem}.csv"
+            if candidate.exists():
+                preds_file = candidate
+            else:
+                print(f"  no predictions found for {video_file.name}, using pixel motion energy")
+
+        dst, clip_start_idx, clip_start_sec = make_video_snippet(
+            video_file=video_file,
+            out_dir=args.out_dir,
+            preds_file=preds_file,
+            clip_length=args.clip_length,
+            likelihood_thresh=args.likelihood_thresh,
+            crf=args.crf,
+            preset=args.preset,
+        )
+        print(
+            f"{video_file.name} -> {dst.name} "
+            f"(start: frame {clip_start_idx}, {clip_start_sec:.1f}s)"
+        )
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()
