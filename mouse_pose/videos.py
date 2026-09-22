@@ -24,22 +24,32 @@ def make_video_snippet(
     clip_length: int = 15,
     likelihood_thresh: float = 0.9,
     skip_start: float = 60.0,
+    from_start: bool = False,
+    fps: float | None = None,
     crf: int = 23,
     preset: str = "medium",
 ) -> tuple[Path, int, float]:
-    """Extract a `clip_length`-second clip containing the most movement.
+    """Extract a `clip_length`-second clip from a video.
 
     Parameters
     ----------
     video_file: path to the source video
     out_dir: directory to save the clip in (created if it doesn't exist)
     preds_file: csv of pose predictions; if given, movement is measured from keypoint
-        displacement instead of raw pixels
+        displacement instead of raw pixels. Ignored if from_start is True.
     clip_length: length of the clip in seconds
     likelihood_thresh: when using preds_file, only count keypoints with a likelihood
         above this threshold (0-1) toward the movement measure
-    skip_start: ignore this many seconds at the start of the video when searching for
-        the highest-motion window (e.g. to skip past camera setup/handling)
+    skip_start: ignore this many seconds at the start of the video -- when searching
+        for the highest-motion window (e.g. to skip past camera setup/handling), or,
+        with from_start, as the point the clip itself starts from
+    from_start: if True, skip the motion-energy search and just take the
+        `clip_length`-second window starting at skip_start
+    fps: override the frame rate used for all time math (skip_start/clip_length <->
+        frame index) and for reading the source video, for videos whose container
+        reports the wrong frame rate (e.g. a camera's true capture rate rather than
+        the rate it was saved at). Defaults to the frame rate reported by the video
+        file itself.
     crf: h264 constant rate factor (lower = higher quality/larger file)
     preset: ffmpeg x264 preset (encode speed vs. compression efficiency tradeoff)
 
@@ -51,11 +61,12 @@ def make_video_snippet(
 
     """
     video = cv2.VideoCapture(str(video_file))
-    fps = video.get(cv2.CAP_PROP_FPS)
+    native_fps = video.get(cv2.CAP_PROP_FPS)
     n_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     video.release()
-    win_len = int(fps * clip_length)
-    skip_frames = int(fps * skip_start)
+    effective_fps = fps if fps is not None else native_fps
+    win_len = int(effective_fps * clip_length)
+    skip_frames = int(effective_fps * skip_start)
     n_frames_considered = n_frames - skip_frames
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -68,9 +79,10 @@ def make_video_snippet(
         "-preset", preset,
     ]
 
-    if win_len >= n_frames_considered:
-        # remaining video (after skip_start) is already shorter than the requested clip
-        # length -- keep all of it, just re-encode to guarantee h264/yuv420p/mp4
+    if from_start or win_len >= n_frames_considered:
+        # either explicitly requested, or the remaining video (after skip_start) is
+        # already shorter than the requested clip length -- keep it as is, just
+        # re-encode to guarantee h264/yuv420p/mp4
         clip_start_idx = skip_frames
         clip_start_sec = skip_start
     else:
@@ -85,13 +97,18 @@ def make_video_snippet(
         me_win = pd.Series(me).rolling(window=win_len, center=False).mean()
         # rolling() places each result at the window's right edge; shift back to the start
         clip_start_idx = int(me_win.argmax() - win_len) + skip_frames
-        clip_start_sec = clip_start_idx / fps
+        clip_start_sec = clip_start_idx / effective_fps
         if np.isnan(clip_start_sec) or clip_start_idx < skip_frames:
             # all predictions were below likelihood_thresh -- fall back to skip_start
             clip_start_idx, clip_start_sec = skip_frames, skip_start
 
-    ffmpeg_cmd = ["ffmpeg", "-y", "-ss", str(clip_start_sec), "-i", str(video_file)]
-    if win_len < n_frames_considered:
+    ffmpeg_cmd = ["ffmpeg", "-y"]
+    if fps is not None:
+        # ignore the container's (wrong) timestamps and regenerate them at the true
+        # capture rate, both when reading the input and timing the output
+        ffmpeg_cmd += ["-r", str(fps)]
+    ffmpeg_cmd += ["-ss", str(clip_start_sec), "-i", str(video_file)]
+    if from_start or win_len < n_frames_considered:
         ffmpeg_cmd += ["-t", str(clip_length)]
     ffmpeg_cmd += [*encode_flags, str(dst)]
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Extract a fixed-length, high-motion clip from every video in a directory.
+Extract a fixed-length clip from every video in a directory.
 
 For each source video, picks the `--clip-length`-second window with the most movement
 (measured from raw pixel differences, or from pose predictions if `--preds-dir` is
-given) and saves it as an h264/yuv420p mp4 in `--out-dir`, regardless of the source
+given), or, with `--from-start`, just the first `--clip-length` seconds starting at
+`--skip-start`. Saves as an h264/yuv420p mp4 in `--out-dir`, regardless of the source
 codec/container. See mouse_pose/videos.py:make_video_snippet for the core logic.
 
 Usage:
@@ -35,8 +36,21 @@ def main() -> None:
     parser.add_argument("--clip-length", type=int, default=15, help="clip length in seconds")
     parser.add_argument(
         "--skip-start", type=float, default=60.0,
-        help="ignore this many seconds at the start of each video when searching for "
-             "the highest-motion window (e.g. to skip past camera setup/handling)",
+        help="ignore this many seconds at the start of each video -- when searching for "
+             "the highest-motion window (e.g. to skip past camera setup/handling), or, "
+             "with --from-start, as the point each clip itself starts from",
+    )
+    parser.add_argument(
+        "--from-start", action="store_true",
+        help="skip the motion-energy search and just take the --clip-length-second "
+             "window starting at --skip-start",
+    )
+    parser.add_argument(
+        "--fps", type=float, default=None,
+        help="override the frame rate used for all time math and for reading each "
+             "source video, for videos whose container reports the wrong frame rate "
+             "(e.g. a camera's true capture rate rather than the rate it was saved "
+             "at). Defaults to each video's own reported frame rate.",
     )
     parser.add_argument(
         "--likelihood-thresh", type=float, default=0.9,
@@ -69,6 +83,8 @@ def main() -> None:
             clip_length=args.clip_length,
             likelihood_thresh=args.likelihood_thresh,
             skip_start=args.skip_start,
+            from_start=args.from_start,
+            fps=args.fps,
             crf=args.crf,
             preset=args.preset,
         )
