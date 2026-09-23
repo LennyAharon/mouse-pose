@@ -6,17 +6,26 @@ Reads configs/datasets/<dataset>.yaml and applies:
   - Session and keypoint exclusions
   - Bilateral keypoint lateralization (adds _left / _right variants)
   - Keypoint renaming to canonical names from configs/keypoints.yaml
-  - Visibility column (2=labeled, 1=unlabeled/wrong-side, 0=not in dataset)
+  - Visibility column (2=labeled, 1=occluded/no-coordinate, 0=not in dataset)
 
 Produces (in data_dir from paths.yaml):
   CollectedData_<dataset>_train.csv
   CollectedData_<dataset>_test.csv
   labeled-data/<dataset>/<session>/<frame>.png  (all images, both splits)
 
-Visibility convention:
-  2 = keypoint is labeled in this frame
-  1 = keypoint belongs to this dataset but is unlabeled or on the opposite side
-  0 = keypoint is not part of this dataset (assigned at merge time)
+Visibility convention (per Lightning Pose's training.uniform_heatmaps_for_nan_keypoints):
+  2 = keypoint is labeled in this frame        -> Gaussian heatmap target (standard supervision)
+  1 = keypoint belongs to this dataset, but has no coordinate this frame (unlabeled,
+      opposite side of a lateralized dataset, ...) -> trained as occluded: uniform
+      heatmap target, teaches the model low confidence everywhere for this keypoint
+  0 = keypoint is not part of this dataset (assigned at merge time) -> excluded from
+      the loss entirely; the model is given no opinion on this keypoint for this frame
+
+A vis=1 default is only correct when the keypoint really might be occluded/absent in
+that frame. Where a keypoint is known to actually be visible but wasn't given a
+coordinate for structural reasons (e.g. cheese-2d/-3d's _CHEESE_NULL_KPS), the
+per-dataset post-processing below forces vis 1 -> 0 instead, so the model isn't taught
+to expect low confidence on a keypoint that's really there.
 
 Usage:
   python scripts/convert_dataset.py --dataset facemap
@@ -95,11 +104,13 @@ def _post_process_cheese2d(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     return df
 
 
-# hantman-mv: every session is lateralized to "right" (configs/datasets/hantman-mv.yaml)
-# -- the left side was never filmed/assessed at all, not merely unlabeled-in-frame.
-# process_split()'s default (vis=1, "in dataset but unlabeled") would train the model to
-# output a suppressed heatmap for a side that was simply never captured. Force vis=0
-# ("not part of this dataset") for every _left column instead.
+# hantman-mv: every session is lateralized to "right" (configs/datasets/hantman-mv.yaml) --
+# the camera is mounted on the right side of the body, so the original annotator only ever
+# labeled the right paw. The left paw is visible in these frames too, it just was never
+# labeled: an annotation gap, not occlusion. process_split()'s default (vis=1) would train
+# the model that this is an occluded keypoint (uniform heatmap target, teaches low
+# confidence everywhere) for a paw that's actually there. Force vis=0 (excluded from the
+# loss entirely, no opinion) for every _left column instead.
 #
 # Exception: the ear_* keypoints are deliberately mapped with all-empty source columns
 # (see scripts/preprocessing/hantman-mv/README.md) specifically to get the default vis=1
@@ -118,11 +129,13 @@ def _post_process_hantman_mv(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     return df
 
 
-# kaufman: every session is lateralized to "right" (configs/datasets/kaufman.yaml) --
-# the left forepaw was never filmed/assessed at all, not merely unlabeled-in-frame.
-# process_split()'s default (vis=1, "in dataset but unlabeled") would train the model to
-# output a suppressed heatmap for a side that was simply never captured. Force vis=0
-# ("not part of this dataset") for every _left column instead.
+# kaufman: every session is lateralized to "right" (configs/datasets/kaufman.yaml) -- same
+# situation as hantman-mv above: the camera setup meant only the right forepaw was ever
+# labeled, but the left forepaw is visible in these frames too -- an annotation gap, not
+# occlusion. process_split()'s default (vis=1) would train the model that this is an
+# occluded keypoint (uniform heatmap target, teaches low confidence everywhere) for a paw
+# that's actually there. Force vis=0 (excluded from the loss entirely, no opinion) for
+# every _left column instead.
 def _post_process_kaufman(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     for kp in df.columns.get_level_values(1).unique():
         if kp.endswith("_left"):
@@ -131,25 +144,7 @@ def _post_process_kaufman(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     return df
 
 
-# facemap: the pupil is labeled on a subset of frames only (2026-09-22: daytime frames with a
-# visible constricted pupil; dark-adapted frames were left empty on purpose). An empty
-# same-side pupil means "not annotated", not "not in the image": force vis 1 -> 0 for
-# pupil_center_<session side>, so the channel is not trained to go silent on those frames.
-# The opposite-side pupil and the all-empty ear_* columns keep the default vis=1 suppression.
-def _post_process_facemap(df: pd.DataFrame, config: dict) -> pd.DataFrame:
-    cfg_sessions = config.get("sessions") or {}
-    sides = np.array([cfg_sessions.get(Path(p).parts[-2]) for p in df.index], dtype=object)
-    for side in ("left", "right"):
-        vis_col = (SCORER, f"pupil_center_{side}", "visible")
-        if vis_col not in df.columns:
-            continue
-        v = df[vis_col].to_numpy()
-        df[vis_col] = np.where((sides == side) & (v == 1.0), 0.0, v)
-    return df
-
-
 POST_PROCESS: dict[str, object] = {
-    "facemap": _post_process_facemap,
     "cheese-2d": _post_process_cheese2d,
     "cheese-3d": _post_process_cheese2d,   # same rig, same views and session-side convention
     "hantman-mv": _post_process_hantman_mv,
@@ -412,8 +407,8 @@ def main() -> None:
     parser.add_argument("--train_csv",  default=TRAIN_CSV,           help=f"Train CSV filename (default: {TRAIN_CSV})")
     parser.add_argument("--test_csv",   default=TEST_CSV,            help=f"Test CSV filename (default: {TEST_CSV})")
     parser.add_argument("--link_frames", action="store_true",
-                        help="symlink frames to the raw files instead of copying (frames never change between "
-                             "data versions; see docs/data_versioning.md)")
+                        help="symlink frames to the raw files instead of copying "
+                             "(frames never change between data versions)")
     args = parser.parse_args()
 
     _cfg_raw = (load_dataset_config(CONFIGS_DIR, args.dataset) or {}).get("raw_folder")
