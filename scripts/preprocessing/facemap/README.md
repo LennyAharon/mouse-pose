@@ -10,6 +10,14 @@ for the current keypoint mapping.
 
 ## Changelog
 
+### 2026-09-22 (MW)
+- Added manual labels for the `pupil` keypoint to `CollectedData.csv` and `CollectedData_test.csv`.
+  Added `pupil: pupil_center_{side}` to the `keypoints` mapping in
+  [`configs/datasets/facemap.yaml`](../../../configs/datasets/facemap.yaml).
+  `pupil_center_left`/`pupil_center_right` already existed in `configs/keypoints.yaml`/
+  `model.yaml` (populated via `ibl`), so no vocab changes were needed. `convert_dataset.py` still
+  needs to be re-run to pick up the new labels.
+
 ### 2026-09-17 (MW)
 - Added `ear_top`, `ear_tip`, `ear_bottom`, and `ear_base` as new keypoints
   (all rows empty — ears are never visible in this view) to
