@@ -63,6 +63,8 @@ _CHEESE_NULL_KPS = frozenset([
     "eye_front_right", "eye_top_right", "eye_back_right", "eye_bottom_right",
     "ear_base_right",  "ear_top_right", "ear_tip_right",  "ear_bottom_right",
     "pad_top_right",   "pad_side_right",
+    # cheese-3d labels the pupils (2026-09-23); an empty pupil in a head-on view is unlabeled, not absent
+    "pupil_center_left", "pupil_center_right",
 ])
 
 
@@ -129,7 +131,25 @@ def _post_process_kaufman(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     return df
 
 
+# facemap: the pupil is labeled on a subset of frames only (2026-09-22: daytime frames with a
+# visible constricted pupil; dark-adapted frames were left empty on purpose). An empty
+# same-side pupil means "not annotated", not "not in the image": force vis 1 -> 0 for
+# pupil_center_<session side>, so the channel is not trained to go silent on those frames.
+# The opposite-side pupil and the all-empty ear_* columns keep the default vis=1 suppression.
+def _post_process_facemap(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    cfg_sessions = config.get("sessions") or {}
+    sides = np.array([cfg_sessions.get(Path(p).parts[-2]) for p in df.index], dtype=object)
+    for side in ("left", "right"):
+        vis_col = (SCORER, f"pupil_center_{side}", "visible")
+        if vis_col not in df.columns:
+            continue
+        v = df[vis_col].to_numpy()
+        df[vis_col] = np.where((sides == side) & (v == 1.0), 0.0, v)
+    return df
+
+
 POST_PROCESS: dict[str, object] = {
+    "facemap": _post_process_facemap,
     "cheese-2d": _post_process_cheese2d,
     "cheese-3d": _post_process_cheese2d,   # same rig, same views and session-side convention
     "hantman-mv": _post_process_hantman_mv,

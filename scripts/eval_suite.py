@@ -7,7 +7,7 @@ explicit --run name=path pairs) and, from the pixel_error.csv that evaluate_mode
 dataset's test set, produces:
 
   summary.csv        one row per (run, dataset): pooled median / mean pixel error over labeled
-                     keypoints (visible == 2, pupil_center_right excluded), frames, keypoints
+                     keypoints (visible == 2), frames, keypoints
   per_keypoint.csv   one row per (run, dataset, keypoint): median / mean px error, n labels
   README.md          the summary as a table (dedicated vs all-data vs leave-one-out per dataset)
 
@@ -26,7 +26,7 @@ import pandas as pd
 from mouse_pose.paths import load_paths
 from mouse_pose.registry import load_registry
 
-EXCLUDE = {"pupil_center_right"}
+EXCLUDE: set[str] = set()   # pupil_center_right is scored where labeled (visible == 2) since corpus v5
 LEAF = "supervised/sampling-T2/tf1/vits_dinov3"
 
 
@@ -98,7 +98,7 @@ def main() -> None:
              "question: How do the recipe-of-record models score on every dataset's test set?",
              f"models: {', '.join(runs)}", "outputs: summary.csv, per_keypoint.csv",
              "finding: (fill in after reading the table)", "---", "",
-             "# Evaluation suite", "", "Median pixel error over labeled keypoints (visible == 2, `pupil_center_right` excluded),",
+             "# Evaluation suite", "", "Median pixel error over labeled keypoints (visible == 2),",
              "each run scored on every dataset's test set. A dedicated model scored on another dataset only",
              "measures whatever keypoints the two share.", "", md_table(piv.round(2)), "",
              "Per-keypoint numbers: `per_keypoint.csv`. Runs:", ""]

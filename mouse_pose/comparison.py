@@ -4,7 +4,10 @@ import numpy as np
 import pandas as pd
 
 LIP_KEYPOINTS = frozenset({"upperlip_left", "upperlip_right", "lowerlip"})
-ALWAYS_EXCLUDED = frozenset({"pupil_center_right"})
+# pupil_center_right used to be excluded here because no dataset labeled it (hflip-only channel).
+# Since corpus v5 (2026-09-23) facemap and cheese-3d label it directly; scoring only visible == 2
+# cells already skips it wherever it is unlabeled, so nothing is excluded by name any more.
+ALWAYS_EXCLUDED: frozenset[str] = frozenset()
 
 
 def visible_errors(labels: pd.DataFrame, predictions: pd.DataFrame) -> pd.DataFrame:

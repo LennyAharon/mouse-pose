@@ -6,7 +6,7 @@ monitors (training.ckpt_monitors_extra), e.g. *-best.ckpt vs *-best-val_supervis
 
 Writes <out>/<dataset>/{predictions,pixel_error}.csv in the same format as the run's eval/ folder,
 plus <out>/summary.csv (per dataset: frames, labels, median / mean px over visible == 2 labels,
-pupil_center_right excluded) and prints it next to the canonical eval's numbers when present.
+visible == 2 only) and prints it next to the canonical eval's numbers when present.
 
     python scripts/eval_checkpoint.py --run <run_dir> --ckpt "*best-val_supervised_loss_T.ckpt"
     python scripts/eval_checkpoint.py --run <run_dir> --ckpt <file> --out <dir>   # default <run_dir>/eval_<ckpt-stem>
@@ -23,7 +23,7 @@ import pandas as pd
 from mouse_pose.paths import load_paths
 from mouse_pose.registry import load_registry
 
-EXCLUDE = {"pupil_center_right"}
+EXCLUDE: set[str] = set()   # pupil_center_right is scored where labeled (visible == 2) since corpus v5
 
 
 def shadow_run(run: Path, ckpt: Path) -> Path:

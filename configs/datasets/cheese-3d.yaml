@@ -35,6 +35,9 @@ keypoints:
   ear(bottom)(right): ear_bottom_right
   pad(top)(right): pad_top_right
   pad(side)(right): pad_side_right
+  # pupils added 2026-09-23 (cheese-3d@v2): raw columns already carry the canonical names
+  pupil_center_left: pupil_center_left
+  pupil_center_right: pupil_center_right
 sessions:
   20231031_B20_chew_bl_000_08-38-25_BC: null
   20231031_B20_chew_bl_000_08-38-25_L: left
