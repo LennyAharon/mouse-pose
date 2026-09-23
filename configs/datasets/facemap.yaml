@@ -21,6 +21,7 @@ keypoints:
   eye_bottom: eye_bottom_{side}
   eye_front: eye_front_{side}
   eye_top: eye_top_{side}
+  pupil: pupil_center_{side}
   ear_top: ear_top_{side}
   ear_tip: ear_tip_{side}
   ear_bottom: ear_bottom_{side}

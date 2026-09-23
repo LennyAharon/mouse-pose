@@ -136,6 +136,13 @@ than picking a default and mentioning it after the fact.
    custom script was needed, and any design decisions from the questions above,
    including a "Status: stage 1 only" note if stage 2 hasn't happened — it won't be
    obvious from the code alone that a dataset was deliberately left out of the corpus.
+   - Keep keypoint/label-level history out of README.md — track it in a sibling
+     `scripts/preprocessing/<name>/CHANGELOG.md` instead (dated, most-recent-first
+     entries, same style as existing ones). README.md documents the pipeline as it
+     currently stands; CHANGELOG.md is the append-only record of what changed and
+     when. For a dataset already in standard DLC layout that needed no custom script
+     (e.g. `facemap`, `cazettes-side`, `kondo`), CHANGELOG.md may be the only file in
+     the folder — skip README.md entirely rather than writing one with nothing to say.
 
 Stages 2 and 3 (corpus integration, rebuilding merged tags) are in the main
 `README.md`'s "Adding a new dataset" and "Renaming or deprecating a dataset" sections —

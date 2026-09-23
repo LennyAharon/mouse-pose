@@ -116,10 +116,24 @@ def _post_process_hantman_mv(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     return df
 
 
+# kaufman: every session is lateralized to "right" (configs/datasets/kaufman.yaml) --
+# the left forepaw was never filmed/assessed at all, not merely unlabeled-in-frame.
+# process_split()'s default (vis=1, "in dataset but unlabeled") would train the model to
+# output a suppressed heatmap for a side that was simply never captured. Force vis=0
+# ("not part of this dataset") for every _left column instead.
+def _post_process_kaufman(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    for kp in df.columns.get_level_values(1).unique():
+        if kp.endswith("_left"):
+            vis_col = (SCORER, kp, "visible")
+            df[vis_col] = np.where(df[vis_col].to_numpy() == 1.0, 0.0, df[vis_col].to_numpy())
+    return df
+
+
 POST_PROCESS: dict[str, object] = {
     "cheese-2d": _post_process_cheese2d,
     "cheese-3d": _post_process_cheese2d,   # same rig, same views and session-side convention
     "hantman-mv": _post_process_hantman_mv,
+    "kaufman": _post_process_kaufman,
 }
 
 

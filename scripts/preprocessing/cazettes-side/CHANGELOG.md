@@ -8,6 +8,24 @@ for the current keypoint mapping.
 
 ## Changelog
 
+### 2026-09-22 (MW)
+- Added `mouse_pose/videos.py` (`make_video_snippet` + motion-energy helpers) and the
+  general-purpose `scripts/preprocessing/extract_clips.py` wrapper (ported from an
+  external script) — picks the highest-motion window in a video and re-encodes it to
+  h264/yuv420p/mp4, regardless of source codec/container. Not cazettes-side-specific;
+  lives at the top of `scripts/preprocessing/` for reuse across datasets.
+- Ran it on the two raw recordings in `_raw/_dlc/cazettes-side/videos-avi/`
+  (`FC075_HeadFixFlippingSTIM_Box02_200123a_Body0.avi`,
+  `FC076_HeadFixFlippingSTIM_Box02_200225a_Body0.avi`) to produce short high-motion
+  clips in `_raw/_dlc/cazettes-side/videos_test/` for review as labeling candidates.
+  `FC076` has visible camera movement during setup, so `--skip-start 60` was used
+  (applied to both videos) to exclude the first 60s from the motion search; final
+  run used `--clip-length 10`. `--skip-start 60` still wasn't enough for `FC076`
+  (camera movement continued past that point), so it was re-run alone with
+  `--skip-start 120`, landing its clip at 1712.1s. These are raw-video review
+  clips, not label changes — `CollectedData.csv`/`CollectedData_test.csv` are
+  untouched.
+
 ### 2026-09-17 (MW)
 - Added `ear_top`, `ear_tip`, `ear_bottom`, and `ear_base` as new keypoints
   (all rows empty — ears are never visible in this side view) to
