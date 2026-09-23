@@ -23,7 +23,7 @@ Visibility convention (per Lightning Pose's training.uniform_heatmaps_for_nan_ke
 
 A vis=1 default is only correct when the keypoint really might be occluded/absent in
 that frame. Where a keypoint is known to actually be visible but wasn't given a
-coordinate for structural reasons (e.g. cheese-2d/-3d's _CHEESE_NULL_KPS), the
+coordinate for structural reasons (e.g. cheese-2d's _CHEESE_NULL_KPS), the
 per-dataset post-processing below forces vis 1 -> 0 instead, so the model isn't taught
 to expect low confidence on a keypoint that's really there.
 
@@ -72,8 +72,6 @@ _CHEESE_NULL_KPS = frozenset([
     "eye_front_right", "eye_top_right", "eye_back_right", "eye_bottom_right",
     "ear_base_right",  "ear_top_right", "ear_tip_right",  "ear_bottom_right",
     "pad_top_right",   "pad_side_right",
-    # cheese-3d labels the pupils (2026-09-23); an empty pupil in a head-on view is unlabeled, not absent
-    "pupil_center_left", "pupil_center_right",
 ])
 
 
@@ -146,7 +144,6 @@ def _post_process_kaufman(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 
 POST_PROCESS: dict[str, object] = {
     "cheese-2d": _post_process_cheese2d,
-    "cheese-3d": _post_process_cheese2d,   # same rig, same views and session-side convention
     "hantman-mv": _post_process_hantman_mv,
     "kaufman": _post_process_kaufman,
 }
