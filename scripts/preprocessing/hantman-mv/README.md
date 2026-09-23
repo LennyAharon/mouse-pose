@@ -91,9 +91,8 @@ rows across both views).
 
 ### 2026-09-15 (MW)
 - Added `eye_back`, `eye_top`, `eye_front`, `eye_bottom`, `nose_tip`, and `nose_bottom`
-  as new keypoints (all rows empty) to `project.yaml` + both `CollectedData*.csv`
-  files — a schema extension to label via the LP app later, not new label data (no
-  source ever provided values for them).
+  as new keypoints to `project.yaml` + both `CollectedData*.csv` files, and manually
+  labeled them in the LP app (no source ever provided values for them).
 - Computed a new `wrist_new` column from three existing keypoints:
   `mid = nanmean(d2_base, d3_base)` (x/y independently), then
   `wrist_new = (mid + hand_middle) / 2` — `NaN` whenever either input is `NaN`.
