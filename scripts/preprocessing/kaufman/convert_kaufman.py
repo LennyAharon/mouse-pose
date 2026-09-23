@@ -21,6 +21,13 @@ individual labeled-data dir) keeps a session's cam1 and cam2 views -- the same
 trial, viewed twice -- on the same side of the split, since treating them as
 unrelated would leak near-duplicate frames across train/test.
 
+Every video-backed timestamp is *forced* into test (so every delivered video is a
+labeling-review candidate in videos_test/), then additional timestamps are added via
+the usual greedy random split until the 10-15% frame target is reached -- not every
+test session has video, but every video's session is in test. Only 2 of 52 timestamps
+are video-backed (108/2540 frames, 4.25%), so the target is reached almost entirely by
+the random top-up.
+
 Usage:
     conda run -n pose python scripts/preprocessing/kaufman/convert_kaufman.py
 """
@@ -40,6 +47,7 @@ from mouse_pose.subject_split import subject_split
 TEST_FRACTION = 0.125
 
 SESSION_RE = re.compile(r"^(?P<timestamp>\d{8}-\d{6})-cam[12]$")
+VIDEO_RE = re.compile(r"^[^_]+_(?P<timestamp>\d{8}-\d{6})_cam[12]_")
 
 
 def timestamp_of(session_dir: str) -> str:
@@ -47,6 +55,15 @@ def timestamp_of(session_dir: str) -> str:
     if not m:
         raise ValueError(f"unrecognized session dir name: {session_dir!r}")
     return m.group("timestamp")
+
+
+def video_backed_timestamps(videos_dir: Path) -> set[str]:
+    timestamps = set()
+    for f in videos_dir.glob("*.mp4"):
+        m = VIDEO_RE.match(f.name)
+        if m:
+            timestamps.add(m.group("timestamp"))
+    return timestamps
 
 
 def main() -> None:
@@ -80,7 +97,22 @@ def main() -> None:
     counts = timestamp_of_row.value_counts().to_dict()
     print(f"{len(counts)} distinct session timestamps")
 
-    train_ts, test_ts = subject_split(counts, args.seed, TEST_FRACTION)
+    forced_test_ts = video_backed_timestamps(out_dir / "videos") & counts.keys()
+    forced_count = sum(counts[ts] for ts in forced_test_ts)
+    total = sum(counts.values())
+    print(
+        f"{len(forced_test_ts)} video-backed timestamps forced into test "
+        f"({forced_count}/{total} frames, {forced_count / total:.1%}): {sorted(forced_test_ts)}"
+    )
+
+    remaining_counts = {ts: n for ts, n in counts.items() if ts not in forced_test_ts}
+    remaining_total = sum(remaining_counts.values())
+    target_total = TEST_FRACTION * total
+    remaining_target_fraction = max(0.0, target_total - forced_count) / remaining_total
+    _, extra_test_ts = subject_split(remaining_counts, args.seed, remaining_target_fraction)
+
+    test_ts = forced_test_ts | extra_test_ts
+    train_ts = set(counts) - test_ts
     print(f"timestamps: {len(train_ts)} train, {len(test_ts)} test")
 
     for split_name, split_timestamps in (("train", train_ts), ("test", test_ts)):
