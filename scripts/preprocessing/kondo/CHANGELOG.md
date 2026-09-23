@@ -9,7 +9,7 @@ current keypoint mapping.
 
 ### 2026-09-22 (MW)
 - Ran `scripts/preprocessing/extract_clips.py` (see
-  [`cazettes-side/README.md`](../cazettes-side/README.md) for where that script
+  [`cazettes-side/CHANGELOG.md`](../cazettes-side/CHANGELOG.md) for where that script
   came from) on the four raw face-camera recordings in
   `_raw/_dlc/MouseViewsDLC/dlc-projects/mouse-forelimb-v1/videos/`
   (`sub-VG1-GC#125_ses-2024-04-19-task-day2`,

@@ -8,11 +8,7 @@ NOTE: after creating the pseudo-labels, all ~10k frames were reviewed and adjust
 in the Lightning Pose app (July 2026). Therefore the provided `ibl` labels are no longer 
 pseudo-labels, but full human annotations
 
-## Changelog
-
-### 2026-06-18 (MW)
-- Manually added `nose`, `pupil`, and `tongue` as new keypoints to the `ibl-paw` schema
-  ahead of the pseudo-labeling pipeline below, which fills them in via iblvideo.
+See [`CHANGELOG.md`](CHANGELOG.md) for keypoint/label history.
 
 ## Why per-session videos
 
