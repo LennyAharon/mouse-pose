@@ -22,7 +22,7 @@ cd "$(dirname "$0")/.."
 RESULTS=$(python -c "from mouse_pose.paths import load_paths; print(load_paths()['results_dir'])")
 DATA=$(python -c "from mouse_pose.paths import load_paths; print(load_paths()['data_dir'])")
 mapfile -t DATASETS < <(python -c "from mouse_pose.registry import load_registry; print('\n'.join(load_registry()))")
-declare -A TAG=([facemap]=face [ibl]=ibl [cheese-2d]=cheese [cazettes-side]=caz [kondo]=kondo [hantman-mv]=hmv [cheese-3d]=c3d)
+declare -A TAG=([facemap]=face [ibl]=ibl [cheese-2d]=cheese [cazettes-side]=caz [kondo]=kondo [hantman-mv]=hmv [cheese-3d]=c3d [kaufman]=kauf)
 CONFIG=configs/model_zoominout.yaml; BACKBONE=vits_dinov3; SEEDS="0"; STEP_ROOT=""
 cmd="${1:-plan}"; shift || true
 while [ $# -gt 0 ]; do case "$1" in --seeds) SEEDS="$2"; shift 2;; *) STAGES="${STAGES:-} $1"; shift;; esac; done

@@ -129,6 +129,7 @@ training:
     ibl: [-0.4, 0.15]
     hantman-mv: [-0.4, 0.15]   # same apparent scale as ibl (eye->nose 23% of width)
     cheese-3d: [-0.25, 1.0]    # same rig, cameras and 640x512 frames as cheese-2d
+    kaufman: [-0.4, 0.15]      # widest rig (eye->nose ~16% of 800 px width, below ibl 23%): ibl range
   imgaug_hflip: true
   train_batch_size: 32
   val_batch_size: 64
