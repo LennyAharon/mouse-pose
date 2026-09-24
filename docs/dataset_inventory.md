@@ -10,23 +10,23 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 |---|---|---|---|---|---|---|---|
 | `facemap` | 2,400 | 53 | 100 | 4 | 14 | 14 | 9 |
 | `ibl` | 5,962 | 102 | 1,446 | 19 | 6 | 7 | 6 |
-| `cheese-2d` | 665 | 59 | 291 | 30 | 27 | 27 | 27 |
+| `cheese-2d` | 665 | 59 | 291 | 30 | 29 | 29 | 29 |
 | `cazettes-side` | 830 | 41 | 217 | 11 | 8 | 9 | 8 |
 | `kondo` | 439 | 5 | 120 | 1 | 9 | 11 | 9 |
 | `hantman-mv` | 192 | 50 | 30 | 4 | 11 | 20 | 11 |
-| `cheese-3d` | 2,700 | 66 | 900 | 24 | 29 | 29 | 29 |
-| **total** | **13,188** | | **3,104** | | | | |
+| `cheese-3d` | 1,692 | 42 | 486 | 12 | 29 | 29 | 29 |
+| **total** | **12,180** | | **2,690** | | | | |
 
 ## Pairwise direct-keypoint overlap
 
 | | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` | `cheese-3d` |
 |---|---|---|---|---|---|---|---|
 | `facemap` | 14 | 2 | 11 | 3 | 5 | 5 | 13 |
-| `ibl` | 2 | 6 | 1 | 4 | 3 | 2 | 2 |
-| `cheese-2d` | 11 | 1 | 27 | 3 | 6 | 6 | 27 |
-| `cazettes-side` | 3 | 4 | 3 | 8 | 6 | 3 | 4 |
-| `kondo` | 5 | 3 | 6 | 6 | 9 | 5 | 6 |
-| `hantman-mv` | 5 | 2 | 6 | 3 | 5 | 11 | 6 |
+| `ibl` | 2 | 6 | 3 | 4 | 3 | 2 | 2 |
+| `cheese-2d` | 11 | 3 | 29 | 5 | 8 | 7 | 27 |
+| `cazettes-side` | 3 | 4 | 5 | 8 | 6 | 3 | 4 |
+| `kondo` | 5 | 3 | 8 | 6 | 9 | 5 | 6 |
+| `hantman-mv` | 5 | 2 | 7 | 3 | 5 | 11 | 6 |
 | `cheese-3d` | 13 | 2 | 27 | 4 | 6 | 6 | 29 |
 
 ## `facemap`
@@ -46,7 +46,7 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 
 - **Views:** 30 sessions left-view, 29 sessions right-view
 - **Excluded source keypoints:** ref(head-post)
-- **Direct (27):** ear_base_left, ear_base_right, ear_bottom_left, ear_bottom_right, ear_tip_left, ear_tip_right, ear_top_left, ear_top_right, eye_back_left, eye_back_right, eye_bottom_left, eye_bottom_right, eye_front_left, eye_front_right, eye_top_left, eye_top_right, lowerlip, nose_bottom, nose_tip, nose_top, pad_center, pad_side_left, pad_side_right, pad_top_left, pad_top_right, upperlip_left, upperlip_right
+- **Direct (29):** ear_base_left, ear_base_right, ear_bottom_left, ear_bottom_right, ear_tip_left, ear_tip_right, ear_top_left, ear_top_right, eye_back_left, eye_back_right, eye_bottom_left, eye_bottom_right, eye_front_left, eye_front_right, eye_top_left, eye_top_right, lowerlip, nose_bottom, nose_tip, nose_top, pad_center, pad_side_left, pad_side_right, pad_top_left, pad_top_right, upperlip_left, upperlip_right, wrist_left, wrist_right
 
 ## `cazettes-side`
 
@@ -72,5 +72,6 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 
 ## `cheese-3d`
 
-- **Views:** 30 sessions left-view, 30 sessions right-view
+- **Views:** 18 sessions left-view, 18 sessions right-view
 - **Direct (29):** ear_base_left, ear_base_right, ear_bottom_left, ear_bottom_right, ear_tip_left, ear_tip_right, ear_top_left, ear_top_right, eye_back_left, eye_back_right, eye_bottom_left, eye_bottom_right, eye_front_left, eye_front_right, eye_top_left, eye_top_right, lowerlip, nose_bottom, nose_tip, nose_top, pad_center, pad_side_left, pad_side_right, pad_top_left, pad_top_right, pupil_center_left, pupil_center_right, upperlip_left, upperlip_right
+- **⚠ Unreferenced raw labeled-data dirs (deliberately not converted):** 20231031_B31_chew_bl_000_10-11-06_BC, 20231031_B31_chew_bl_000_10-11-06_L, 20231031_B31_chew_bl_000_10-11-06_R, 20231031_B31_chew_bl_000_10-11-06_TC, 20231031_B31_chew_bl_000_10-11-06_TL, 20231031_B31_chew_bl_000_10-11-06_TR, 20231031_B31_chew_temperature_000_10-20-52_BC, 20231031_B31_chew_temperature_000_10-20-52_L, 20231031_B31_chew_temperature_000_10-20-52_R, 20231031_B31_chew_temperature_000_10-20-52_TC, 20231031_B31_chew_temperature_000_10-20-52_TL, 20231031_B31_chew_temperature_000_10-20-52_TR, 20231031_B32_chew_temperature_000_10-52-09_BC, 20231031_B32_chew_temperature_000_10-52-09_L, 20231031_B32_chew_temperature_000_10-52-09_R, 20231031_B32_chew_temperature_000_10-52-09_TC, 20231031_B32_chew_temperature_000_10-52-09_TL, 20231031_B32_chew_temperature_000_10-52-09_TR, 20231031_B33_chew_temperature_000_11-19-21_BC, 20231031_B33_chew_temperature_000_11-19-21_L, 20231031_B33_chew_temperature_000_11-19-21_R, 20231031_B33_chew_temperature_000_11-19-21_TC, 20231031_B33_chew_temperature_000_11-19-21_TL, 20231031_B33_chew_temperature_000_11-19-21_TR, 20231031_B6_chew_bl_000_11-35-08_BC, 20231031_B6_chew_bl_000_11-35-08_L, 20231031_B6_chew_bl_000_11-35-08_R, 20231031_B6_chew_bl_000_11-35-08_TC, 20231031_B6_chew_bl_000_11-35-08_TL, 20231031_B6_chew_bl_000_11-35-08_TR, 20231031_B6_chew_temperature_000_11-46-47_BC, 20231031_B6_chew_temperature_000_11-46-47_L, 20231031_B6_chew_temperature_000_11-46-47_R, 20231031_B6_chew_temperature_000_11-46-47_TC, 20231031_B6_chew_temperature_000_11-46-47_TL, 20231031_B6_chew_temperature_000_11-46-47_TR
