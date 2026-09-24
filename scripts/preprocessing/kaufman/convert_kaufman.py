@@ -13,41 +13,33 @@ the same trials) but is being built as a SINGLE-view dataset here per an explici
 decision -- cam1 and cam2 sessions are kept as independent rows, not merged into one
 multi-view sample.
 
-Split is by session timestamp (the "<timestamp>" in "<timestamp>-cam[12]"), not by
-subject: video filenames carry subject IDs (e.g. "b8sSM5"), but only 2 of the 52
-distinct labeled-data timestamps overlap with the 24 sample videos, so a subject
-can't be recovered for most sessions. Grouping by timestamp (rather than by
-individual labeled-data dir) keeps a session's cam1 and cam2 views -- the same
-trial, viewed twice -- on the same side of the split, since treating them as
-unrelated would leak near-duplicate frames across train/test.
+Split is by subject, using the mouse-to-session mapping the user supplied at
+_raw/_dlc/kaufman/labeled-sessions-mouse-date-time.txt (one "<mouse>/<timestamp>" per
+line, e.g. "b8sSM5/20241208-125516"). By explicit user decision, b8sSM7 and b8sSM10 are
+held out entirely for test and everything else (b8sSM5, b8sSM6, b8sSM8, b8sSM9) is
+train -- not a random/percentage split. Splitting by subject (rather than by individual
+labeled-data dir) also keeps a session's cam1 and cam2 views -- the same trial, viewed
+twice -- on the same side of the split, since treating them as unrelated would leak
+near-duplicate frames across train/test.
 
-Every video-backed timestamp is *forced* into test (so every delivered video is a
-labeling-review candidate in videos_test/), then additional timestamps are added via
-the usual greedy random split until the 10-15% frame target is reached -- not every
-test session has video, but every video's session is in test. Only 2 of 52 timestamps
-are video-backed (108/2540 frames, 4.25%), so the target is reached almost entirely by
-the random top-up.
+`videos/` and `videos_test/` were already reorganized by hand to match this subject
+split (all b8sSM7/b8sSM10 sample videos in videos_test/, the rest in videos/) -- this
+script only handles CollectedData.csv / CollectedData_test.csv, not video placement.
 
 Usage:
     conda run -n pose python scripts/preprocessing/kaufman/convert_kaufman.py
 """
 
-import argparse
 import re
 from pathlib import Path
 
 import pandas as pd
 
 from mouse_pose.paths import load_paths
-from mouse_pose.subject_split import subject_split
 
-# Target ~10-15% of frames in test. The greedy split in subject_split() only ever
-# overshoots (it stops as soon as the running total reaches the target) -- aiming for
-# the range's midpoint leaves room for that overshoot while still landing in range.
-TEST_FRACTION = 0.125
+TEST_SUBJECTS = {"b8sSM7", "b8sSM10"}
 
 SESSION_RE = re.compile(r"^(?P<timestamp>\d{8}-\d{6})-cam[12]$")
-VIDEO_RE = re.compile(r"^[^_]+_(?P<timestamp>\d{8}-\d{6})_cam[12]_")
 
 
 def timestamp_of(session_dir: str) -> str:
@@ -57,23 +49,23 @@ def timestamp_of(session_dir: str) -> str:
     return m.group("timestamp")
 
 
-def video_backed_timestamps(videos_dir: Path) -> set[str]:
-    timestamps = set()
-    for f in videos_dir.glob("*.mp4"):
-        m = VIDEO_RE.match(f.name)
-        if m:
-            timestamps.add(m.group("timestamp"))
-    return timestamps
+def load_subject_mapping(mapping_path: Path) -> dict[str, str]:
+    """Parse "<mouse>/<timestamp>" lines into {timestamp: mouse}."""
+    mapping = {}
+    for line in mapping_path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        mouse, timestamp = line.split("/")
+        mapping[timestamp] = mouse
+    return mapping
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--seed", type=int, default=0, help="split seed (default: 0)")
-    args = parser.parse_args()
-
     paths = load_paths()
     raw_dir = Path(paths["raw_dir"])
     out_dir = raw_dir / "kaufman"
+    mapping_path = raw_dir / "_dlc" / "kaufman" / "labeled-sessions-mouse-date-time.txt"
 
     session_dirs = sorted(p for p in (out_dir / "labeled-data").iterdir() if p.is_dir())
     print(f"found {len(session_dirs)} session dirs")
@@ -97,22 +89,18 @@ def main() -> None:
     counts = timestamp_of_row.value_counts().to_dict()
     print(f"{len(counts)} distinct session timestamps")
 
-    forced_test_ts = video_backed_timestamps(out_dir / "videos") & counts.keys()
-    forced_count = sum(counts[ts] for ts in forced_test_ts)
-    total = sum(counts.values())
-    print(
-        f"{len(forced_test_ts)} video-backed timestamps forced into test "
-        f"({forced_count}/{total} frames, {forced_count / total:.1%}): {sorted(forced_test_ts)}"
-    )
+    subject_of_ts = load_subject_mapping(mapping_path)
+    missing = counts.keys() - subject_of_ts.keys()
+    assert not missing, f"no subject mapping for timestamps: {sorted(missing)}"
 
-    remaining_counts = {ts: n for ts, n in counts.items() if ts not in forced_test_ts}
-    remaining_total = sum(remaining_counts.values())
-    target_total = TEST_FRACTION * total
-    remaining_target_fraction = max(0.0, target_total - forced_count) / remaining_total
-    _, extra_test_ts = subject_split(remaining_counts, args.seed, remaining_target_fraction)
-
-    test_ts = forced_test_ts | extra_test_ts
+    test_ts = {ts for ts in counts if subject_of_ts[ts] in TEST_SUBJECTS}
     train_ts = set(counts) - test_ts
+    total = sum(counts.values())
+    test_total = sum(counts[ts] for ts in test_ts)
+    print(
+        f"test subjects {sorted(TEST_SUBJECTS)}: {len(test_ts)} timestamps forced into "
+        f"test ({test_total}/{total} frames, {test_total / total:.1%})"
+    )
     print(f"timestamps: {len(train_ts)} train, {len(test_ts)} test")
 
     for split_name, split_timestamps in (("train", train_ts), ("test", test_ts)):
