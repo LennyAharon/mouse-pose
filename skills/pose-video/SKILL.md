@@ -114,8 +114,10 @@ The video the user asks for whenever a new all-data trunk finishes: one panel pe
 in the corpus, showing only the keypoints that view's dataset never supervises, so the whole
 transfer class is inspectable at a glance. Do not rebuild it from scratch — reuse
 
-    <results_dir>/qualitative/transfer-panel-09-20/render_transfer_panel.py   (latest copy)
-    python render_transfer_panel.py --model <run dir with eval/> --out <name>.mp4 \
+    poseinterface/results/head-fixed-v4/qualitative/allkp-panels-09-23/render_panel.py
+    (latest copy; a superset of render_transfer_panel.py, default --mode transfer)
+    python render_panel.py --model <run dir with eval/> --out <name>.mp4 \
+        [--mode transfer|all|own] [--datasets a,b] [--exclude a,b] [--data_dir <corpus>] \
         [--conf 0.7] [--frames 60] [--panel 300] [--cols 5] [--fps 3]
 
 copied into the new delivery folder (`<topic>-<MM-DD>/`) so each delivery keeps its own script.
@@ -140,3 +142,16 @@ Conventions it encodes, which the user has asked for repeatedly:
 - `VIEW_ORDER` in the script lists the (dataset, view) panels and `view_of()` maps a session
   directory to its view. **A new dataset or camera means adding both**; views present in the data
   but missing from `VIEW_ORDER` are appended at the end and reported, never dropped silently.
+
+Variants the user also asks for, same script:
+
+- `--mode all`: every channel, own and inherited ("show all the high-confidence keypoints").
+  Headers read "N labelled + M other".
+- `--mode own`: only the dataset's own labelled keypoints (`direct` in the inventory, not the
+  flip-supervised partners). Paired with `--mode all` on the same `--datasets` and frames, the
+  difference between the two videos is exactly what the trunk inherits for that dataset.
+- `--datasets` / `--exclude` restrict the panels; for one or two views use `--cols 2 --panel 640
+  --frames 120`.
+- **`--data_dir` pins the corpus.** `paths.yaml` always points at the newest version, so when
+  rendering an older version's model, pass that version's data dir or the inventory and images
+  will not match the model.
