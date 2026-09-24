@@ -30,29 +30,22 @@ session timestamps x cam1/cam2), each with its own per-session
   digit order — see `configs/datasets/kaufman.yaml`), all already-canonical, lateralized
   to `_right` since every session only ever assessed the right forepaw; the other 23
   keypoints are excluded.
-- **Train/test split**: grouped by session **timestamp**, not by individual
-  labeled-data dir or by subject. Video filenames carry subject IDs (e.g. `b8sSM5`),
-  but only 2 of the 52 distinct labeled-data timestamps overlap with the 24 sample
-  videos, so a subject can't be recovered for most of the 52 sessions. Grouping by
-  timestamp keeps a session's cam1 and cam2 views (the same trial, viewed twice) on the
-  same side of the split — treating them as independent would leak near-duplicate
-  frames across train/test.
+- **Train/test split**: grouped by **subject**, using the mouse-to-session mapping the
+  user supplied at `_raw/_dlc/kaufman/labeled-sessions-mouse-date-time.txt` (one
+  `<mouse>/<timestamp>` per line — all 52 labeled-data timestamps resolve to one of 6
+  mice, b8sSM5 through b8sSM10). By explicit user decision, **b8sSM7 and b8sSM10 are
+  held out entirely for test**, and b8sSM5/b8sSM6/b8sSM8/b8sSM9 are train — not a
+  random/percentage split. Splitting by subject also keeps a session's cam1 and cam2
+  views (the same trial, viewed twice) on the same side of the split, since treating
+  them as independent would leak near-duplicate frames across train/test.
 
-  Every video-backed timestamp is *forced* into test (so every delivered video ends up
-  a labeling-review candidate in `videos_test/`) — not every test session has video,
-  but every video's session is in test. The remaining 10-15% target is then filled by a
-  normal greedy random split over the other timestamps, via
-  `mouse_pose.subject_split.subject_split` (generic despite the name — it only needs a
-  `{group: count}` dict), with the *remaining* target fraction rescaled so the forced
-  frames still count toward the overall 10-15% (midpoint 0.125 used for the
-  not-yet-reached portion). Only 2 of 52 timestamps are video-backed (108/2540 frames,
-  4.3%), so the target is reached almost entirely by the random top-up. Result: 46
-  train / 6 test timestamps, 2218 / 322 frames (12.7% test).
-- **`videos_test/`**: the 2 video-backed test-session videos
-  (`b8sSM5_20241213-125905_cam[12]...`, `b8sSM10_20250404-151615_cam[12]...`) were
-  moved from `videos/` into `_raw/kaufman/videos_test/` so they sit alongside the test
-  split they belong to. The other 10 sample videos (all train-session timestamps)
-  remain in `videos/`.
+  Result: 35 train / 17 test timestamps, 1808 / 732 frames (28.8% test) — well above the
+  usual 10-15% target, accepted because the user wanted these two specific subjects
+  held out for test regardless of the resulting fraction.
+- **`videos_test/`**: `videos/` and `videos_test/` were reorganized by hand to match the
+  subject split — all b8sSM7/b8sSM10 sample videos moved into
+  `_raw/kaufman/videos_test/`, the rest remain in `videos/`. `convert_kaufman.py` only
+  builds the `CollectedData*.csv` files; it doesn't move videos.
 
 ## Running
 
