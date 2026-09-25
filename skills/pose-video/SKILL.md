@@ -114,7 +114,7 @@ The video the user asks for whenever a new all-data trunk finishes: one panel pe
 in the corpus, showing only the keypoints that view's dataset never supervises, so the whole
 transfer class is inspectable at a glance. Do not rebuild it from scratch — reuse
 
-    poseinterface/results/head-fixed-v4/qualitative/allkp-panels-09-23/render_panel.py
+    poseinterface/results/head-fixed-v7/qualitative/trunk-panels-09-25/render_panel.py
     (latest copy; a superset of render_transfer_panel.py, default --mode transfer)
     python render_panel.py --model <run dir with eval/> --out <name>.mp4 \
         [--mode transfer|all|own] [--datasets a,b] [--exclude a,b] [--data_dir <corpus>] \
