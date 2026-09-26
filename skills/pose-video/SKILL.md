@@ -123,6 +123,9 @@ transfer class is inspectable at a glance. Do not rebuild it from scratch — re
 copied into the new delivery folder (`<topic>-<MM-DD>/`) so each delivery keeps its own script.
 Conventions it encodes, which the user has asked for repeatedly:
 
+- **Cheese-2d is left out of every video unless the user names it** (standing preference,
+  2026-09-25). `--exclude` defaults to `cheese-2d`; pass `--exclude ""` only when asked.
+
 - **Transfer = not in `trainable`** for that dataset (its own labels *and* the lateral partners
   horizontal flips supervise). Looser definitions leak flip-supervised channels into the panel.
 - **Confidence floor 0.7**, markers solid, nothing below the floor drawn.
