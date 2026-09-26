@@ -8,6 +8,16 @@ current keypoint mapping.
 
 ## Changelog
 
+### 2026-09-26 (MW) (version 1)
+- Filled `pad(top)(left)`, `pad(side)(left)`, `pad(top)(right)`, `pad(side)(right)` (whisker
+  pad keypoints) using a single-view heatmap model trained on `cheese-3d`
+  (`poseinterface/results/cheese-3d/2026-09-26_15-45-24`, vits_dinov2 backbone), via
+  `scripts/transfer_pseudo_labels.py`. Only cells with no existing label and prediction
+  confidence >= 0.7 were filled; no new rows were added and no other keypoints were touched
+  by this step.
+- Followed by a manual review and correction pass (MW) over the whisker-pad labels (both
+  the auto-filled ones and pre-existing ones), plus some additional ear-label touch-ups.
+
 ### 2026-09-26 (MW) (version 0)
 - First versioned snapshot of cheese-2d's label CSVs. This predates the versioning
   scheme, so v0 is the best-available current state rather than a pristine
