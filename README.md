@@ -227,7 +227,7 @@ DataFrame.
 ### Directory layout
 
 ```
-mouse-pose/
+mighty-mouse/
   configs/
     keypoints.yaml              canonical keypoint vocabulary
     model.yaml                  LP model config; data_dir/csv_file overridden per-run by train_sweep*.py

@@ -4,7 +4,7 @@ Instructions for any coding agent (Claude Code, Codex, etc.) working in this rep
 
 ## What this is
 
-`mouse-pose` combines multiple pose-estimation datasets into one training corpus for
+`mighty-mouse` combines multiple pose-estimation datasets into one training corpus for
 more generalizable [Lightning Pose](https://github.com/danbider/lightning-pose) models.
 "head-fixed" is the first combined-dataset experiment. This repo holds all the code;
 the data itself lives in sibling directories of the parent `poseinterface/` checkout

@@ -2,9 +2,9 @@
 
 This covers training a Lightning Pose model directly on **one** `_raw/<name>/`
 dataset — e.g. to bootstrap a pseudo-labeling model — as opposed to the combined-corpus
-pipeline in `mouse-pose/scripts/{convert_dataset,build_dataset,train_sweep}.py`. Don't
+pipeline in `mighty-mouse/scripts/{convert_dataset,build_dataset,train_sweep}.py`. Don't
 conflate the two: this workflow never touches `configs/keypoints.yaml`, `model.yaml`,
-or `ALL_DATASETS`, and its outputs don't live under `mouse-pose/` at all.
+or `ALL_DATASETS`, and its outputs don't live under `mighty-mouse/` at all.
 
 - Configs live at `poseinterface/configs/<name>.yaml`
 - Results live at `poseinterface/results/<name>/<date-time>/`
@@ -23,7 +23,7 @@ unsure), and fill in the `data:` section for the target dataset:
   `CollectedData_test.csv` is evaluated separately, it's not part of this config)
 - `num_keypoints` / `keypoint_names`: read from `_raw/<name>/project.yaml` (or the
   CSV's `bodyparts` header row directly — verify the two agree). Use the dataset's
-  **own** raw keypoint names here, not the canonical `mouse-pose/configs/keypoints.yaml`
+  **own** raw keypoint names here, not the canonical `mighty-mouse/configs/keypoints.yaml`
   vocabulary — this config points directly at `_raw/<name>/`, it doesn't go through
   `convert_dataset.py`'s renaming.
 
@@ -33,7 +33,7 @@ unsure), and fill in the `data:` section for the target dataset:
 on one `_raw/<name>/` dataset, as described in this file. A model trained on a
 *composite/combined* dataset (multiple datasets merged via `build_dataset.py`) is a
 different workflow entirely and should follow
-[`mouse-pose/configs/model.yaml`](../../configs/model.yaml)'s own defaults instead
+[`mighty-mouse/configs/model.yaml`](../../configs/model.yaml)'s own defaults instead
 (currently `resnet50_animal_ap10k`, `Adam` @ `1e-3`, step-based schedule, etc.) — do
 not apply the values below to that pipeline, and don't edit `model.yaml` to match
 this list.
