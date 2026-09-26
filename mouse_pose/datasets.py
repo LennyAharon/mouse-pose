@@ -6,7 +6,7 @@ set evaluated against after each training run). The list itself lives in
 configs/dataset_registry.yaml, where the list position is the dataset id (samplers, per-dataset
 heads and checkpoints identify datasets by index): append new datasets at the end, never
 reorder. This does NOT derive from configs/datasets/*.yaml; adding a dataset is still a manual
-step (see scripts/preprocessing/README.md, stage 2), since not every configs/datasets/<name>.yaml
+step (see skills/preprocess-new-dataset/README.md, stage 2), since not every configs/datasets/<name>.yaml
 is necessarily ready to be part of default runs yet.
 """
 

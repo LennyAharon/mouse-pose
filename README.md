@@ -147,7 +147,7 @@ Some datasets need custom work before the standard convert step (pseudo-label
 generation, pulling frames from a non-DLC source format, etc.). Each one has its own
 README under `scripts/preprocessing/`.
 
-**Before starting a new one, see [`scripts/preprocessing/README.md`](scripts/preprocessing/README.md)**
+**Before starting a new one, see [`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md)**
 — it has the checklist of decisions (new keypoints, laterality, multi-view merging,
 train/test split) that need a human call rather than an inferred default.
 
@@ -251,7 +251,7 @@ DataFrame.
 ### Directory layout
 
 ```
-mouse-pose/
+mighty-mouse/
   configs/
     keypoints.yaml              canonical keypoint vocabulary
     model.yaml                  LP model config; data_dir/csv_file overridden per-run by train_sweep*.py
@@ -264,7 +264,7 @@ mouse-pose/
     train_sweep.py              LP training sweep + evaluation, local/sequential
     train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mouse_pose/train.py)
     preprocessing/
-      ibl-face/                 iblvideo pseudo-label pipeline
+      ibl/                      iblvideo pseudo-label pipeline
 
 
   mouse_pose/
@@ -302,7 +302,7 @@ whether a run finished locally or on Lightning AI.
 ### Adding a new dataset
 
 Dataset onboarding is three stages — see
-[`scripts/preprocessing/README.md`](scripts/preprocessing/README.md) for the full model,
+[`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md) for the full model,
 what to ask before starting, and stage 1 (convert to LP format) in detail. This section
 covers stages 2 and 3, which live in this repo's shared config rather than in
 `scripts/preprocessing/`.
@@ -337,17 +337,19 @@ don't cross-check each other. When renaming (e.g. `ibl-face` → `ibl`) or depre
    raw directory as `<raw_dir>/<dataset-name>`, so these must match)
 2. `configs/datasets/<old-name>.yaml` → `configs/datasets/<new-name>.yaml`
 3. `ALL_DATASETS` in `mouse_pose/datasets.py`
-4. Any hardcoded raw-dir constants inside preprocessing scripts (e.g.
-   `scripts/preprocessing/ibl-face/create_ibl_face_dataset.py` had `IBL_FACE_DIR` hardcoded to
-   `"ibl-face"` independent of the config filename)
+4. Any hardcoded raw-dir constants inside preprocessing scripts — a constant like
+   `X_DIR = RAW_DIR / "old-name"` won't auto-follow a `configs/datasets/<name>.yaml` rename, so
+   grep the script for the literal old string
 5. This README and any `scripts/preprocessing/*/README.md` — grep for the old name
 6. Existing `data/head-fixed_vN/` and `results/head-fixed_vN/` directories are a **frozen
    historical record** of whatever name was used at build time — don't rename files inside them
    to match; instead rebuild a new version (see below) once the rename is done upstream
 
-A pipeline preprocessing folder name (e.g. `scripts/preprocessing/ibl-face/`) can reasonably stay
-as-is even after the dataset itself is renamed — it names the *process* that produces the dataset,
-not the dataset's identity in `configs/datasets/` or `_raw/`.
+A pipeline preprocessing folder name can reasonably stay divergent from the dataset name it
+produces (e.g. `scripts/preprocessing/hantman-sleap/` produces the `hantman` dataset) — it names
+the *process*, not the dataset's identity in `configs/datasets/` or `_raw/`. That said, this isn't
+mandatory: `scripts/preprocessing/ibl-face/` was renamed to `scripts/preprocessing/ibl/` on
+2026-09-26 to match the dataset name, once the divergence stopped being useful.
 
 ### Dataset versioning
 

@@ -31,7 +31,7 @@ keypoints:
   ear(bottom)(right): ear_bottom_right
   pad(top)(right): pad_top_right
   pad(side)(right): pad_side_right
-  # front paws hand-labeled by LA (2026-09-24, cheese-2d@v2); raw columns carry the canonical names
+  # front paws: hand-labeled (LA, 2026-09-24), reviewed/infilled by MW (cheese-2d MW v0/v1, see scripts/preprocessing/cheese-2d/CHANGELOG.md)
   wrist_left: wrist_left
   wrist_right: wrist_right
 

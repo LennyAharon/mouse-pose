@@ -41,7 +41,7 @@ dependencies = [
 ]
 
 [project.urls]
-repository = "https://github.com/paninski-lab/mouse-pose"
+repository = "https://github.com/paninski-lab/mighty-mouse"
 
 
 # project.dependencies are used for metadata when building the project, tool.poetry.dependencies is only used to enrich

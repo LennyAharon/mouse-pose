@@ -1,20 +1,20 @@
 # Preprocessing a new dataset
 
-This directory holds one subfolder per dataset that needed custom work *before*
-`scripts/convert_dataset.py` could run on it — anything not already in the standard
-DLC layout (`labeled-data/<session>/<frame>.png` + `CollectedData.csv` +
+`scripts/preprocessing/` holds one subfolder per dataset that needed custom work
+*before* `scripts/convert_dataset.py` could run on it — anything not already in the
+standard DLC layout (`labeled-data/<session>/<frame>.png` + `CollectedData.csv` +
 `CollectedData_test.csv`, all keypoints as plain `x`/`y` columns, NaN = unlabeled).
-See `ibl-face/` (DLC source, but needs pseudo-label generation first),
-`hantman-sleap/` (raw SLEAP `.slp` source), and `hantman-mv/` (already DLC-format, but
-split across per-view CSVs that need merging into one single-view project) for three
-different examples.
+See `scripts/preprocessing/ibl/` (DLC source, but needs pseudo-label generation
+first), `scripts/preprocessing/hantman-sleap/` (raw SLEAP `.slp` source), and
+`scripts/preprocessing/hantman-mv/` (already DLC-format, but split across per-view
+CSVs that need merging into one single-view project) for three different examples.
 
 ## Three separable stages
 
 Turning a raw contributed dataset into something usable here is three distinct stages,
 and **doing stage 1 does not commit you to stages 2 or 3**:
 
-1. **Convert to LP format** (this directory's job) — raw source → standard DLC-layout
+1. **Convert to LP format** (`scripts/preprocessing/`'s job) — raw source → standard DLC-layout
    `_raw/<name>/`. Output is a standalone, inspectable LP project. This is a complete,
    valid stopping point: sometimes a dataset just needs to be converted and looked at,
    with no decision yet about whether it belongs in the combined corpus.
@@ -67,8 +67,11 @@ than picking a default and mentioning it after the fact.
    `visible=0` ("not part of this dataset") — training on that teaches the model to
    predict a suppressed heatmap for a side that was never captured at all. Add a
    `POST_PROCESS["<name>"]` function in `scripts/convert_dataset.py` to force those
-   columns to `visible=0`; see `cheese-2d` (per-session left/right/null) and
-   `hantman-mv` (every session the same side, so simpler) for two versions of this.
+   columns to `visible=0`; see `hantman-mv`/`kaufman` for this (every session the same
+   side). If a dataset instead varies side *per session* (as `cheese-2d` once did,
+   before all its keypoints were fully labeled), the post-process function needs to key
+   off the session-to-side mapping in `configs/datasets/<name>.yaml` rather than
+   applying one rule dataset-wide.
 
 3. **Multi-view sources.** If the raw data has more than one camera view (or more
    generally, more than one natural sub-grouping), should each view become its own
@@ -155,7 +158,7 @@ yet should say so in one line near the top, rather than restating the stage
 model — that explanation lives here, once:
 
 > **Status: stage 1 only.** `_raw/<name>/` is a usable standalone LP project, not yet in
-> the combined corpus. See [`scripts/preprocessing/README.md`](../README.md) for what
+> the combined corpus. See [`skills/preprocess-new-dataset/README.md`](../../../skills/preprocess-new-dataset/README.md) for what
 > stage 2 would involve; don't start it unless asked.
 
 If stage 2 commands are worth spelling out for this specific dataset (e.g. which new

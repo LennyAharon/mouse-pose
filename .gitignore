@@ -228,6 +228,8 @@ __marimo__/
 
 notebooks/play.ipynb
 
+.claude/
+
 configs/datasets/petersen-side.yaml
 configs/datasets/petersen-top.yaml
 fewshot_queue/
