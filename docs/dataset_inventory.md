@@ -12,7 +12,7 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 | `ibl` | 5,962 | 102 | 1,446 | 19 | 6 | 7 | 6 |
 | `cheese-2d` | 665 | 59 | 291 | 30 | 29 | 29 | 29 |
 | `cazettes-side` | 830 | 41 | 217 | 11 | 8 | 9 | 8 |
-| `kondo` | 439 | 5 | 120 | 1 | 9 | 11 | 9 |
+| `kondo` | 439 | 5 | 120 | 1 | 12 | 17 | 12 |
 | `hantman-mv` | 192 | 50 | 30 | 4 | 11 | 20 | 11 |
 | `cheese-3d` | 1,692 | 42 | 486 | 12 | 29 | 29 | 29 |
 | `kaufman` | 1,808 | 70 | 732 | 34 | 4 | 8 | 4 |
@@ -24,11 +24,11 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 |---|---|---|---|---|---|---|---|---|
 | `facemap` | 14 | 2 | 11 | 3 | 5 | 5 | 13 | 0 |
 | `ibl` | 2 | 6 | 3 | 4 | 3 | 2 | 2 | 0 |
-| `cheese-2d` | 11 | 3 | 29 | 5 | 8 | 7 | 27 | 0 |
+| `cheese-2d` | 11 | 3 | 29 | 5 | 11 | 7 | 27 | 0 |
 | `cazettes-side` | 3 | 4 | 5 | 8 | 6 | 3 | 4 | 0 |
-| `kondo` | 5 | 3 | 8 | 6 | 9 | 5 | 6 | 0 |
+| `kondo` | 5 | 3 | 11 | 6 | 12 | 5 | 9 | 0 |
 | `hantman-mv` | 5 | 2 | 7 | 3 | 5 | 11 | 6 | 4 |
-| `cheese-3d` | 13 | 2 | 27 | 4 | 6 | 6 | 29 | 0 |
+| `cheese-3d` | 13 | 2 | 27 | 4 | 9 | 6 | 29 | 0 |
 | `kaufman` | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 4 |
 
 ## `facemap`
@@ -60,9 +60,9 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 ## `kondo`
 
 - **Views:** 6 sessions right-view
-- **Excluded source keypoints:** earroot, earlateral, eartip, lickport, noseright
-- **Direct (9):** eye_back_right, eye_front_right, lowerlip, nose_bottom, nose_tip, nose_top, tongue_tip, wrist_left, wrist_right
-- **Hflip-only trainable:** eye_back_left, eye_front_left
+- **Excluded source keypoints:** lickport, noseright
+- **Direct (12):** ear_base_right, ear_bottom_right, ear_tip_right, eye_back_right, eye_front_right, lowerlip, nose_bottom, nose_tip, nose_top, tongue_tip, wrist_left, wrist_right
+- **Hflip-only trainable:** ear_base_left, ear_bottom_left, ear_tip_left, eye_back_left, eye_front_left
 - **⚠ Unreferenced raw labeled-data dirs (deliberately not converted):** iter7_forelimb_images, iter7_tongue_images
 
 ## `hantman-mv`

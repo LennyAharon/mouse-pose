@@ -24,9 +24,25 @@ it maps to (needs a new `configs/datasets/<name>.yaml`; see README "Adding a new
 - New dataset: `_raw/<name>/` with the standard layout, plus `configs/datasets/<name>.yaml` and the
   registrations in `mouse_pose/datasets.py` (README "Adding a new dataset").
 
+## 2b. Lab label versions (MW's scheme; upstream `skills/bump-dataset-version`)
+
+Each raw dataset also carries the lab's own label version: `_raw/<ds>/VERSION.txt` names the version
+the live CSVs represent, `_raw/<ds>/versions/CollectedData[_test]_versionN.csv` are its immutable
+snapshots, and `scripts/preprocessing/<ds>/CHANGELOG.md` has a `(version N)` entry saying what changed.
+MW's numbers are the dataset versions of record for the team; ours (`<ds>@v<k>`, hash-keyed) only
+tie a dataset version to a corpus build. So:
+
+- Labels arriving from MW: read the changelog to name his version N, and pass `--mw-version N` in
+  step 3 if `VERSION.txt`/`versions/` did not come along (often only the live CSVs are copied). The
+  entry is then UNVERIFIED; once the folder is in place, re-running `--register` (CSVs unchanged)
+  verifies it byte-for-byte against `versions/` and upgrades the entry in place.
+- Labels WE edit (pseudo-labels, corrections): bump MW's version first with
+  `python scripts/bump_version.py <ds> --initials LA --message-file <msg.md>` (writes VERSION.txt,
+  versions/, and the changelog entry), then register as below. Never edit a `versions/` file.
+
 ## 3. Register the dataset version (before building anything)
 
-`python scripts/data_manifest.py --register <dataset> --note "<what changed>"` hashes the raw
+`python scripts/data_manifest.py --register <dataset> [--mw-version N] --note "<what changed>"` hashes the raw
 CSVs, snapshots them to `_raw_versions/<dataset>@v<k>/`, and appends the version to
 `poseinterface/DATASET_VERSIONS.json`. Repeat per changed/added dataset. If the vocabulary
 (`configs/keypoints.yaml`) changed too, say so in the note: it means nothing is reusable.

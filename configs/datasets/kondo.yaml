@@ -1,8 +1,5 @@
 exclude:
   keypoints:
-    - earroot
-    - earlateral
-    - eartip
     - lickport
     - noseright
   sessions:
@@ -17,6 +14,11 @@ keypoints:
   tonguetip: tongue_tip
   rightpawcenter: wrist_right
   leftpawcenter: wrist_left
+  # ears realigned by MW to cheese-2d's ear definitions (kondo MW v0, 2026-09-26): root = where the ear
+  # attaches (base), tip = tip, lateral = rear edge (cheese ear(bottom)); included from corpus v8
+  earroot: ear_base_{side}
+  eartip: ear_tip_{side}
+  earlateral: ear_bottom_{side}
 
 sessions:
   iter1_images: right

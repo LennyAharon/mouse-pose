@@ -20,6 +20,7 @@ survive. The manifest names the version each dataset was built from, so a corpus
 """
 
 import argparse
+import filecmp
 import hashlib
 import json
 import subprocess
@@ -56,18 +57,49 @@ def load_registry(raw_dir: Path) -> dict:
     return json.loads(p.read_text()) if p.exists() else {}
 
 
-def register(dataset: str, raw_dir: Path, repo: Path, note: str) -> dict:
-    """Append a new version for `dataset` (keyed by the hash of its raw CSVs) to the registry."""
+def mw_version_of(raw: Path, claimed: int | None) -> dict:
+    """The lab's own label version of a raw dataset (scripts/bump_version.py, skills/bump-dataset-version).
+
+    `_raw/<ds>/VERSION.txt` names the version the live CSVs represent and `versions/` holds its immutable
+    snapshot. `verified` is True only when both live CSVs are byte-identical to that snapshot; without
+    the folder (e.g. only the live CSVs were copied here) `claimed` is recorded, unverified.
+    """
+    vfile = raw / "VERSION.txt"
+    n = int(vfile.read_text().strip()) if vfile.exists() else claimed
+    if n is None:
+        return {}
+    verified = vfile.exists() and all(
+        (raw / "versions" / f"{name[:-4]}_version{n}.csv").exists()
+        and filecmp.cmp(raw / name, raw / "versions" / f"{name[:-4]}_version{n}.csv", shallow=False)
+        for name in ("CollectedData.csv", "CollectedData_test.csv"))
+    return {"mw_version": n, "mw_version_verified": verified}
+
+
+def register(dataset: str, raw_dir: Path, repo: Path, note: str, mw_version: int | None = None) -> dict:
+    """Append a new version for `dataset` (keyed by the hash of its raw CSVs) to the registry.
+
+    Also records the lab's label version (`mw_version`, see mw_version_of). Re-running on unchanged CSVs
+    only refreshes that field, so an entry registered as unverified is upgraded once VERSION.txt and
+    versions/ are in place.
+    """
     reg = load_registry(raw_dir)
     raw_name = raw_folder_for(dataset, repo); raw = raw_dir / raw_name
     csvs = sorted(raw.glob("CollectedData*.csv"))
     if not csvs:
         raise SystemExit(f"no CollectedData*.csv under {raw}")
     h = sha256_files(csvs); versions = reg.setdefault(dataset, [])
+    mw = mw_version_of(raw, mw_version)
     if versions and versions[-1]["raw_csv_sha256"] == h:
-        print(f"{dataset}: raw CSVs unchanged since {versions[-1]['version']} — nothing to register"); return reg
+        if mw and {k: versions[-1].get(k) for k in mw} != mw:
+            versions[-1].update(mw)
+            registry_path(raw_dir).write_text(json.dumps(reg, indent=1) + "\n")
+            print(f"{dataset}: {versions[-1]['version']} now records MW version {mw['mw_version']}"
+                  f" ({'verified' if mw['mw_version_verified'] else 'UNVERIFIED'})")
+        else:
+            print(f"{dataset}: raw CSVs unchanged since {versions[-1]['version']} — nothing to register")
+        return reg
     entry = {"version": f"{dataset}@v{len(versions) + 1}", "date": str(date.today()), "raw_folder": raw_name,
-             "raw_csv_sha256": h, "note": note}
+             "raw_csv_sha256": h, "note": note, **mw}
     # _raw/<dataset> always holds the CURRENT labels (the user overwrites the CSVs in place); the
     # label CSVs of every registered version are snapshotted here so an old version can be rebuilt
     snap = raw_dir.parent / "_raw_versions" / entry["version"]; snap.mkdir(parents=True, exist_ok=True)
@@ -76,7 +108,8 @@ def register(dataset: str, raw_dir: Path, repo: Path, note: str) -> dict:
     entry["snapshot"] = str(snap.relative_to(raw_dir.parent))
     versions.append(entry)
     registry_path(raw_dir).write_text(json.dumps(reg, indent=1) + "\n")
-    print(f"registered {entry['version']}  [{h}]  {note}")
+    tag = (f"  MW v{mw['mw_version']} ({'verified' if mw['mw_version_verified'] else 'UNVERIFIED'})" if mw else "")
+    print(f"registered {entry['version']}  [{h}]{tag}  {note}")
     return reg
 
 
@@ -160,13 +193,15 @@ def main() -> None:
     ap.add_argument("--no-write", action="store_true", help="do not (re)write MANIFEST.json")
     ap.add_argument("--register", metavar="DATASET", help="register a new version of this dataset from its raw CSVs")
     ap.add_argument("--note", default="", help="what changed (with --register)")
+    ap.add_argument("--mw-version", type=int, default=None,
+                    help="lab label version of the live CSVs when _raw/<ds>/VERSION.txt is absent (recorded UNVERIFIED)")
     args = ap.parse_args()
 
     paths = load_paths()
     data_dir, raw_dir = Path(paths["data_dir"]).resolve(), Path(paths["raw_dir"])
     repo = Path(__file__).resolve().parents[1]
     if args.register:
-        register(args.register, raw_dir, repo, args.note); return
+        register(args.register, raw_dir, repo, args.note, args.mw_version); return
     manifest = build_manifest(data_dir, raw_dir, repo)
     if not args.no_write:
         (data_dir / "MANIFEST.json").write_text(json.dumps(manifest, indent=1) + "\n")
