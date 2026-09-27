@@ -55,7 +55,7 @@ Always `--dry_run` first to preview the exact `litpose train` commands before co
 multi-hour run:
 
 ```bash
-conda run -n pose python scripts/train_sweep.py --dry_run \
+python scripts/train_sweep.py --dry_run \
     --csv_files "CollectedData_facemap-600_train.csv;CollectedData_ibl-600_train.csv;CollectedData_cheese-2d-600_train.csv" \
     --train_frames "200;400;600" \
     --seeds "0;1;2" \
@@ -67,7 +67,7 @@ interrupted):
 
 ```bash
 # 1. Single-dataset baselines
-conda run -n pose python scripts/train_sweep.py \
+python scripts/train_sweep.py \
     --csv_files "CollectedData_facemap-600_train.csv;CollectedData_ibl-600_train.csv;CollectedData_cheese-2d-600_train.csv" \
     --train_frames "200;400;600" \
     --seeds "0;1;2" \
@@ -75,7 +75,7 @@ conda run -n pose python scripts/train_sweep.py \
     --skip_existing
 
 # 2. Pairwise merges
-conda run -n pose python scripts/train_sweep.py \
+python scripts/train_sweep.py \
     --csv_files "CollectedData_face+cheese-600_train.csv;CollectedData_face+ibl-600_train.csv;CollectedData_cheese+ibl-600_train.csv" \
     --train_frames "400;600" \
     --seeds "0;1;2" \
@@ -83,7 +83,7 @@ conda run -n pose python scripts/train_sweep.py \
     --skip_existing
 
 # 3. Triple merge
-conda run -n pose python scripts/train_sweep.py \
+python scripts/train_sweep.py \
     --csv_files "CollectedData_face+ibl+cheese-600_train.csv" \
     --train_frames "600" \
     --seeds "0;1;2" \
@@ -160,14 +160,14 @@ why 200/400/600 doesn't apply here. 21 jobs (7 tags × 3 seeds) at one `train_fr
 
 ```bash
 # dry run first
-conda run -n pose python scripts/train_sweep.py --dry_run \
+python scripts/train_sweep.py --dry_run \
     --csv_files "CollectedData_facemap_train.csv;CollectedData_ibl_train.csv;CollectedData_cheese-2d_train.csv;CollectedData_face+cheese_train.csv;CollectedData_face+ibl_train.csv;CollectedData_cheese+ibl_train.csv;CollectedData_face+ibl+cheese_train.csv" \
     --train_frames "1" \
     --seeds "0;1;2" \
     --backbones "vits_dino"
 
 # local, sequential
-conda run -n pose python scripts/train_sweep.py \
+python scripts/train_sweep.py \
     --csv_files "CollectedData_facemap_train.csv;CollectedData_ibl_train.csv;CollectedData_cheese-2d_train.csv;CollectedData_face+cheese_train.csv;CollectedData_face+ibl_train.csv;CollectedData_cheese+ibl_train.csv;CollectedData_face+ibl+cheese_train.csv" \
     --train_frames "1" \
     --seeds "0;1;2" \

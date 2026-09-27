@@ -4,7 +4,7 @@ a subject (animal) entirely on one side of the split (e.g. because it appears in
 multiple views/sessions and no group should leak across train/test).
 
 Previously duplicated near-identically in scripts/preprocessing/hantman-sleap/ and
-scripts/preprocessing/hantman-mv/ -- see skills/preprocess-new-dataset/README.md's
+scripts/preprocessing/hantman-mv/ -- see skills/preprocess-new-dataset/SKILL.md's
 train/test split question for when this applies vs. the default session-level split.
 """
 

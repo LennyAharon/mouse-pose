@@ -1,3 +1,8 @@
+---
+name: train-lightning-pose-model
+description: Use when the user wants to train a standalone Lightning Pose model on a single _raw/<name>/ dataset — e.g. "train a model on cheese-3d", "let's bootstrap a pseudo-labeling model for X". Not for adding a dataset to the mouse-pose combined corpus (that's preprocess-new-dataset / the main README's stage 2-3), and not for training on a composite/merged dataset (that uses mouse-pose/configs/model.yaml's own defaults, not this skill's fixed defaults).
+---
+
 # Training a standalone Lightning Pose model
 
 This covers training a Lightning Pose model directly on **one** `_raw/<name>/`
@@ -73,8 +78,13 @@ its default unless there's a specific reason to change it for that dataset.
 
 ## Training
 
+Before training, check programmatically (not by eye) that `num_keypoints ==
+len(keypoint_names)` and that `keypoint_names` order matches the CSV's column order.
+Then show the user the config and **stop for their explicit sign-off** — this is a
+standing rule for this workflow, not a one-off ask.
+
 ```bash
-conda run -n pose litpose train poseinterface/configs/<name>.yaml \
+litpose train poseinterface/configs/<name>.yaml \
   --output_dir poseinterface/results/<name>/$(date +%Y-%m-%d_%H-%M-%S)
 ```
 

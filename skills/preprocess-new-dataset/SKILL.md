@@ -1,3 +1,8 @@
+---
+name: preprocess-new-dataset
+description: Use when the user wants to bring a new raw dataset into LP format — e.g. "let's convert the X dataset", "onboard dataset Y", "add a new dataset from <lab>". Covers stage 1 only (raw source -> standard DLC layout in _raw/<name>/); never advances to corpus integration (stage 2/3) without being explicitly asked.
+---
+
 # Preprocessing a new dataset
 
 `scripts/preprocessing/` holds one subfolder per dataset that needed custom work
@@ -158,7 +163,7 @@ yet should say so in one line near the top, rather than restating the stage
 model — that explanation lives here, once:
 
 > **Status: stage 1 only.** `_raw/<name>/` is a usable standalone LP project, not yet in
-> the combined corpus. See [`skills/preprocess-new-dataset/README.md`](../../../skills/preprocess-new-dataset/README.md) for what
+> the combined corpus. See [`skills/preprocess-new-dataset/SKILL.md`](../../../skills/preprocess-new-dataset/SKILL.md) for what
 > stage 2 would involve; don't start it unless asked.
 
 If stage 2 commands are worth spelling out for this specific dataset (e.g. which new
@@ -167,6 +172,6 @@ keypoints it would add), use this template rather than re-deriving it:
 ```bash
 # add <name>'s new keypoints to configs/keypoints.yaml / configs/model.yaml (if any),
 # add "<name>" to ALL_DATASETS in mouse_pose/datasets.py, then:
-conda run -n pose python scripts/convert_dataset.py --dataset <name>
+python scripts/convert_dataset.py --dataset <name>
 python scripts/build_dataset.py --tag <tag> --datasets <name> ...
 ```

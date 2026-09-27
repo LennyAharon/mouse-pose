@@ -8,6 +8,9 @@ Pipeline for merging multiple labeled datasets into a single standardized traini
 pip install -e .
 ```
 
+Install into (and run everything below from) whatever environment has Lightning Pose
+installed; commands are written as bare `python` / `litpose`.
+
 After that, `mouse_pose` is importable from any script without path manipulation.
 
 ---
@@ -31,7 +34,7 @@ Some datasets require a preprocessing step to generate pseudo-labels before conv
 ### 2. Convert the dataset (run once per dataset)
 
 ```bash
-conda run -n pose python scripts/convert_dataset.py --dataset <dataset-name>
+python scripts/convert_dataset.py --dataset <dataset-name>
 ```
 
 Reads `configs/datasets/<dataset-name>.yaml`. Outputs to `data/head-fixed/`:
@@ -45,10 +48,10 @@ Re-running is safe — images are skipped if already present.
 
 ```bash
 # balanced: every dataset capped at the same frame count — tag names this explicitly
-conda run -n pose python scripts/build_dataset.py --tag face+ibl-600 --datasets facemap ibl --n_frames 600
+python scripts/build_dataset.py --tag face+ibl-600 --datasets facemap ibl --n_frames 600
 
 # full: every dataset contributes everything it has, unbalanced
-conda run -n pose python scripts/build_dataset.py --tag face+ibl --datasets facemap ibl --n_frames -1
+python scripts/build_dataset.py --tag face+ibl --datasets facemap ibl --n_frames -1
 ```
 
 Outputs to `data/head-fixed/`:
@@ -68,13 +71,13 @@ actually the best model to deploy.
 
 ```bash
 # Dry run to preview commands
-conda run -n pose python scripts/train_sweep.py --dry_run \
+python scripts/train_sweep.py --dry_run \
     --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
     --train_frames "200;400;600" \
     --seeds "0;1;2"
 
 # Full sweep
-conda run -n pose python scripts/train_sweep.py \
+python scripts/train_sweep.py \
     --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
     --train_frames "200;400;600" \
     --seeds "0;1;2" \
@@ -134,7 +137,7 @@ Some datasets need custom work before the standard convert step (pseudo-label
 generation, pulling frames from a non-DLC source format, etc.). Each one has its own
 README under `scripts/preprocessing/`.
 
-**Before starting a new one, see [`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md)**
+**Before starting a new one, see [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)**
 — it has the checklist of decisions (new keypoints, laterality, multi-view merging,
 train/test split) that need a human call rather than an inferred default.
 
@@ -277,7 +280,7 @@ whether a run finished locally or on Lightning AI.
 ### Adding a new dataset
 
 Dataset onboarding is three stages — see
-[`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md) for the full model,
+[`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md) for the full model,
 what to ask before starting, and stage 1 (convert to LP format) in detail. This section
 covers stages 2 and 3, which live in this repo's shared config rather than in
 `scripts/preprocessing/`.
@@ -293,7 +296,7 @@ be merged in:
    must be updated by hand or the new dataset silently won't be included in default
    `--tag all`-style runs or per-dataset evaluation
 3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
-4. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
+4. Run `python scripts/convert_dataset.py --dataset <name>`
 
 **Stage 3 — rebuild the combined dataset.** Re-run `scripts/build_dataset.py` for any merged
 tags that should now include the new dataset.

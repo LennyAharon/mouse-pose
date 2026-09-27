@@ -9,7 +9,7 @@ given), or, with `--from-start`, just the first `--clip-length` seconds starting
 codec/container. See mouse_pose/videos.py:make_video_snippet for the core logic.
 
 Usage:
-    conda run -n pose python scripts/preprocessing/extract_clips.py \\
+    python scripts/preprocessing/extract_clips.py \\
         --video-dir /media/mattw/poseinterface/_raw/_dlc/cazettes-side/videos-avi \\
         --out-dir /media/mattw/poseinterface/_raw/_dlc/cazettes-side/videos_test
 """

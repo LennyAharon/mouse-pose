@@ -103,20 +103,20 @@ to build into anymore once it's been renamed:
 ```bash
 # 1. Convert each raw dataset (slow — copies images). Run once each, or whenever a
 #    dataset's raw labels change (this rebuild was triggered by relabeling `ibl`).
-conda run -n pose python scripts/convert_dataset.py --dataset facemap
-conda run -n pose python scripts/convert_dataset.py --dataset ibl
-conda run -n pose python scripts/convert_dataset.py --dataset cheese-2d
+python scripts/convert_dataset.py --dataset facemap
+python scripts/convert_dataset.py --dataset ibl
+python scripts/convert_dataset.py --dataset cheese-2d
 
 # 2. Single-dataset baselines, capped to the shared pool size.
-conda run -n pose python scripts/build_dataset.py --tag facemap-600   --datasets facemap             --n_frames 600
-conda run -n pose python scripts/build_dataset.py --tag ibl-600       --datasets ibl                 --n_frames 600
-conda run -n pose python scripts/build_dataset.py --tag cheese-2d-600 --datasets cheese-2d            --n_frames 600
+python scripts/build_dataset.py --tag facemap-600   --datasets facemap             --n_frames 600
+python scripts/build_dataset.py --tag ibl-600       --datasets ibl                 --n_frames 600
+python scripts/build_dataset.py --tag cheese-2d-600 --datasets cheese-2d            --n_frames 600
 
 # 3. Pairwise and triple merges, balanced (same pool size per dataset).
-conda run -n pose python scripts/build_dataset.py --tag face+cheese-600     --datasets facemap cheese-2d     --n_frames 600
-conda run -n pose python scripts/build_dataset.py --tag face+ibl-600       --datasets facemap ibl           --n_frames 600
-conda run -n pose python scripts/build_dataset.py --tag cheese+ibl-600     --datasets cheese-2d ibl         --n_frames 600
-conda run -n pose python scripts/build_dataset.py --tag face+ibl+cheese-600 --datasets facemap ibl cheese-2d --n_frames 600
+python scripts/build_dataset.py --tag face+cheese-600     --datasets facemap cheese-2d     --n_frames 600
+python scripts/build_dataset.py --tag face+ibl-600       --datasets facemap ibl           --n_frames 600
+python scripts/build_dataset.py --tag cheese+ibl-600     --datasets cheese-2d ibl         --n_frames 600
+python scripts/build_dataset.py --tag face+ibl+cheese-600 --datasets facemap ibl cheese-2d --n_frames 600
 
 # 4. Freeze this build as a version.
 mv data/head-fixed data/head-fixed_v2
@@ -124,10 +124,10 @@ mv data/head-fixed data/head-fixed_v2
 # 5. Added later, directly into data/head-fixed_v2: full/unbalanced merges (every frame
 #    from every dataset, no cap — see "why both a balanced and unbalanced version exist"
 #    above). Single-dataset full CSVs already exist from step 1, no rebuild needed there.
-conda run -n pose python scripts/build_dataset.py --tag face+cheese     --datasets facemap cheese-2d     --n_frames -1
-conda run -n pose python scripts/build_dataset.py --tag face+ibl       --datasets facemap ibl           --n_frames -1
-conda run -n pose python scripts/build_dataset.py --tag cheese+ibl     --datasets cheese-2d ibl         --n_frames -1
-conda run -n pose python scripts/build_dataset.py --tag face+ibl+cheese --datasets facemap ibl cheese-2d --n_frames -1
+python scripts/build_dataset.py --tag face+cheese     --datasets facemap cheese-2d     --n_frames -1
+python scripts/build_dataset.py --tag face+ibl       --datasets facemap ibl           --n_frames -1
+python scripts/build_dataset.py --tag cheese+ibl     --datasets cheese-2d ibl         --n_frames -1
+python scripts/build_dataset.py --tag face+ibl+cheese --datasets facemap ibl cheese-2d --n_frames -1
 ```
 
 Seed is left at the `build_dataset.py` default (42) throughout, so frame selection is

@@ -26,7 +26,7 @@ don't split the same animal across train/test. All of a subject's sessions --
 side and front alike -- land in the same split.
 
 Usage:
-    conda run -n pose python scripts/preprocessing/hantman-sleap/convert_hantman_sleap.py
+    python scripts/preprocessing/hantman-sleap/convert_hantman_sleap.py
 """
 
 import argparse

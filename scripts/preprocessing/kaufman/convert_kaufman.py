@@ -27,7 +27,7 @@ split (all b8sSM7/b8sSM10 sample videos in videos_test/, the rest in videos/) --
 script only handles CollectedData.csv / CollectedData_test.csv, not video placement.
 
 Usage:
-    conda run -n pose python scripts/preprocessing/kaufman/convert_kaufman.py
+    python scripts/preprocessing/kaufman/convert_kaufman.py
 """
 
 import re

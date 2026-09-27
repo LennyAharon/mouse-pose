@@ -7,7 +7,7 @@ Builds `_raw/hantman-mv` (single-view) from the multi-view DLC project at
 validates cleanly, and `configs/keypoints.yaml`/`configs/model.yaml` already carry the
 8 new canonical keypoints it needs (`d1_tip`–`d4_tip`, lateralized), but
 `scripts/convert_dataset.py --dataset hantman-mv` has not been run — see
-[`skills/preprocess-new-dataset/README.md`](../../../skills/preprocess-new-dataset/README.md) for what that means. Unlike `hantman`
+[`skills/preprocess-new-dataset/SKILL.md`](../../../skills/preprocess-new-dataset/SKILL.md) for what that means. Unlike `hantman`
 (the older, 4-keypoint reaching dataset — see `../hantman-sleap/`), `hantman-mv` has a
 fuller finger/paw/pellet(+face) skeleton and is a separate dataset entirely; nothing here
 merges the two.
@@ -62,10 +62,10 @@ See [`CHANGELOG.md`](CHANGELOG.md) for keypoint/label history.
 ## Usage
 
 ```bash
-conda run -n pose python scripts/preprocessing/hantman-mv/convert_hantman_mv.py
+python scripts/preprocessing/hantman-mv/convert_hantman_mv.py
 
 # different train/test split seed
-conda run -n pose python scripts/preprocessing/hantman-mv/convert_hantman_mv.py --seed 1
+python scripts/preprocessing/hantman-mv/convert_hantman_mv.py --seed 1
 ```
 
 ## Stage 2 (drafted, not run — see status note above)
@@ -92,6 +92,6 @@ per-session left/right/null.
 
 To actually run stage 2:
 ```bash
-conda run -n pose python scripts/convert_dataset.py --dataset hantman-mv
+python scripts/convert_dataset.py --dataset hantman-mv
 python scripts/build_dataset.py --tag <tag> --datasets hantman-mv ...
 ```

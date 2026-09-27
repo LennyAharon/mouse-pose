@@ -23,7 +23,7 @@ uppercased against casing slips), via mouse_pose.subject_split -- shared with
 scripts/preprocessing/hantman-sleap/convert_hantman_sleap.py.
 
 Usage:
-    conda run -n pose python scripts/preprocessing/hantman-mv/convert_hantman_mv.py
+    python scripts/preprocessing/hantman-mv/convert_hantman_mv.py
 """
 
 import argparse

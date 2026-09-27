@@ -50,7 +50,7 @@ session timestamps x cam1/cam2), each with its own per-session
 ## Running
 
 ```bash
-conda run -n pose python scripts/preprocessing/kaufman/convert_kaufman.py
+python scripts/preprocessing/kaufman/convert_kaufman.py
 ```
 
 Concatenates all 104 per-session CSVs and writes `_raw/kaufman/CollectedData.csv` /
@@ -78,6 +78,6 @@ column to `visible=0` after the standard split processing (same pattern as
 `kaufman` was added to `ALL_DATASETS` in `mouse_pose/datasets.py`.
 
 ```bash
-conda run -n pose python scripts/convert_dataset.py --dataset kaufman
+python scripts/convert_dataset.py --dataset kaufman
 python scripts/build_dataset.py --tag <tag> --datasets kaufman ...  # not yet run
 ```
