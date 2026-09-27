@@ -2,8 +2,8 @@
 import unittest
 import numpy as np
 import pandas as pd
-from mouse_pose.comparison import visible_errors, comparison_summary
-from mouse_pose.train import make_train_command
+from mighty_mouse.comparison import visible_errors, comparison_summary
+from mighty_mouse.train import make_train_command
 
 
 class ComparisonTests(unittest.TestCase):

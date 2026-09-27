@@ -11,7 +11,7 @@ from pathlib import Path
 
 import yaml
 
-from mouse_pose.paths import repo_root
+from mighty_mouse.paths import repo_root
 
 REGISTRY_FILE = repo_root() / "configs" / "dataset_registry.yaml"
 

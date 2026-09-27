@@ -26,8 +26,8 @@ declare -A LOO=(
   [cheese-2d]="face+ibl+caz+kondo"    [cazettes-side]="face+ibl+cheese+kondo"
   [facemap]="ibl+cheese+caz+kondo"
 )
-DATA=$(python -c "from mouse_pose.paths import load_paths; print(load_paths()['data_dir'])")
-RESULTS=$(python -c "from mouse_pose.paths import load_paths; print(load_paths()['results_dir'])")
+DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['data_dir'])")
+RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
 case "$ARM" in
   trunk) ROOT="$RESULTS/fewshot-exp";      LR="1e-05"; LRPAT="learning_rate: 1.0e-05"
          CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
@@ -54,7 +54,7 @@ case "$ARM" in
          CKPT_OVR="+model.checkpoint='$CKPT'"
          AKP=$(python - "$DS" <<'PY'
 import json, sys
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 inv = json.load(open(load_paths()["data_dir"] + "/dataset_inventory.json"))["datasets"]
 names = sorted(set().union(*[set(inv[o]["trainable"]) for o in inv if o != sys.argv[1]]))
 print("[" + ",".join(f"'{n}'" for n in names) + "]")
@@ -73,7 +73,7 @@ PY
          # freeze the head filters the trunk already trained (= the supported set); the rest learn
          KEEP=$(python - "$DS" <<'PY'
 import json, sys
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 inv = json.load(open(load_paths()["data_dir"] + "/dataset_inventory.json"))["datasets"]
 ds = sys.argv[1]
 others = set().union(*[set(inv[o]["trainable"]) for o in inv if o != ds])
@@ -88,7 +88,7 @@ PY
          # keypoints are exactly zero-shot by construction; untrained filters learn on frozen features
          KEEP=$(python - "$DS" <<'PY'
 import json, sys
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 inv = json.load(open(load_paths()["data_dir"] + "/dataset_inventory.json"))["datasets"]
 ds = sys.argv[1]
 others = set().union(*[set(inv[o]["trainable"]) for o in inv if o != ds])
@@ -247,7 +247,7 @@ PY
 fi
 gpu_gate
 KEEP_CKPT=""; case "$ARM" in lora|dino-lora|replay|replay-lora|anchor|anchor-lora|anchor-video) KEEP_CKPT="--keep_checkpoints" ;; esac   # adapters: keep the weights
-python -m mouse_pose.train --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" $KEEP_CKPT \
+python -m mighty_mouse.train --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" $KEEP_CKPT \
     > "${LOG%.log}-eval.log" 2>&1
 E=$?
 case "$ARM" in lora|dino-lora|replay-lora|anchor-lora|anchor-video)

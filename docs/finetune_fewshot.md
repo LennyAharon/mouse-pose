@@ -72,7 +72,7 @@ stays 32 (a batch is the whole N-frame set when N ≤ 32).
 ## 2. Evaluate
 
 ```bash
-python -m mouse_pose.train --output_dir <out_dir> --csv_file CollectedData_<dataset>_train.csv
+python -m mighty_mouse.train --output_dir <out_dir> --csv_file CollectedData_<dataset>_train.csv
 ```
 
 This predicts on every dataset's test CSV and writes `<out_dir>/eval/<dataset>/pixel_error.csv`

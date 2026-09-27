@@ -12,22 +12,25 @@ the data itself lives in sibling directories of the parent `poseinterface/` chec
 
 ## Setup
 
-- All Python / Lightning Pose commands run in the `pose` conda environment:
-  `conda run -n pose python ...`.
+- All Python / Lightning Pose commands run in whatever environment has Lightning Pose
+  installed on your machine — the env name isn't fixed (e.g. `conda run -n <env> python ...`,
+  or just `python ...` in an already-activated env). Docs write bare `python`/`litpose`.
 - `paths.yaml` (repo root) is machine-specific and **not committed** — each person
   creates their own, pointing `raw_dir` / `data_dir` / `results_dir` at their local
   checkout. See `README.md` for the required format.
 
 ## Where things live
 
-Full directory layout: see [`README.md`](README.md#directory-layout). Two workflows
-you'll hit often have their own docs under `skills/` (written to be readable by any
-agent, not just Claude):
+Full directory layout: see [`README.md`](README.md#directory-layout). Workflows
+you'll hit often have their own docs under `skills/<name>/SKILL.md` (plain markdown with a
+short `name`/`description` frontmatter — readable by any agent, not just Claude):
 
-- **Onboarding a new raw dataset** → [`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md)
-- **Versioning a dataset's label CSVs** → [`skills/bump-dataset-version/README.md`](skills/bump-dataset-version/README.md)
+- **Onboarding a new raw dataset** → [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)
+- **Versioning a dataset's label CSVs** → [`skills/bump-dataset-version/SKILL.md`](skills/bump-dataset-version/SKILL.md)
+- **Training a standalone LP model on one raw dataset** → [`skills/train-lightning-pose-model/SKILL.md`](skills/train-lightning-pose-model/SKILL.md)
+- **Filling label gaps with another dataset's model** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
 
-Read the relevant one before starting either task — both have hard-won detail (what
+Read the relevant one before starting the task — they have hard-won detail (what
 to ask before converting a dataset, why a version bump can refuse as a no-op, etc.)
 that isn't worth re-deriving from scratch.
 
@@ -39,7 +42,7 @@ that isn't worth re-deriving from scratch.
   `model.yaml`, `ALL_DATASETS`, running `convert_dataset.py`) is a separate decision
   that needs its own explicit go-ahead — never assume it just because stage 1
   finished, even in the same conversation. See
-  [`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md)
+  [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)
   for the full list of decisions (new keypoints, laterality, multi-view merging,
   train/test split) that need a human call rather than an inferred default.
 - **Don't hardcode values that drift.** The keypoint count, for example, changes as

@@ -100,7 +100,7 @@ what `cazettes-side` contributes.
 ## Lightning AI, parallel
 
 `train_sweep_lightning.py` takes identical CLI arguments — only the launch mechanism differs, since
-combo generation, naming, and command building are shared via `mouse_pose/train.py`. Add
+combo generation, naming, and command building are shared via `mighty_mouse/train.py`. Add
 `--machine` (e.g. `L4` for `vits_dino`) and drop `conda`/sequential assumptions:
 
 ```bash
@@ -128,7 +128,7 @@ tar -cf head-fixed.tar -C data head-fixed
 ```
 
 Each job extracts it into place itself if `data_dir` doesn't already exist (see
-`make_extract_command` in `mouse_pose/train.py`) — safe to duplicate per job, since each Lightning
+`make_extract_command` in `mighty_mouse/train.py`) — safe to duplicate per job, since each Lightning
 Job is an isolated snapshot of the Studio's filesystem rather than a shared mount. `results_dir`
 must point at storage that outlives an individual job (e.g. a teamspace-mounted drive); unlike
 `data_dir`, that one *should* be shared and persistent.
@@ -149,9 +149,9 @@ mv results/head-fixed results/head-fixed_vN
 ```
 
 Model checkpoints are deleted once evaluation completes — `eval/<dataset>/` is what's kept
-long-term, not the weights (see `evaluate_model` in `mouse_pose/train.py`). If a job trained
+long-term, not the weights (see `evaluate_model` in `mighty_mouse/train.py`). If a job trained
 successfully but died before its chained eval step, finish it without retraining:
 
 ```bash
-python -m mouse_pose.train --output_dir <results_dir>/<tag>/<losses>/tf1/<backbone>/seed<N>
+python -m mighty_mouse.train --output_dir <results_dir>/<tag>/<losses>/tf1/<backbone>/seed<N>
 ```

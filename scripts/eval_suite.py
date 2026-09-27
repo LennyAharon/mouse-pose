@@ -23,8 +23,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from mouse_pose.paths import load_paths
-from mouse_pose.registry import load_registry
+from mighty_mouse.paths import load_paths
+from mighty_mouse.registry import load_registry
 
 EXCLUDE: set[str] = set()   # pupil_center_right is scored where labeled (visible == 2) since corpus v5
 LEAF = "supervised/sampling-T2/tf1/vits_dinov3"

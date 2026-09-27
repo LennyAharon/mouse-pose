@@ -3,17 +3,18 @@
 
 Snapshots CollectedData.csv / CollectedData_test.csv into versions/, ticks
 VERSION.txt, and inserts a changelog entry — all in one step, so the three
-never drift out of sync. See ../skills/bump-dataset-version/README.md for the
+never drift out of sync. See ../skills/bump-dataset-version/SKILL.md for the
 versioning policy (when to bump, what version 0 means, etc.).
 """
 import argparse
 import filecmp
+import re
 import shutil
 import sys
 from datetime import date
 from pathlib import Path
 
-from mouse_pose.paths import load_paths, repo_root
+from mighty_mouse.paths import load_paths, repo_root
 
 CSV_NAMES = ["CollectedData.csv", "CollectedData_test.csv"]
 
@@ -35,6 +36,12 @@ def snapshot_matches_live(raw_dir: Path, versions_dir: Path, version: int) -> bo
         if not snapshot.exists() or not filecmp.cmp(raw_dir / name, snapshot, shallow=False):
             return False
     return True
+
+
+def logged_versions(changelog_file: Path) -> list[int]:
+    if not changelog_file.exists():
+        return []
+    return [int(v) for v in re.findall(r"^###.*\(version (\d+)\)", changelog_file.read_text(), re.M)]
 
 
 def insert_changelog_entry(changelog_file: Path, dataset: str, entry: str) -> None:
@@ -99,6 +106,17 @@ def main():
             "Create it first — this script won't guess where a new dataset's changelog belongs."
         )
     changelog_file = changelog_dir / "CHANGELOG.md"
+
+    # Guard against a forked version history: e.g. someone copied only the live CSVs to a
+    # new machine (no VERSION.txt / versions/), so we'd restart at v0 while the (git-tracked)
+    # changelog already records later versions.
+    logged = logged_versions(changelog_file)
+    if logged and next_version <= max(logged):
+        sys.exit(
+            f"{changelog_file} already records version {max(logged)}, but {raw_dir} would bump to "
+            f"version {next_version}. VERSION.txt / versions/ are probably missing or stale on this "
+            "machine — copy them over from wherever the dataset was last versioned before bumping."
+        )
 
     message = args.message_file.read_text().rstrip("\n")
     if not message:

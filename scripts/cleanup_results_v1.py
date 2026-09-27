@@ -16,7 +16,7 @@ import shutil
 from datetime import date
 from pathlib import Path
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 R = Path(load_paths()["results_dir"])
 

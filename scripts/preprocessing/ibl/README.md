@@ -71,7 +71,7 @@ conda run -n iblvideo2 python scripts/preprocessing/ibl/plot_ibl_face_check.py
 ## After the pipeline
 
 ```bash
-conda run -n pose python scripts/convert_dataset.py --dataset ibl
+python scripts/convert_dataset.py --dataset ibl
 python scripts/build_dataset.py --tag <tag>
 ```
 

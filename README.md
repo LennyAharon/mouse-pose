@@ -11,7 +11,10 @@ Pipeline for merging multiple labeled datasets into a single standardized traini
 pip install -e .
 ```
 
-After that, `mouse_pose` is importable from any script without path manipulation.
+Install into (and run everything below from) whatever environment has Lightning Pose
+installed; commands are written as bare `python` / `litpose`.
+
+After that, `mighty_mouse` is importable from any script without path manipulation.
 
 ---
 
@@ -34,7 +37,7 @@ Some datasets require a preprocessing step to generate pseudo-labels before conv
 ### 2. Convert the dataset (run once per dataset)
 
 ```bash
-conda run -n pose python scripts/convert_dataset.py --dataset <dataset-name>
+python scripts/convert_dataset.py --dataset <dataset-name>
 ```
 
 Reads `configs/datasets/<dataset-name>.yaml`. Outputs to `data/head-fixed/`:
@@ -54,7 +57,7 @@ folder while the dataset keeps its name. Register a changed dataset first:
 
 ```bash
 # every dataset contributes all of its available train frames
-conda run -n pose python scripts/build_dataset.py --tag face+ibl --datasets facemap ibl --n_frames -1
+python scripts/build_dataset.py --tag face+ibl --datasets facemap ibl --n_frames -1
 ```
 
 Outputs to `data/head-fixed/`:
@@ -77,13 +80,13 @@ n=1 (each dataset alone), n−1 (leave-one-out), and n=all, rather than all `2^n
 
 ```bash
 # Dry run to preview commands
-conda run -n pose python scripts/train_sweep.py --dry_run \
+python scripts/train_sweep.py --dry_run \
     --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
     --train_frames "1" \
     --seeds "0;1;2"
 
 # Full sweep
-conda run -n pose python scripts/train_sweep.py \
+python scripts/train_sweep.py \
     --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
     --train_frames "1" \
     --seeds "0;1;2" \
@@ -121,11 +124,11 @@ site-packages build instead of the local editable clone — otherwise a job coul
 while silently ignoring local LP changes (`--allow_stock_lp` to opt out; see `make_preflight_command`).
 
 Both scripts share their combo generation, naming, and `litpose train` command-building via
-`mouse_pose/train.py` — they only differ in *how* a command gets executed (subprocess loop vs.
+`mighty_mouse/train.py` — they only differ in *how* a command gets executed (subprocess loop vs.
 `Job.run`), so there's one place to change if the sweep logic itself needs to change. Because a
 Lightning Job is a fresh remote process with no way to "come back" to it afterward like the local
-loop does, evaluation can't happen in-process there — instead `mouse_pose/train.py` is itself
-CLI-invocable (`python -m mouse_pose.train --output_dir ... --csv_file ...`) and gets chained onto
+loop does, evaluation can't happen in-process there — instead `mighty_mouse/train.py` is itself
+CLI-invocable (`python -m mighty_mouse.train --output_dir ... --csv_file ...`) and gets chained onto
 the training command with `&&` for each job.
 
 **Getting data onto Lightning storage:** each Job is an isolated snapshot of the launching Studio's
@@ -133,7 +136,7 @@ filesystem, and syncing the ~10k individual label/image files in `data/head-fixe
 archive it once (`tar -cf head-fixed_v2.tar head-fixed_v2`) and upload just that file to the
 Studio. Every job then extracts it into place itself on first use if it's not there yet — safe to do
 independently per job since there's no shared filesystem to race on (see `make_extract_command` in
-`mouse_pose/train.py`, and `docs/train_sweep.md` for the full setup). `paths.yaml` is machine-specific
+`mighty_mouse/train.py`, and `docs/train_sweep.md` for the full setup). `paths.yaml` is machine-specific
 and gitignored, so the Studio needs its own copy: `data_dir` pointing at wherever the archive lives,
 `results_dir` pointing at storage that's actually persistent/shared across jobs (e.g. a
 teamspace-mounted drive) — the two have different persistence needs and don't have to be on the same
@@ -147,7 +150,7 @@ Some datasets need custom work before the standard convert step (pseudo-label
 generation, pulling frames from a non-DLC source format, etc.). Each one has its own
 README under `scripts/preprocessing/`.
 
-**Before starting a new one, see [`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md)**
+**Before starting a new one, see [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)**
 — it has the checklist of decisions (new keypoints, laterality, multi-view merging,
 train/test split) that need a human call rather than an inferred default.
 
@@ -262,16 +265,16 @@ mighty-mouse/
     convert_dataset.py          per-dataset conversion (run once)
     build_dataset.py            subsampling + merging (run freely)
     train_sweep.py              LP training sweep + evaluation, local/sequential
-    train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mouse_pose/train.py)
+    train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mighty_mouse/train.py)
     preprocessing/
       ibl/                      iblvideo pseudo-label pipeline
 
 
-  mouse_pose/
+  mighty_mouse/
     paths.py                    path resolution from paths.yaml
     train.py                    sweep combo/naming/command logic shared by both
                                  train_sweep*.py scripts; also a standalone CLI
-                                 (`python -m mouse_pose.train`) for evaluation only
+                                 (`python -m mighty_mouse.train`) for evaluation only
     plots/
       plot_keypoints.py         keypoint overlay visualization
 
@@ -296,13 +299,13 @@ poseinterface/
 ```
 
 Model checkpoints (`*.ckpt`) are deleted once evaluation completes — `eval/<dataset>/` is what's kept
-long-term, not the trained weights. This happens in `mouse_pose.train.evaluate_model`, so it applies
+long-term, not the trained weights. This happens in `mighty_mouse.train.evaluate_model`, so it applies
 whether a run finished locally or on Lightning AI.
 
 ### Adding a new dataset
 
 Dataset onboarding is three stages — see
-[`skills/preprocess-new-dataset/README.md`](skills/preprocess-new-dataset/README.md) for the full model,
+[`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md) for the full model,
 what to ask before starting, and stage 1 (convert to LP format) in detail. This section
 covers stages 2 and 3, which live in this repo's shared config rather than in
 `scripts/preprocessing/`.
@@ -315,11 +318,11 @@ be merged in:
 2. Append `<name>` to `configs/dataset_registry.yaml` — the list position is the dataset id
    (samplers, per-dataset heads and checkpoints identify datasets by index), so append at the
    end and never reorder. It drives `scripts/build_dataset.py`'s default `--datasets` set, the
-   per-dataset evaluation in `mouse_pose/train.py` and `mouse_pose.datasets.ALL_DATASETS`
+   per-dataset evaluation in `mighty_mouse/train.py` and `mighty_mouse.datasets.ALL_DATASETS`
    (derived from it). It isn't derived from `configs/datasets/`, so it must be updated by
    hand or the new dataset silently won't be included
 3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
-4. Run `conda run -n pose python scripts/convert_dataset.py --dataset <name>`
+4. Run `python scripts/convert_dataset.py --dataset <name>`
 
 **Stage 3 — rebuild the combined dataset, as a new data version.** A new dataset (or new
 keypoints) invalidates the whole tag set: the `n=all` tag now misses a dataset and every `n−1`
@@ -336,7 +339,7 @@ don't cross-check each other. When renaming (e.g. `ibl-face` → `ibl`) or depre
 1. `_raw/<old-name>/` → `_raw/<new-name>/` (physical rename; `convert_dataset.py` resolves the
    raw directory as `<raw_dir>/<dataset-name>`, so these must match)
 2. `configs/datasets/<old-name>.yaml` → `configs/datasets/<new-name>.yaml`
-3. `ALL_DATASETS` in `mouse_pose/datasets.py`
+3. `ALL_DATASETS` in `mighty_mouse/datasets.py`
 4. Any hardcoded raw-dir constants inside preprocessing scripts — a constant like
    `X_DIR = RAW_DIR / "old-name"` won't auto-follow a `configs/datasets/<name>.yaml` rename, so
    grep the script for the literal old string

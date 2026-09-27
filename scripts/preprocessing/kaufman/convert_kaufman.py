@@ -27,7 +27,7 @@ split (all b8sSM7/b8sSM10 sample videos in videos_test/, the rest in videos/) --
 script only handles CollectedData.csv / CollectedData_test.csv, not video placement.
 
 Usage:
-    conda run -n pose python scripts/preprocessing/kaufman/convert_kaufman.py
+    python scripts/preprocessing/kaufman/convert_kaufman.py
 """
 
 import re
@@ -35,7 +35,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 TEST_SUBJECTS = {"b8sSM7", "b8sSM10"}
 

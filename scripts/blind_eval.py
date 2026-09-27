@@ -18,8 +18,8 @@ import imgaug.augmenters as iaa
 import numpy as np
 import pandas as pd
 
-from mouse_pose.paths import load_paths
-from mouse_pose.registry import load_registry
+from mighty_mouse.paths import load_paths
+from mighty_mouse.registry import load_registry
 
 _paths   = load_paths()
 DATA_DIR = Path(_paths["data_dir"])

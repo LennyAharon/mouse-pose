@@ -1,3 +1,8 @@
+---
+name: preprocess-new-dataset
+description: Use when the user wants to bring a new raw dataset into LP format — e.g. "let's convert the X dataset", "onboard dataset Y", "add a new dataset from <lab>". Covers stage 1 only (raw source -> standard DLC layout in _raw/<name>/); never advances to corpus integration (stage 2/3) without being explicitly asked.
+---
+
 # Preprocessing a new dataset
 
 `scripts/preprocessing/` holds one subfolder per dataset that needed custom work
@@ -26,7 +31,7 @@ and **doing stage 1 does not commit you to stages 2 or 3**:
    in ways that are much less clean to undo.
 2. **Add to the corpus** — everything that touches shared, multi-dataset state: add new
    keypoints to `configs/keypoints.yaml` / `configs/model.yaml` if the dataset
-   introduces any, register `<name>` in `ALL_DATASETS` (`mouse_pose/datasets.py`), then
+   introduces any, register `<name>` in `ALL_DATASETS` (`mighty_mouse/datasets.py`), then
    run `convert_dataset.py`. This is what actually merges the dataset's semantics into the
    shared vocabulary — it should not happen automatically just because stage 1
    happened. **Ask before starting stage 2**, even if stage 1 just finished in the same
@@ -87,7 +92,7 @@ than picking a default and mentioning it after the fact.
 
 4. **Train/test split.** If the source doesn't already provide a split (most
    contributed datasets don't), you need to invent one. Ask, don't default silently:
-   - For a **subject-level** split specifically, use `mouse_pose.subject_split`
+   - For a **subject-level** split specifically, use `mighty_mouse.subject_split`
      (`subject_of`, `subject_split`) rather than reimplementing it — it's shared by
      `hantman-sleap/` and `hantman-mv/` already; a third copy shouldn't exist.
    - **Fraction** — what proportion of frames/sessions/subjects should be held out?
@@ -158,7 +163,7 @@ yet should say so in one line near the top, rather than restating the stage
 model — that explanation lives here, once:
 
 > **Status: stage 1 only.** `_raw/<name>/` is a usable standalone LP project, not yet in
-> the combined corpus. See [`skills/preprocess-new-dataset/README.md`](../../../skills/preprocess-new-dataset/README.md) for what
+> the combined corpus. See [`skills/preprocess-new-dataset/SKILL.md`](../../../skills/preprocess-new-dataset/SKILL.md) for what
 > stage 2 would involve; don't start it unless asked.
 
 If stage 2 commands are worth spelling out for this specific dataset (e.g. which new
@@ -166,7 +171,7 @@ keypoints it would add), use this template rather than re-deriving it:
 
 ```bash
 # add <name>'s new keypoints to configs/keypoints.yaml / configs/model.yaml (if any),
-# add "<name>" to ALL_DATASETS in mouse_pose/datasets.py, then:
-conda run -n pose python scripts/convert_dataset.py --dataset <name>
+# add "<name>" to ALL_DATASETS in mighty_mouse/datasets.py, then:
+python scripts/convert_dataset.py --dataset <name>
 python scripts/build_dataset.py --tag <tag> --datasets <name> ...
 ```

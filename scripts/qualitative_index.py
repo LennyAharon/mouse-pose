@@ -22,7 +22,7 @@ README.md starts with a YAML block:
 import argparse
 from pathlib import Path
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 
 def front_matter(readme: Path) -> dict | None:

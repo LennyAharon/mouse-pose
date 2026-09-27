@@ -1,3 +1,8 @@
+---
+name: transfer-pseudo-labels
+description: Use when the user wants to fill empty label cells in one raw dataset (_raw/<dataset>/) using a standalone LP model trained on another dataset — e.g. "transfer the cheese-3d model's predictions onto cheese-2d", "pseudo-label the missing whisker pad keypoints". Edits that dataset's CollectedData CSVs in place; never bumps the version.
+---
+
 # Transferring pseudo-labels from one dataset's model onto another dataset
 
 Once a standalone Lightning Pose model exists for one `_raw/<dataset>/` (see
@@ -32,15 +37,15 @@ from the data alone — plus the gotchas the script's design works around.
 4. **Per-view/structural masking beyond the confidence threshold?** Some target cells
    are empty for structural reasons (the keypoint genuinely isn't visible in that
    camera view), not because of an annotation gap. If the source model was trained
-   treating those as "occluded" (uniform heatmap target, see
-   `[[project_combined_dataset]]`'s visible-column convention), the confidence threshold
+   treating those as "occluded" (i.e. NaN in the CSV, so LP trains toward a uniform
+   heatmap there rather than a peak), the confidence threshold
    alone is usually the right filter — a model trained that way should predict low
    confidence there. Ask if the user wants additional hard masking on top of that.
 
 ## Running it
 
 ```
-conda run -n pose python scripts/transfer_pseudo_labels.py \
+python scripts/transfer_pseudo_labels.py \
     --model_dir <path to a trained model dir, e.g. results/cheese-3d/2026-09-26_15-45-24> \
     --target_dataset <name matching a directory under raw_dir> \
     --keypoints "kp1" "kp2" ... \
@@ -61,10 +66,10 @@ explicitly to restrict to one.
 - Never adds rows, never adds keypoint columns, never touches an already-labeled cell —
   it asserts this internally (`verify_untouched`) and raises rather than writing if it
   finds a violation.
-- Never calls `bump_version.py`. See `skills/bump-dataset-version/` and
-  `[[feedback_version_bump_confirmation]]` — versioning the result is a separate,
-  user-requested step, after they've verified the fill by hand (e.g. in the LP labeling
-  app). Report the fill counts and stop there.
+- Never calls `bump_version.py`. See `skills/bump-dataset-version/`. Versioning
+  the result is a separate, user-requested step, after they've verified the fill by hand
+  (e.g. in the LP labeling app) — don't run `bump_version.py`, not even `--dry-run`,
+  until asked. Report the fill counts and stop there.
 
 ## Gotchas this script works around
 
@@ -82,5 +87,6 @@ explicitly to restrict to one.
 - **Verify after every revert/redo, not just the first attempt.** If a run needs to be
   re-scoped (different keypoints, different threshold) after already writing once, always
   diff the freshly-produced result cell-by-cell against a known-clean original copy of the
-  target CSVs before trusting the counts — see `[[feedback_pseudo_label_verify_before_iterating]]`
-  for why (a real instance of this going wrong, silently, mid-session).
+  target CSVs before trusting the counts — this has gone wrong silently mid-session before.
+  Relatedly: never revert or overwrite a dataset's live CSVs just because their state is
+  surprising — someone may be editing them concurrently in the labeling app. Ask first.

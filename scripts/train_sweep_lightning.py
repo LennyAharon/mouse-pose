@@ -4,7 +4,7 @@ Cartesian training sweep over head-fixed datasets using the litpose CLI —
 Lightning AI, parallel.
 
 Shares all combo/naming/command-building logic with train_sweep.py via
-mouse_pose.train — the CLI args are identical. The only real difference:
+mighty_mouse.train — the CLI args are identical. The only real difference:
 each combo is launched as an independent Lightning Job instead of run in a
 sequential loop, and since a Job is a fresh remote process (no "come back to
 this process after training" step), data extraction, training, and evaluation
@@ -13,12 +13,12 @@ are chained into one shell command per job:
     test -d <data_dir> || tar -xf <data_dir>.tar -C <data_dir's parent>
     && mkdir -p <data_dir>/videos
     && litpose train ...
-    && python -m mouse_pose.train --output_dir ... --csv_file ...
+    && python -m mighty_mouse.train --output_dir ... --csv_file ...
 
 Each Job is an isolated snapshot of the launching Studio's own filesystem, not
 a shared mount multiple jobs write into — so every job independently checking
 "does this exist yet, if not extract it" is safe (see make_extract_command's
-docstring in mouse_pose/train.py). This is a different situation from a
+docstring in mighty_mouse/train.py). This is a different situation from a
 HuggingFace-style dataset cache on genuinely shared storage, which would need
 locking or pre-extraction to avoid concurrent-write races.
 
@@ -35,7 +35,7 @@ Prerequisites (not handled by this script):
     job's isolated filesystem (e.g. a teamspace-mounted drive), since results
     need to survive after the job's compute is torn down.
   - The Studio (or whatever environment `lightning_sdk` launches jobs into)
-    needs `litpose` on PATH and `mouse_pose` installed (`pip install -e .`).
+    needs `litpose` on PATH and `mighty_mouse` installed (`pip install -e .`).
 
 Run from within a Lightning AI studio:
     python scripts/train_sweep_lightning.py \\
@@ -55,7 +55,7 @@ Run from outside Lightning AI (set LIGHTNING_API_KEY env var first):
 import argparse
 import time
 
-from mouse_pose.train import (
+from mighty_mouse.train import (
     build_combos,
     make_eval_command,
     make_extract_command,

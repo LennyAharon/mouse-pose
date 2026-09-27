@@ -41,7 +41,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from mouse_pose.paths import load_paths, repo_root
+from mighty_mouse.paths import load_paths, repo_root
 
 _paths      = load_paths()
 RAW_DIR     = Path(_paths["raw_dir"])

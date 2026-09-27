@@ -29,7 +29,7 @@ from pathlib import Path
 
 import yaml
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 
 def sha256_files(paths: list[Path]) -> str:

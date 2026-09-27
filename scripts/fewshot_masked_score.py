@@ -6,7 +6,7 @@ import re, sys
 from pathlib import Path
 import numpy as np, pandas as pd
 sys.path.insert(0, "/teamspace/studios/this_studio/mouse-pose")
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 R = Path(load_paths()["results_dir"])
 LOO = {"ibl": "face+cheese+caz+kondo", "kondo": "face+ibl+cheese+caz", "cheese-2d": "face+ibl+caz+kondo",
        "cazettes-side": "face+ibl+cheese+kondo", "facemap": "ibl+cheese+caz+kondo"}

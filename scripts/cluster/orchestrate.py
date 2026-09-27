@@ -29,8 +29,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mouse_pose.paths import load_paths
-from mouse_pose.registry import load_registry
+from mighty_mouse.paths import load_paths
+from mighty_mouse.registry import load_registry
 
 REPO    = Path(__file__).resolve().parents[2]
 RECIPE  = "configs/model_zoominout.yaml"

@@ -88,8 +88,8 @@ the same pattern (paths module + conventions doc) applies to any other project.
 
 ## Project adapter: mouse-pose (the repo this skill ships with)
 
-- Paths: `from mouse_pose.paths import load_paths` (`data_dir`, `results_dir`);
-  registry: `from mouse_pose.registry import load_registry`.
+- Paths: `from mighty_mouse.paths import load_paths` (`data_dir`, `results_dir`);
+  registry: `from mighty_mouse.registry import load_registry`.
 - Base renderer: `scripts/render_supermodel_videos.py`
   (`--style classes|perkp`, `--conf`, `--max_frames`, `--fps`) over a run's
   `eval/<dataset>/predictions.csv`. Blind-mode scoring: `scripts/blind_eval.py`.

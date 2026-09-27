@@ -23,11 +23,11 @@ lives elsewhere (`docs/build_dataset.md`, the experiment plan); this file is *ho
 ```bash
 python scripts/convert_dataset.py --dataset <name>     # raw -> canonical CSVs, per dataset
 python scripts/build_dataset.py --tag <tag> ...        # merge per-dataset CSVs into a tag
-python -m mouse_pose.inventory                         # validate + regenerate inventory
+python -m mighty_mouse.inventory                         # validate + regenerate inventory
 ```
 
 The dataset registry (`configs/dataset_registry.yaml`) is the single ordered source of
-dataset ids — list position = id, append-only. `python -m mouse_pose.inventory` validates
+dataset ids — list position = id, append-only. `python -m mighty_mouse.inventory` validates
 the 36-keypoint schema, asserts train/test session disjointness, derives the
 direct/trainable/eval keypoint masks, and regenerates `docs/dataset_inventory.md` plus a
 machine-readable `dataset_inventory.json` next to the data. Run it before freezing any
@@ -97,7 +97,7 @@ factory loads with `strict=False`, so a broken path can otherwise pass silently.
 Automatic after each sweep run. Standalone / re-run:
 
 ```bash
-python -m mouse_pose.train --output_dir <run_dir> [--csv_file <train csv>] --keep_checkpoints
+python -m mighty_mouse.train --output_dir <run_dir> [--csv_file <train csv>] --keep_checkpoints
 ```
 
 (`--csv_file` is inferred from standard sweep paths but must be given for non-standard

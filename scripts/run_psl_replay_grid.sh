@@ -8,8 +8,8 @@
 set -u
 cd "$(dirname "$0")/.."
 THR=0.6
-DATA=$(python -c "from mouse_pose.paths import load_paths; print(load_paths()['data_dir'])")
-RESULTS=$(python -c "from mouse_pose.paths import load_paths; print(load_paths()['results_dir'])")
+DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['data_dir'])")
+RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
 declare -A LOO=(
   [ibl]="face+cheese+caz+kondo"       [kondo]="face+ibl+cheese+caz"
   [cheese-2d]="face+ibl+caz+kondo"    [cazettes-side]="face+ibl+cheese+kondo"
@@ -42,7 +42,7 @@ sys.path.insert(0, "scripts")
 from pathlib import Path
 import pandas as pd
 from build_replay_csv import selected_frames
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 ds, slug, out = sys.argv[1], sys.argv[2], sys.argv[3]
 data = Path(load_paths()["data_dir"])
 frames = selected_frames(data, ds, 10, 0)
@@ -76,7 +76,7 @@ PY
   grep -q COMPLETED "$OUT/train_status.json" 2>/dev/null || { echo "ABORT: training failed $DS $SLUG"; exit 1; }
   grep -q "loading weights from" "$OUT.log" || { echo "ABORT: trunk weights not loaded $DS $SLUG"; exit 1; }
 
-  python -m mouse_pose.train --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" \
+  python -m mighty_mouse.train --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" \
       > "${OUT}-eval.log" 2>&1
   [ -f "$OUT/eval/$DS/pixel_error.csv" ] || { echo "ABORT: eval failed $DS $SLUG"; exit 1; }
   echo "done: $DS $SLUG"

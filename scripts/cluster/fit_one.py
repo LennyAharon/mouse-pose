@@ -23,7 +23,7 @@ import sys
 import time
 from pathlib import Path
 
-from mouse_pose import train as T
+from mighty_mouse import train as T
 
 
 def main() -> int:

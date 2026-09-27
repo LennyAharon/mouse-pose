@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 
 def slug(keys: list[str]) -> str:

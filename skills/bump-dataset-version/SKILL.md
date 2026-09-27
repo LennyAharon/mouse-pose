@@ -1,3 +1,8 @@
+---
+name: bump-dataset-version
+description: Use when the user says a label update to a raw dataset (in _raw/<dataset>/) is complete and ready to version — e.g. "the kondo labels are done", "bump ibl to a new version". Snapshots CollectedData.csv/CollectedData_test.csv, ticks VERSION.txt, and logs a changelog entry.
+---
+
 # Bumping a raw dataset's label version
 
 Each dataset under `_raw/<dataset>/` gets its own version history, independent of
@@ -52,8 +57,9 @@ python scripts/bump_version.py <dataset> --initials <XX> --message-file <path> [
 
 - `<dataset>` must match a directory name under `raw_dir` (see `paths.yaml`)
   **and** have a corresponding `scripts/preprocessing/<dataset>/` directory —
-  the script won't guess where to put a new dataset's changelog, so create
-  that directory first if it doesn't exist yet.
+  the script won't guess where to put a new dataset's changelog. If it doesn't
+  exist yet, ask the user where that dataset's changelog should live before
+  creating it.
 - If that directory exists but has no `CHANGELOG.md` yet (e.g. a dataset whose
   folder only ever held a conversion script/README), the script creates one
   with a bare `# <dataset> dataset changelog` header and nothing else — it has
@@ -71,6 +77,11 @@ python scripts/bump_version.py <dataset> --initials <XX> --message-file <path> [
 The script refuses to bump if the live CSVs are byte-identical to the last
 snapshot (nothing to version) — this guards against an accidental duplicate
 bump when no actual label change was made.
+
+It also refuses if `CHANGELOG.md` already records a `(version N)` at or above
+the version it would create — usually a sign that only the live CSVs were
+copied to this machine, without `VERSION.txt` / `versions/`. Copy those over
+rather than letting the numbering fork.
 
 ## Deciding when to bump
 

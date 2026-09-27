@@ -19,15 +19,15 @@ What this script deliberately does NOT do:
   user-requested step, after they've verified the result
 
 Must be run in the `pose` conda env:
-    conda run -n pose python scripts/transfer_pseudo_labels.py ...
+    python scripts/transfer_pseudo_labels.py ...
 
-See ../skills/transfer-pseudo-labels/README.md for the full workflow and the checklist
+See ../skills/transfer-pseudo-labels/SKILL.md for the full workflow and the checklist
 of decisions to confirm with the user before running this (keypoint-name overlap
 between source model and target dataset, confidence threshold, scope, per-view
 masking).
 
 Usage example (dry run first):
-    conda run -n pose python scripts/transfer_pseudo_labels.py \\
+    python scripts/transfer_pseudo_labels.py \\
         --model_dir /media/mattw/poseinterface/results/cheese-3d/2026-09-26_15-45-24 \\
         --target_dataset cheese-2d \\
         --keypoints "pad(top)(left)" "pad(side)(left)" "pad(top)(right)" "pad(side)(right)" \\
@@ -43,7 +43,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 CSV_NAMES_DEFAULT = ["CollectedData.csv", "CollectedData_test.csv"]
 

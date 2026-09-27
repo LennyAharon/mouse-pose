@@ -8,7 +8,7 @@ and calls `litpose train` for each, then evaluates in-process.
 
 For remote, parallel execution on Lightning AI, see train_sweep_lightning.py —
 it shares all combo/naming/command-building logic with this script via
-mouse_pose.train, so the two only differ in how a command actually gets run.
+mighty_mouse.train, so the two only differ in how a command actually gets run.
 
 Output lands at:
   <results_dir>/<tag>/<losses_tag>/tf<N>/<backbone>/seed<N>/
@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 
 
-from mouse_pose.train import (
+from mighty_mouse.train import (
     RESULTS_DIR,
     build_combos,
     csv_stem,

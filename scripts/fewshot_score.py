@@ -12,7 +12,7 @@ import json, sys
 from pathlib import Path
 import numpy as np, pandas as pd
 sys.path.insert(0, "/teamspace/studios/this_studio/mouse-pose")
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 P = load_paths(); R = Path(P["results_dir"]); D = Path(P["data_dir"])
 inv = json.load(open(D / "dataset_inventory.json"))["datasets"]
 DS = ["ibl", "kondo", "cheese-2d", "cazettes-side", "facemap"]

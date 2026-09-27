@@ -36,7 +36,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 _paths = load_paths()
 RAW_DIR = Path(_paths["raw_dir"])
@@ -323,7 +323,7 @@ def main(dry_run=False, skip_video=False, skip_pipeline=False):
         print(f"\nNext steps:")
         print(f"  1. conda run -n iblvideo2 python scripts/preprocessing/ibl/plot_ibl_face_check.py")
         print(f"  2. Review check images in {IBL_DIR / 'labeled-data-check'}/")
-        print(f"  3. conda run -n pose python scripts/convert_dataset.py --dataset ibl")
+        print(f"  3. python scripts/convert_dataset.py --dataset ibl")
         print(f"  4. Rebuild merged datasets with scripts/build_dataset.py")
 
 

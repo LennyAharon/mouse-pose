@@ -22,7 +22,7 @@ it maps to (needs a new `configs/datasets/<name>.yaml`; see README "Adding a new
 - Updated labels for an existing dataset: the user overwrites `CollectedData*.csv` in
   `_raw/<dataset>/` (frames stay). `_raw` always holds the current labels.
 - New dataset: `_raw/<name>/` with the standard layout, plus `configs/datasets/<name>.yaml` and the
-  registrations in `mouse_pose/datasets.py` (README "Adding a new dataset").
+  registrations in `mighty_mouse/datasets.py` (README "Adding a new dataset").
 
 ## 2b. Lab label versions (MW's scheme; upstream `skills/bump-dataset-version`)
 

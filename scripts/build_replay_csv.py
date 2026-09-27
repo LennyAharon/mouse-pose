@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 from omegaconf import OmegaConf
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 LOO = {
     "ibl":           "face+cheese+caz+kondo",
