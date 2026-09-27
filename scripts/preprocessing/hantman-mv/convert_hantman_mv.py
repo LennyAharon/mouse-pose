@@ -19,7 +19,7 @@ labeled (unlabeled context frames), so a wholesale directory copy would pull
 in a lot of unused images.
 
 Split is subject-level (first '_'-delimited token of the session name,
-uppercased against casing slips), via mouse_pose.subject_split -- shared with
+uppercased against casing slips), via mighty_mouse.subject_split -- shared with
 scripts/preprocessing/hantman-sleap/convert_hantman_sleap.py.
 
 Usage:
@@ -33,8 +33,8 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from mouse_pose.paths import load_paths
-from mouse_pose.subject_split import subject_of, subject_split
+from mighty_mouse.paths import load_paths
+from mighty_mouse.subject_split import subject_of, subject_split
 
 # Target ~10-15% of frames in test. The greedy split in subject_split() only ever
 # overshoots (it stops as soon as the running total reaches the target), and subject

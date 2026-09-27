@@ -18,7 +18,7 @@ Node naming is inconsistent between the two skeletons ("digit 4" in side vs.
 "digit4" in front) -- normalized to "digit4" here so both views produce the
 same source column name for configs/datasets/hantman.yaml.
 
-Split is subject-level and pooled across both views, via mouse_pose.subject_split
+Split is subject-level and pooled across both views, via mighty_mouse.subject_split
 (shared with scripts/preprocessing/hantman-mv/convert_hantman_mv.py): a subject is
 the first '_'-delimited token in a session name ({subject}_{date}_{view}_{version}),
 uppercased so casing slips in the source filenames (e.g. "jcr130" vs "JCR130")
@@ -38,8 +38,8 @@ import sleap_io as sio
 import yaml
 from PIL import Image
 
-from mouse_pose.paths import load_paths
-from mouse_pose.subject_split import subject_of, subject_split
+from mighty_mouse.paths import load_paths
+from mighty_mouse.subject_split import subject_of, subject_split
 
 SCORER = "hantman"
 TEST_FRACTION = 0.15

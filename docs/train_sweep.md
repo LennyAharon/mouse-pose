@@ -108,7 +108,7 @@ tar -cf head-fixed_v2.tar -C data head-fixed_v2
 ```
 
 Each job extracts this archive into place itself if `data_dir` doesn't already exist when it starts
-(see `make_extract_command` in `mouse_pose/train.py`) — safe to do independently in every job since
+(see `make_extract_command` in `mighty_mouse/train.py`) — safe to do independently in every job since
 each Lightning Job is an isolated snapshot of the Studio's filesystem, not a shared mount. `paths.yaml`
 also needs `results_dir` pointing at storage that outlives an individual job (e.g. a teamspace-mounted
 drive), since results need to survive after the job's compute is torn down — unlike `data_dir`, this

@@ -43,7 +43,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 CSV_NAMES_DEFAULT = ["CollectedData.csv", "CollectedData_test.csv"]
 

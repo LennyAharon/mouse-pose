@@ -75,7 +75,7 @@ suppressed heatmap for a side that was simply never assessed. A
 column to `visible=0` after the standard split processing (same pattern as
 `hantman-mv`, simpler here since there's no ear-keypoint exemption).
 
-`kaufman` was added to `ALL_DATASETS` in `mouse_pose/datasets.py`.
+`kaufman` was added to `ALL_DATASETS` in `mighty_mouse/datasets.py`.
 
 ```bash
 python scripts/convert_dataset.py --dataset kaufman

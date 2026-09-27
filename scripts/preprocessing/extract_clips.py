@@ -6,7 +6,7 @@ For each source video, picks the `--clip-length`-second window with the most mov
 (measured from raw pixel differences, or from pose predictions if `--preds-dir` is
 given), or, with `--from-start`, just the first `--clip-length` seconds starting at
 `--skip-start`. Saves as an h264/yuv420p mp4 in `--out-dir`, regardless of the source
-codec/container. See mouse_pose/videos.py:make_video_snippet for the core logic.
+codec/container. See mighty_mouse/videos.py:make_video_snippet for the core logic.
 
 Usage:
     python scripts/preprocessing/extract_clips.py \\
@@ -17,7 +17,7 @@ Usage:
 import argparse
 from pathlib import Path
 
-from mouse_pose.videos import make_video_snippet
+from mighty_mouse.videos import make_video_snippet
 
 VIDEO_EXTENSIONS = (".avi", ".mp4", ".mov")
 

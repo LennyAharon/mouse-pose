@@ -11,7 +11,7 @@ Lightning AI Job is an independent remote process: there's no "come back to
 this process after training finishes" step like the local sweep script has,
 so evaluation has to be its own chainable command:
 
-    python -m mouse_pose.train --output_dir <dir> --csv_file <CollectedData_..._train.csv>
+    python -m mighty_mouse.train --output_dir <dir> --csv_file <CollectedData_..._train.csv>
 """
 
 import argparse
@@ -22,8 +22,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from mouse_pose.datasets import ALL_DATASETS
-from mouse_pose.paths import load_paths, repo_root
+from mighty_mouse.datasets import ALL_DATASETS
+from mighty_mouse.paths import load_paths, repo_root
 
 _paths      = load_paths()
 DATA_DIR    = Path(_paths["data_dir"])
@@ -133,7 +133,7 @@ def make_eval_command(output_dir, csv_file) -> list[str]:
     """Build the standalone-evaluation argv for one sweep combo (chained onto
     make_train_command's output with `&&` for a single Lightning job command)."""
     return [
-        "python", "-m", "mouse_pose.train",
+        "python", "-m", "mighty_mouse.train",
         "--output_dir", str(output_dir),
         "--csv_file", str(csv_file),
     ]

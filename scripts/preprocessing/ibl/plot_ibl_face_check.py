@@ -11,8 +11,8 @@ Usage:
 
 from pathlib import Path
 
-from mouse_pose.paths import load_paths
-from mouse_pose.plots.plot_keypoints import plot_labeled_frames
+from mighty_mouse.paths import load_paths
+from mighty_mouse.plots.plot_keypoints import plot_labeled_frames
 
 _paths = load_paths()
 IBL_DIR   = Path(_paths["raw_dir"]) / "ibl"

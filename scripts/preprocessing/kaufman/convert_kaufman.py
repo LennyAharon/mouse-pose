@@ -35,7 +35,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 TEST_SUBJECTS = {"b8sSM7", "b8sSM10"}
 

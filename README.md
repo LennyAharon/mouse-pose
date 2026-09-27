@@ -11,7 +11,7 @@ pip install -e .
 Install into (and run everything below from) whatever environment has Lightning Pose
 installed; commands are written as bare `python` / `litpose`.
 
-After that, `mouse_pose` is importable from any script without path manipulation.
+After that, `mighty_mouse` is importable from any script without path manipulation.
 
 ---
 
@@ -111,11 +111,11 @@ python scripts/train_sweep_lightning.py \
 ```
 
 Both scripts share their combo generation, naming, and `litpose train` command-building via
-`mouse_pose/train.py` — they only differ in *how* a command gets executed (subprocess loop vs.
+`mighty_mouse/train.py` — they only differ in *how* a command gets executed (subprocess loop vs.
 `Job.run`), so there's one place to change if the sweep logic itself needs to change. Because a
 Lightning Job is a fresh remote process with no way to "come back" to it afterward like the local
-loop does, evaluation can't happen in-process there — instead `mouse_pose/train.py` is itself
-CLI-invocable (`python -m mouse_pose.train --output_dir ... --csv_file ...`) and gets chained onto
+loop does, evaluation can't happen in-process there — instead `mighty_mouse/train.py` is itself
+CLI-invocable (`python -m mighty_mouse.train --output_dir ... --csv_file ...`) and gets chained onto
 the training command with `&&` for each job.
 
 **Getting data onto Lightning storage:** each Job is an isolated snapshot of the launching Studio's
@@ -123,7 +123,7 @@ filesystem, and syncing the ~10k individual label/image files in `data/head-fixe
 archive it once (`tar -cf head-fixed_v2.tar head-fixed_v2`) and upload just that file to the
 Studio. Every job then extracts it into place itself on first use if it's not there yet — safe to do
 independently per job since there's no shared filesystem to race on (see `make_extract_command` in
-`mouse_pose/train.py`, and `docs/train_sweep.md` for the full setup). `paths.yaml` is machine-specific
+`mighty_mouse/train.py`, and `docs/train_sweep.md` for the full setup). `paths.yaml` is machine-specific
 and gitignored, so the Studio needs its own copy: `data_dir` pointing at wherever the archive lives,
 `results_dir` pointing at storage that's actually persistent/shared across jobs (e.g. a
 teamspace-mounted drive) — the two have different persistence needs and don't have to be on the same
@@ -241,15 +241,15 @@ mighty-mouse/
     convert_dataset.py          per-dataset conversion (run once)
     build_dataset.py            subsampling + merging (run freely)
     train_sweep.py              LP training sweep + evaluation, local/sequential
-    train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mouse_pose/train.py)
+    train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mighty_mouse/train.py)
     preprocessing/
       ibl/                      iblvideo pseudo-label pipeline
 
-  mouse_pose/
+  mighty_mouse/
     paths.py                    path resolution from paths.yaml
     train.py                    sweep combo/naming/command logic shared by both
                                  train_sweep*.py scripts; also a standalone CLI
-                                 (`python -m mouse_pose.train`) for evaluation only
+                                 (`python -m mighty_mouse.train`) for evaluation only
     plots/
       plot_keypoints.py         keypoint overlay visualization
 
@@ -274,7 +274,7 @@ poseinterface/
 ```
 
 Model checkpoints (`*.ckpt`) are deleted once evaluation completes — `eval/<dataset>/` is what's kept
-long-term, not the trained weights. This happens in `mouse_pose.train.evaluate_model`, so it applies
+long-term, not the trained weights. This happens in `mighty_mouse.train.evaluate_model`, so it applies
 whether a run finished locally or on Lightning AI.
 
 ### Adding a new dataset
@@ -290,9 +290,9 @@ be merged in:
 1. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml` (keep
    `data.num_keypoints` in sync — it's a plain count, not derived from the list) if the
    dataset introduces any
-2. Add `<name>` to `ALL_DATASETS` in `mouse_pose/datasets.py` — this single list drives
+2. Add `<name>` to `ALL_DATASETS` in `mighty_mouse/datasets.py` — this single list drives
    both `scripts/build_dataset.py`'s default `--datasets` set and the per-dataset
-   evaluation in `mouse_pose/train.py`. It isn't derived from `configs/datasets/`, so it
+   evaluation in `mighty_mouse/train.py`. It isn't derived from `configs/datasets/`, so it
    must be updated by hand or the new dataset silently won't be included in default
    `--tag all`-style runs or per-dataset evaluation
 3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
@@ -310,7 +310,7 @@ don't cross-check each other. When renaming (e.g. `ibl-face` → `ibl`) or depre
 1. `_raw/<old-name>/` → `_raw/<new-name>/` (physical rename; `convert_dataset.py` resolves the
    raw directory as `<raw_dir>/<dataset-name>`, so these must match)
 2. `configs/datasets/<old-name>.yaml` → `configs/datasets/<new-name>.yaml`
-3. `ALL_DATASETS` in `mouse_pose/datasets.py`
+3. `ALL_DATASETS` in `mighty_mouse/datasets.py`
 4. Any hardcoded raw-dir constants inside preprocessing scripts — a constant like
    `X_DIR = RAW_DIR / "old-name"` won't auto-follow a `configs/datasets/<name>.yaml` rename, so
    grep the script for the literal old string

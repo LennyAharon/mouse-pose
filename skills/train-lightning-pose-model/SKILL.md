@@ -1,6 +1,6 @@
 ---
 name: train-lightning-pose-model
-description: Use when the user wants to train a standalone Lightning Pose model on a single _raw/<name>/ dataset — e.g. "train a model on cheese-3d", "let's bootstrap a pseudo-labeling model for X". Not for adding a dataset to the mouse-pose combined corpus (that's preprocess-new-dataset / the main README's stage 2-3), and not for training on a composite/merged dataset (that uses mouse-pose/configs/model.yaml's own defaults, not this skill's fixed defaults).
+description: Use when the user wants to train a standalone Lightning Pose model on a single _raw/<name>/ dataset — e.g. "train a model on cheese-3d", "let's bootstrap a pseudo-labeling model for X". Not for adding a dataset to the mighty-mouse combined corpus (that's preprocess-new-dataset / the main README's stage 2-3), and not for training on a composite/merged dataset (that uses configs/model.yaml's own defaults, not this skill's fixed defaults).
 ---
 
 # Training a standalone Lightning Pose model

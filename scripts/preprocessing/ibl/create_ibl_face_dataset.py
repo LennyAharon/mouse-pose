@@ -36,7 +36,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from mouse_pose.paths import load_paths
+from mighty_mouse.paths import load_paths
 
 _paths = load_paths()
 RAW_DIR = Path(_paths["raw_dir"])

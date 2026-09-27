@@ -14,7 +14,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from mouse_pose.paths import load_paths, repo_root
+from mighty_mouse.paths import load_paths, repo_root
 
 CSV_NAMES = ["CollectedData.csv", "CollectedData_test.csv"]
 
