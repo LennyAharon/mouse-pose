@@ -143,14 +143,19 @@ train/test split) that need a human call rather than an inferred default.
 
 ---
 
-## Currently converted datasets
+## Datasets in the combined corpus
 
-| Dataset       | Train frames | Test frames | Notes |
-|---------------|--------------|-------------|-------|
-| facemap       | 1800         | 100         | left-view; bilateral kps lateralized via `{side}` |
-| ibl           | 7608         | 1446        | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw` |
-| cheese-2d     | 665          | 291         | four views (L/R/BC/TC); custom visibility post-processing |
-| cazettes-side | 830          | 217         | left-view; bilateral kps lateralized via `{side}` |
+The authoritative list is `ALL_DATASETS` in `mighty_mouse/datasets.py`; frame counts change
+as labels are added, so check the CSVs directly rather than recording them here.
+
+| Dataset       | Notes |
+|---------------|-------|
+| facemap       | left-view; bilateral kps lateralized via `{side}` |
+| ibl           | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw` |
+| cheese-2d     | four views (L/R/BC/TC) |
+| cazettes-side | left-view; bilateral kps lateralized via `{side}` |
+| kondo         | right-view face + both wrists |
+| kaufman       | right-forepaw digit tips only; subject-level train/test split |
 
 ---
 
@@ -213,24 +218,18 @@ get filled. Useful for head-on camera views (cheese-2d BC/TC sessions).
 ### Per-dataset post-processing (`convert_dataset.py`)
 
 Some datasets need custom visibility logic beyond the standard lateralization rules. These are
-implemented as functions registered in `POST_PROCESS` at the top of `convert_dataset.py`:
-
-```python
-POST_PROCESS: dict[str, Callable] = {
-    "cheese-2d": _post_process_cheese2d,
-}
-```
-
-Each function receives the fully-processed DataFrame and the dataset config, and returns a modified
-DataFrame.
-
-**cheese-2d specifics:** Missing labels are annotation gaps, not occlusion. Post-processing promotes
-`vis=1 → vis=0` for keypoints that should be visible given the session's viewpoint.
+implemented as functions registered in `POST_PROCESS` near the top of `convert_dataset.py`
+(see there for the current list; each dataset's own README/CHANGELOG explains why it needs one).
+Each function receives the fully-processed DataFrame and the dataset config, and returns a
+modified DataFrame.
 
 ### Directory layout
 
 ```
 mighty-mouse/
+  AGENTS.md                     onboarding for coding agents
+  skills/<name>/SKILL.md        step-by-step workflows (onboarding, versioning, standalone training, ...)
+  docs/                         design notes for build_dataset / train_sweep
   configs/
     keypoints.yaml              canonical keypoint vocabulary
     model.yaml                  LP model config; data_dir/csv_file overridden per-run by train_sweep*.py
@@ -242,11 +241,17 @@ mighty-mouse/
     build_dataset.py            subsampling + merging (run freely)
     train_sweep.py              LP training sweep + evaluation, local/sequential
     train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mighty_mouse/train.py)
+    bump_version.py             snapshot a raw dataset's label CSVs as a new version
+    transfer_pseudo_labels.py   fill empty labels in one raw dataset from another dataset's model
     preprocessing/
-      ibl/                      iblvideo pseudo-label pipeline
+      <dataset>/                per-dataset CHANGELOG.md, plus a converter + README if one was needed
+      extract_clips.py          cut short high-motion clips from raw videos for review
 
   mighty_mouse/
     paths.py                    path resolution from paths.yaml
+    datasets.py                 ALL_DATASETS (datasets in the combined corpus)
+    subject_split.py            shared subject-level train/test split
+    videos.py                   video snippet + motion-energy helpers
     train.py                    sweep combo/naming/command logic shared by both
                                  train_sweep*.py scripts; also a standalone CLI
                                  (`python -m mighty_mouse.train`) for evaluation only
@@ -259,6 +264,7 @@ poseinterface/
       labeled-data/<session>/<frame>.png
       CollectedData.csv
       CollectedData_test.csv
+      VERSION.txt, versions/    label-version snapshots (see skills/bump-dataset-version)
 
   data/head-fixed/
     labeled-data/

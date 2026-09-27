@@ -3,8 +3,8 @@
 **Historical snapshot.** Every frame count in this doc (per-dataset and per-tag) is a
 frozen fact about the specific `data/head-fixed_v2` build described below — datasets get
 relabeled/expanded over time (e.g. `ibl` has grown since this build), so these numbers
-will not match current CSVs. For current counts, see README.md's "Currently converted
-datasets" table or just check the CSVs directly; don't treat anything here as live.
+will not match current CSVs. For current counts, check the CSVs directly; don't treat
+anything here as live.
 
 This walks through the exact commands used to build `data/head-fixed_v2`, and — more
 importantly — *why* the dataset is shaped the way it is. The goal of the head-fixed
