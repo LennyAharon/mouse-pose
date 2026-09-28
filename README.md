@@ -242,7 +242,7 @@ mighty-mouse/
     train_sweep.py              LP training sweep + evaluation, local/sequential
     train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mighty_mouse/train.py)
     bump_version.py             snapshot a raw dataset's label CSVs as a new version
-    transfer_pseudo_labels.py   fill empty labels in one raw dataset from another dataset's model
+    transfer_pseudo_labels.py   write model predictions into one raw dataset's label CSVs (pseudo-labeling)
     preprocessing/
       <dataset>/                per-dataset CHANGELOG.md, plus a converter + README if one was needed
       extract_clips.py          cut short high-motion clips from raw videos for review

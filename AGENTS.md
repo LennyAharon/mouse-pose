@@ -28,7 +28,7 @@ short `name`/`description` frontmatter — readable by any agent, not just Claud
 - **Onboarding a new raw dataset** → [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)
 - **Versioning a dataset's label CSVs** → [`skills/bump-dataset-version/SKILL.md`](skills/bump-dataset-version/SKILL.md)
 - **Training a standalone LP model on one raw dataset** → [`skills/train-lightning-pose-model/SKILL.md`](skills/train-lightning-pose-model/SKILL.md)
-- **Filling label gaps with another dataset's model** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
+- **Pseudo-labeling a raw dataset (from another dataset's model, precomputed predictions, or its own hand-corrected rows)** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
 
 Read the relevant one before starting the task — they have hard-won detail (what
 to ask before converting a dataset, why a version bump can refuse as a no-op, etc.)

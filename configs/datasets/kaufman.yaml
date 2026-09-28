@@ -11,10 +11,6 @@ exclude:
     - RFPp5
     - RFLe1
     - RFLs1
-    - Nose1
-    - Nose2
-    - Tng1
-    - Tng2
     - RHPm
     - RHPl
     - RHPp
@@ -23,12 +19,25 @@ exclude:
     - LFPp
     - spoutB
     - spoutT
+    - nose_top
 
 keypoints:
   RFPf1: d4_tip_{side}
   RFPf2: d3_tip_{side}
   RFPf3: d2_tip_{side}
   RFPf4: d1_tip_{side}
+  eye_back: eye_back_{side}
+  eye_bottom: eye_bottom_{side}
+  eye_front: eye_front_{side}
+  eye_top: eye_top_{side}
+  pad_top: pad_top_{side}
+  pad_side: pad_side_{side}
+  ear_base: ear_base_{side}
+  ear_bottom: ear_bottom_{side}
+  ear_tip: ear_tip_{side}
+  ear_top: ear_top_{side}
+  nose_tip: nose_tip
+  nose_bottom: nose_bottom
 
 sessions:
   20241208-125516-cam1: right
