@@ -188,12 +188,13 @@ model:
   blind_gamma: 2.0
   blind_conf_floor: 0.0
   # ── transfer (lightning-pose xfer_head) ──
-  # absent bin: "not in this image" entry per channel; protocol-level absent cells (flag 1 on 100 % of a
+  # absent bin: per-keypoint "not in this image" probability from its own local presence map (1x1 conv on the
+  # backbone tokens, soft max over locations); protocol-level absent cells (flag 1 on 100 % of a
   # dataset's rows) train only the per-dataset table. Likelihood = spatial confidence x presence.
   absent_bin:
     weight: 0.1             # BCE weight (log_weight = -log w); 0.1 puts it on the heatmap-loss scale at init
     table_lr: 1.0e-2        # the table must move several logit units from flags alone
-    pool_lr: 1.0e-3
+    local_lr: 1.0e-3         # 1x1 presence conv + bias (own group)
   # exclusion: channels without a Gaussian target (unlabeled or absent) are pushed toward zero within
   # radius_px of labeled keypoints of another body-part group
   exclusion:
