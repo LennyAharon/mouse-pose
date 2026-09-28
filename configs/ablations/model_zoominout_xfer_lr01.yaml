@@ -193,7 +193,7 @@ model:
   # absent bin: "not in this image" entry per channel; protocol-level absent cells (flag 1 on 100 % of a
   # dataset's rows) train only the per-dataset table. Likelihood = spatial confidence x presence.
   absent_bin:
-    weight: 1.0             # BCE weight, same convention as the heatmap loss (log_weight = -log w)
+    weight: 0.1             # BCE weight (log_weight = -log w); 0.1 puts it on the heatmap-loss scale at init
     table_lr: 1.0e-2        # the table must move several logit units from flags alone
     pool_lr: 1.0e-3
   # exclusion: channels without a Gaussian target (unlabeled or absent) are pushed toward zero within
