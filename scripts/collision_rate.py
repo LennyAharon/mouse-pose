@@ -8,9 +8,8 @@ lands within --radius (fraction of the longest image side) of a keypoint the fra
 (visible == 2) from a different body-part group: a paw on the ear, a nose on the digits. Groups
 come from model.exclusion.groups in the transfer config (keypoints not listed are singletons).
 
-Reads <run_dir>/eval/<dataset>/predictions.csv against the current data_dir test CSVs; writes
-<run_dir>/eval/collision_rate.csv (one row per dataset x transfer keypoint) and prints a
-per-dataset summary. Lower is better; it measures confident mistakes, not accuracy.
+Reads <run_dir>/eval/<dataset>/predictions.csv against the current data_dir test CSVs; prints a
+per-dataset summary and, with --out, writes the table (one row per dataset x transfer keypoint). Lower is better; it measures confident mistakes, not accuracy.
 
     python scripts/collision_rate.py --run_dir <results>/.../vits_dinov3/seed0
 """
@@ -45,6 +44,7 @@ def main():
     parser.add_argument("--conf",    type=float, default=0.7,  help="likelihood floor (qualitative-video floor)")
     parser.add_argument("--radius",  type=float, default=0.03, help="collision radius, fraction of the longest image side")
     parser.add_argument("--groups_config", type=Path, default=GROUPS_CONFIG)
+    parser.add_argument("--out", type=Path, default=None, help="optional CSV path for the table")
     args = parser.parse_args()
 
     groups_cfg = yaml.safe_load(args.groups_config.read_text())["model"]["exclusion"]["groups"]
@@ -89,7 +89,8 @@ def main():
             })
 
     out = pd.DataFrame(rows)
-    out.to_csv(args.run_dir / "eval" / "collision_rate.csv", index=False)
+    if args.out:   # runs are read-only inputs: nothing is written into the run directory
+        out.to_csv(args.out, index=False)
     summary = out.groupby("dataset", sort=False)[["confident", "collided"]].sum()
     summary["rate_%"] = (100 * summary.collided / summary.confident.clip(lower=1)).round(1)
     print(summary.to_string())
