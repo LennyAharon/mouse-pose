@@ -15,6 +15,9 @@ output dir). Pixel metrics are compared, not losses: ablations can change what a
            `litpose train` process and write
            <run>/STOPPED_BY_WATCHDOG.txt with the reason. Stop-and-rerun, not resume: an ablation
            that does not learn is fixed and relaunched, never continued.
+           A run that is slower BY DESIGN (lower backbone lr, shorter warm-up...) must not get the
+           baseline-ratio rule: pass --ratio 1000 so only the halving rule applies (2026-09-28: the
+           2x rule stopped a healthy backbone-lr x0.1 run at 16 px vs 7).
 
     python scripts/check_curves.py --base <seed dir> --run A=<seed dir> --run B=<seed dir>
     python scripts/check_curves.py --base <seed dir> --run A=<dir> --watch --unfreeze 1000
