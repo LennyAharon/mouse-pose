@@ -71,9 +71,12 @@ Only the right forepaw was ever filmed, so the default per-split output would ma
 every `d[1-4]_tip_left` `visible=1` ("in dataset, unlabeled") rather than `visible=0`
 ("not part of this dataset") — training on that would teach the model to predict a
 suppressed heatmap for a side that was simply never assessed. A
-`POST_PROCESS["kaufman"]` entry in `scripts/convert_dataset.py` forces every `_left`
-column to `visible=0` after the standard split processing (same pattern as
-`hantman-mv`, simpler here since there's no ear-keypoint exemption).
+`POST_PROCESS["kaufman"]` entry in `scripts/convert_dataset.py` forces the `_left`
+forepaw columns (`d[1-4]_tip_left`, plus `wrist_left` if it's ever mapped) to
+`visible=0` after the standard split processing (same pattern as `hantman-mv`). The
+lateralized face keypoints added in version 1 (`eye_*`, `ear_*`, `pad_*`) are *not*
+overridden: the left side of the face is genuinely hidden behind the head from this
+camera, so their default `visible=1` (occluded) is the right signal.
 
 `kaufman` was added to `ALL_DATASETS` in `mighty_mouse/datasets.py`.
 

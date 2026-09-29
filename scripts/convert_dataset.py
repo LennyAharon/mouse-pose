@@ -92,10 +92,20 @@ def _post_process_hantman_mv(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 # occlusion. process_split()'s default (vis=1) would train the model that this is an
 # occluded keypoint (uniform heatmap target, teaches low confidence everywhere) for a paw
 # that's actually there. Force vis=0 (excluded from the loss entirely, no opinion) for
-# every _left column instead.
+# the _left forepaw columns only.
+#
+# The lateralized face keypoints (eye_*, ear_*, pad_*) are deliberately left at the
+# default vis=1: the left side of the face really is hidden behind the head from this
+# camera, so the occlusion signal is correct there (same reasoning as hantman-mv's ear
+# exemption).
+_KAUFMAN_LEFT_FOREPAW = frozenset([
+    "wrist_left", "d1_tip_left", "d2_tip_left", "d3_tip_left", "d4_tip_left",
+])
+
+
 def _post_process_kaufman(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     for kp in df.columns.get_level_values(1).unique():
-        if kp.endswith("_left"):
+        if kp in _KAUFMAN_LEFT_FOREPAW:
             vis_col = (SCORER, kp, "visible")
             df[vis_col] = np.where(df[vis_col].to_numpy() == 1.0, 0.0, df[vis_col].to_numpy())
     return df

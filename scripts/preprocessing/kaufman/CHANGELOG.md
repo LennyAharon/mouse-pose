@@ -9,6 +9,13 @@ current keypoint mapping.
 
 ## Changelog
 
+### 2026-09-29 (MW)
+- Narrowed `POST_PROCESS["kaufman"]` in `scripts/convert_dataset.py` to force
+  `visible=0` only on the `_left` forepaw keypoints (`wrist_left`, `d[1-4]_tip_left`).
+  The `_left` face keypoints added in version 1 (`eye_*`, `ear_*`, `pad_*`) now keep
+  the default `visible=1`, since that side of the face is genuinely occluded from this
+  camera. No label CSV changes.
+
 ### 2026-09-28 (MW) (version 1)
 - Removed the `Nose1`, `Nose2`, `Tng1`, `Tng2` columns (previously excluded in
   `configs/datasets/kaufman.yaml`) to declutter labeling; their original labels are
