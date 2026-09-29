@@ -71,7 +71,7 @@ than picking a default and mentioning it after the fact.
    unassessed `_left` counterpart `visible=1` ("in dataset, unlabeled") rather than
    `visible=0` ("not part of this dataset") — training on that teaches the model to
    predict a suppressed heatmap for a side that was never captured at all. Add a
-   `POST_PROCESS["<name>"]` function in `scripts/convert_dataset.py` to force those
+   `POST_PROCESS["<name>"]` function in `mighty_mouse/convert.py` to force those
    columns to `visible=0`; see `hantman-mv`/`kaufman` for this (every session the same
    side). If a dataset instead varies side *per session* (as `cheese-2d` once did,
    before all its keypoints were fully labeled), the post-process function needs to key

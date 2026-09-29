@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from mighty_mouse.datasets import ALL_DATASETS
+from mighty_mouse.labels import read_labels_csv
 from mighty_mouse.paths import load_paths, repo_root
 from mighty_mouse.registry import load_registry
 
@@ -348,7 +349,7 @@ def evaluate_model(output_dir: Path, csv_file: str, keep_checkpoints: bool = Fal
         )
         preds_df = result.predictions
 
-        labels_df = pd.read_csv(test_csv, header=[0, 1, 2], index_col=0)
+        labels_df = read_labels_csv(test_csv)
         if labels_df.index[0] == labels_df.index.name:
             labels_df = labels_df.iloc[1:]
 

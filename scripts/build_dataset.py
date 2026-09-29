@@ -29,14 +29,11 @@ import numpy as np
 import pandas as pd
 
 from mighty_mouse.datasets import ALL_DATASETS
+from mighty_mouse.labels import read_labels_csv
 from mighty_mouse.paths import load_paths
 
 _paths   = load_paths()
 DATA_DIR = Path(_paths["data_dir"])
-
-
-def read_csv(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, header=[0, 1, 2], index_col=0)
 
 
 def build_merged(per_dataset_dfs: list[tuple[str, pd.DataFrame]]) -> pd.DataFrame:
@@ -63,7 +60,7 @@ def main(datasets: list[str], n_frames: int, seed: int, tag: str) -> None:
             continue
 
         print(f"\n── {name} ──────────────────────────────────────")
-        train_df = read_csv(train_csv)
+        train_df = read_labels_csv(train_csv)
         print(f"  Train: {len(train_df)} frames available")
 
         if n_frames < 0:
@@ -79,7 +76,7 @@ def main(datasets: list[str], n_frames: int, seed: int, tag: str) -> None:
         train_dfs.append((name, sample))
 
         if test_csv.exists():
-            test_df = read_csv(test_csv)
+            test_df = read_labels_csv(test_csv)
             print(f"  Test:  {len(test_df)} frames")
             test_dfs.append((name, test_df))
         else:

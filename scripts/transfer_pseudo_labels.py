@@ -76,6 +76,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from mighty_mouse.labels import read_labels_csv
 from mighty_mouse.paths import load_paths
 
 CSV_NAMES_DEFAULT = ["CollectedData.csv", "CollectedData_test.csv"]
@@ -117,7 +118,7 @@ def load_predictions_csv(path: Path, target_dataset: str, target_index: pd.Index
     combined-corpus-style image paths line up with the raw dataset's own. Exits if any
     target image has no prediction.
     """
-    preds = pd.read_csv(path, header=[0, 1, 2], index_col=0)
+    preds = read_labels_csv(path)
     preds.index = preds.index.str.replace(f"labeled-data/{target_dataset}/", "labeled-data/", n=1, regex=False)
     if preds.index.duplicated().any():
         sys.exit(f"{path}: duplicate image paths after prefix stripping")
@@ -288,7 +289,7 @@ def main():
         protect_path = raw_dir / args.protect_rows_from
         if not protect_path.exists():
             sys.exit(f"No such --protect_rows_from CSV: {protect_path}")
-        protected_rows = pd.read_csv(protect_path, header=[0, 1, 2], index_col=0).index
+        protected_rows = read_labels_csv(protect_path).index
         print(f"protecting {len(protected_rows)} row(s) listed in {protect_path}")
 
     if args.model_dir:
@@ -306,7 +307,7 @@ def main():
         tmp = Path(tmp)
         for i, name in enumerate(args.csvs):
             orig_path = raw_dir / name
-            orig = pd.read_csv(orig_path, header=[0, 1, 2], index_col=0)
+            orig = read_labels_csv(orig_path)
 
             if args.predictions_csvs:
                 preds = load_predictions_csv(args.predictions_csvs[i], args.target_dataset, orig.index)

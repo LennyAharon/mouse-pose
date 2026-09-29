@@ -56,3 +56,32 @@ that isn't worth re-deriving from scratch.
 - **Git: don't stage or commit on the user's behalf.** Make file edits freely, but
   leave `git add` / `git commit` / `git push` to the repo owner unless explicitly
   asked to do otherwise.
+
+## Development guidelines
+
+**Code layout.** Logic lives in `mighty_mouse/`; `scripts/` are thin CLIs (argparse +
+orchestration). Prefer small pure functions that take DataFrames / dicts over ones that
+take paths, and do no work at import time (e.g. don't call `load_paths()` at module
+level) — that's what keeps things testable without a real `paths.yaml` or data.
+
+**Style.** Match the surrounding code rather than an external guide: double quotes,
+aligned assignment blocks where neighboring code uses them, Google-style docstrings on
+public functions. Ruff (`pyproject.toml`) is the source of truth for anything it checks.
+
+**Unit tests** (pytest, `python -m pytest`):
+- `tests/` mirrors `mighty_mouse/`: `mighty_mouse/a/b.py` → `tests/a/test_b.py`; every
+  directory under `tests/` has an `__init__.py`.
+- One `Test<function_name>` class per function, methods named
+  `test_<function_name>_<scenario>`; cover both success and failure cases.
+- Shared fixtures go in a `conftest.py` in the same directory as the tests using them;
+  build small synthetic DataFrames/configs rather than reading real datasets.
+- Mock at the boundary with `unittest.mock` (e.g. `patch("mighty_mouse.configs.repo_root")`,
+  `patch.dict` on registries like `POST_PROCESS`).
+- CI (`.github/workflows/tests.yml`) installs every dependency *except* lightning-pose,
+  so tested modules must not import `lightning_pose` at module level (import it inside the
+  function that needs it, as `mighty_mouse/train.py` does), and any package they import
+  directly must be listed in `pyproject.toml` rather than arriving via lightning-pose.
+
+**Scripts that write to real data.** `scripts/build_dataset.py` has no `--data_dir`
+override and always writes into `data_dir` from `paths.yaml` — don't run it as a smoke
+test. `scripts/transfer_pseudo_labels.py` edits raw label CSVs in place.

@@ -35,12 +35,10 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
+from mighty_mouse.labels import read_labels_csv
+
 # Distinct colors for up to ~20 keypoints; cycles if more are present.
 _COLORS = plt.cm.tab20.colors
-
-
-def load_csv(csv_path: Path) -> pd.DataFrame:
-    return pd.read_csv(csv_path, header=[0, 1, 2], index_col=0)
 
 
 def plot_frame(
@@ -114,7 +112,7 @@ def plot_labeled_frames(
         flat:           Save all images directly in out_dir (no subdirectories).
                         Filenames become <session>__<frame>.png.
     """
-    df = load_csv(csv_path)
+    df = read_labels_csv(csv_path)
     scorer = df.columns.get_level_values(0)[0]
     bodyparts = list(df.columns.get_level_values(1).unique())
 
