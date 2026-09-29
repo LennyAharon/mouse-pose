@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from mighty_mouse.labels import read_labels_csv
+
 
 def make_video_snippet(
     video_file: Path,
@@ -91,7 +93,7 @@ def make_video_snippet(
         if preds_file is None:
             me = compute_video_motion_energy(video_file, start_frame=skip_frames)
         else:
-            df = pd.read_csv(preds_file, header=[0, 1, 2], index_col=0)
+            df = read_labels_csv(preds_file)
             me = compute_motion_energy_from_prediction_df(df, likelihood_thresh)
             me = me[skip_frames:]
         me_win = pd.Series(me).rolling(window=win_len, center=False).mean()

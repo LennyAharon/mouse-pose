@@ -215,10 +215,10 @@ coordinates; the other gets `NaN` / `vis=1`.
 **`null` sessions** have no dominant side. Lateral keypoints are inapplicable; only midline keypoints
 get filled. Useful for head-on camera views (cheese-2d BC/TC sessions).
 
-### Per-dataset post-processing (`convert_dataset.py`)
+### Per-dataset post-processing (`mighty_mouse/convert.py`)
 
 Some datasets need custom visibility logic beyond the standard lateralization rules. These are
-implemented as functions registered in `POST_PROCESS` near the top of `convert_dataset.py`
+implemented as functions registered in `POST_PROCESS` near the top of `mighty_mouse/convert.py`
 (see there for the current list; each dataset's own README/CHANGELOG explains why it needs one).
 Each function receives the fully-processed DataFrame and the dataset config, and returns a
 modified DataFrame.
@@ -249,6 +249,10 @@ mighty-mouse/
 
   mighty_mouse/
     paths.py                    path resolution from paths.yaml
+    configs.py                  load + cross-check configs/*.yaml
+    labels.py                   LP label-CSV conventions (reader, scorer, session/frame names)
+    convert.py                  per-dataset conversion logic + POST_PROCESS hooks
+                                 (CLI: scripts/convert_dataset.py)
     datasets.py                 ALL_DATASETS (datasets in the combined corpus)
     subject_split.py            shared subject-level train/test split
     videos.py                   video snippet + motion-energy helpers
@@ -257,6 +261,9 @@ mighty-mouse/
                                  (`python -m mighty_mouse.train`) for evaluation only
     plots/
       plot_keypoints.py         keypoint overlay visualization
+
+  tests/                        pytest suite; mirrors mighty_mouse/ (mighty_mouse/a/b.py ->
+                                 tests/a/test_b.py). Run: python -m pytest tests
 
 poseinterface/
   _raw/
@@ -301,7 +308,7 @@ be merged in:
    evaluation in `mighty_mouse/train.py`. It isn't derived from `configs/datasets/`, so it
    must be updated by hand or the new dataset silently won't be included in default
    `--tag all`-style runs or per-dataset evaluation
-3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `convert_dataset.py`
+3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `mighty_mouse/convert.py`
 4. Run `python scripts/convert_dataset.py --dataset <name>`
 
 **Stage 3 — rebuild the combined dataset.** Re-run `scripts/build_dataset.py` for any merged
