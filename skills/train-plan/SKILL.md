@@ -32,9 +32,11 @@ can be re-run at any time.
    slower (~2.5-3 h / ~8-10 h).
 4. `bash scripts/train_plan.sh show <stages>` prints the script `run` would launch (check it),
    then `bash scripts/train_plan.sh run <stages> --seeds "..." [--arch ...]`. It runs detached
-   (`setsid nohup`, survives the session), at most **2 training runs on the GPU at once, counted
-   globally** (every `scripts/train_sweep.py` process, including other sessions' — never use
-   `wait -n` for this, it let 3 runs start once). After every `loo` run it writes zero-shot
+   (`setsid nohup`, survives the session). A plan runs its own jobs **one at a time**; before each
+   job it waits until fewer than **2 training runs** are on the GPU, counted globally (every
+   `scripts/train_sweep.py` process, including other sessions'). So when the user asks for another
+   run while one is training, a new plan starts right away and runs next to it (user, 2026-09-29);
+   a third waits. Never use `wait -n` for slot control (it once let 3 runs start). After every `loo` run it writes zero-shot
    predictions on the left-out dataset's train frames (`scripts/zeroshot_predict.py` ->
    `<run>/zeroshot/<ds>_train_predictions.csv`); test frames are in `<run>/eval/<ds>/`. Log at
    `<results_dir>/_logs/train_plan_<stamp>_<stages>.log`; `bash scripts/train_plan.sh status` to
