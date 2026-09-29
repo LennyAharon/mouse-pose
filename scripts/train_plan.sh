@@ -3,9 +3,9 @@
 # missing ones with the recipe of record (shared head, T=2, per-dataset zoom-in/out) in two sizes:
 #   S = ViT-S DINOv3, 12k steps (configs/model_zoominout.yaml)               -> trunks/, dedicated/
 #   B = ViT-B DINOv3, 24k steps (configs/ablations/model_zoominout_24k.yaml) -> trunks_24k/, dedicated_24k/
-# A plan runs its own jobs ONE AT A TIME. Before each job it waits until fewer than 2 training runs are
-# on the GPU, counted globally (every scripts/train_sweep.py process, whoever started it) -- so a plan
-# launched while one other run is training starts right away and runs next to it (user, 2026-09-29). After each leave-one-out run, zero-shot predictions on the
+# Keeps up to 2 training runs on the GPU: before each job it waits until fewer than 2 are running,
+# counted globally (every scripts/train_sweep.py process, whoever started it), then launches it in the
+# background -- a queue with work left always fills a free second slot (user, 2026-09-29). After each leave-one-out run, zero-shot predictions on the
 # left-out dataset's TRAIN frames go to <run>/zeroshot/<ds>_train_predictions.csv (test frames: eval/).
 #
 #   scripts/train_plan.sh plan                      # table: stage / tag / status per arch x seed
@@ -91,12 +91,13 @@ case "$cmd" in
       else
         echo 'while [ "$(running)" -ge 2 ]; do sleep 60; done' >> "$script"
         post=""; [ "$out" != - ] && post="; zeroshot $dir $out"
-        echo "echo \"[\$(date -u +%H:%M)] start $a $stage $tag seed$s\"; $sweep$post; echo \"[\$(date -u +%H:%M)] end $a $stage $tag seed$s\"" >> "$script"
+        echo "( echo \"[\$(date -u +%H:%M)] start $a $stage $tag seed$s\"; $sweep$post; echo \"[\$(date -u +%H:%M)] end $a $stage $tag seed$s\" ) & sleep 120" >> "$script"
       fi
     done; done; done < <(rows)
+    [ "$cmd" != dry ] && echo "wait" >> "$script"
     echo 'echo "=== TRAIN PLAN COMPLETE ==="' >> "$script"
     if [ "$cmd" = dry ]; then bash "$script"; elif [ "$cmd" = show ]; then cat "$script"; else
-      n=$(ps aux | grep -c "[s]cripts/train_sweep.py"); [ "$n" -ge 2 ] && echo "NOTE: 2 runs already training; the plan waits for a free slot"; [ "$n" -eq 1 ] && echo "NOTE: 1 run already training; the plan starts now and runs next to it"
+      n=$(ps aux | grep -c "[s]cripts/train_sweep.py"); [ "$n" -ge 2 ] && echo "NOTE: 2 runs already training; the plan waits for a free slot"; [ "$n" -eq 1 ] && echo "NOTE: 1 run already training; the plan fills the second slot now"
       setsid nohup bash "$script" > "$LOG" 2>&1 < /dev/null & echo "$!" > "$RESULTS/_train_plan.pid"
       echo "launched pid $(cat "$RESULTS/_train_plan.pid"); log $LOG"; fi ;;
   status) tail -n 15 "$(ls -t "$RESULTS"/_logs/train_plan_*.log 2>/dev/null | head -1)" 2>/dev/null || echo "no plan log";;
