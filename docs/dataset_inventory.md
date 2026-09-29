@@ -15,21 +15,21 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 | `kondo` | 439 | 5 | 120 | 1 | 12 | 17 | 12 |
 | `hantman-mv` | 192 | 50 | 30 | 4 | 11 | 20 | 11 |
 | `cheese-3d` | 1,692 | 42 | 486 | 12 | 29 | 29 | 29 |
-| `kaufman` | 1,808 | 70 | 732 | 34 | 4 | 8 | 4 |
+| `kaufman` | 1,808 | 70 | 732 | 34 | 16 | 30 | 16 |
 | **total** | **13,988** | | **3,422** | | | | |
 
 ## Pairwise direct-keypoint overlap
 
 | | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` | `cheese-3d` | `kaufman` |
 |---|---|---|---|---|---|---|---|---|
-| `facemap` | 14 | 2 | 11 | 3 | 5 | 5 | 13 | 0 |
-| `ibl` | 2 | 6 | 3 | 4 | 3 | 2 | 2 | 0 |
-| `cheese-2d` | 11 | 3 | 29 | 5 | 11 | 7 | 27 | 0 |
-| `cazettes-side` | 3 | 4 | 5 | 8 | 6 | 3 | 4 | 0 |
-| `kondo` | 5 | 3 | 11 | 6 | 12 | 5 | 9 | 0 |
-| `hantman-mv` | 5 | 2 | 7 | 3 | 5 | 11 | 6 | 4 |
-| `cheese-3d` | 13 | 2 | 27 | 4 | 9 | 6 | 29 | 0 |
-| `kaufman` | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 4 |
+| `facemap` | 14 | 2 | 11 | 3 | 5 | 5 | 13 | 5 |
+| `ibl` | 2 | 6 | 3 | 4 | 3 | 2 | 2 | 1 |
+| `cheese-2d` | 11 | 3 | 29 | 5 | 11 | 7 | 27 | 12 |
+| `cazettes-side` | 3 | 4 | 5 | 8 | 6 | 3 | 4 | 2 |
+| `kondo` | 5 | 3 | 11 | 6 | 12 | 5 | 9 | 7 |
+| `hantman-mv` | 5 | 2 | 7 | 3 | 5 | 11 | 6 | 10 |
+| `cheese-3d` | 13 | 2 | 27 | 4 | 9 | 6 | 29 | 12 |
+| `kaufman` | 5 | 1 | 12 | 2 | 7 | 10 | 12 | 16 |
 
 ## `facemap`
 
@@ -81,6 +81,6 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 ## `kaufman`
 
 - **Views:** 104 sessions right-view
-- **Excluded source keypoints:** RFPk1, RFPk2, RFPk3, RFPk4, RFPp1, RFPp2, RFPp3, RFPp4, RFPp5, RFLe1, RFLs1, Nose1, Nose2, Tng1, Tng2, RHPm, RHPl, RHPp, LFPm, LFPl, LFPp, spoutB, spoutT
-- **Direct (4):** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right
-- **Hflip-only trainable:** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left
+- **Excluded source keypoints:** RFPk1, RFPk2, RFPk3, RFPk4, RFPp1, RFPp2, RFPp3, RFPp4, RFPp5, RFLe1, RFLs1, RHPm, RHPl, RHPp, LFPm, LFPl, LFPp, spoutB, spoutT, nose_top
+- **Direct (16):** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right, ear_base_right, ear_bottom_right, ear_tip_right, ear_top_right, eye_back_right, eye_bottom_right, eye_front_right, eye_top_right, nose_bottom, nose_tip, pad_side_right, pad_top_right
+- **Hflip-only trainable:** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left, ear_base_left, ear_bottom_left, ear_tip_left, ear_top_left, eye_back_left, eye_bottom_left, eye_front_left, eye_top_left, pad_side_left, pad_top_left
