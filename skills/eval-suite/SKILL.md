@@ -16,7 +16,8 @@ legend PNG); its project adapter now names this convention.
 
 ## The standard battery (run once per corpus version, after `train-plan` reports `done`)
 
-Ask the user which parts to run; suggest all four, in order, and never launch training.
+Ask the user which parts to run; suggest all of them, in order, and never launch training.
+Default models to compare (user, 2026-09-29): the all-data trunk as ViT-S 12k AND ViT-B 24k.
 
 1. **Tables:** `python scripts/eval_suite.py` — pooled and per-keypoint pixel error of every
    finished trunk and dedicated model on every dataset's test set (`summary.csv`,
@@ -24,14 +25,27 @@ Ask the user which parts to run; suggest all four, in order, and never launch tr
 2. **Previous-version comparison:** for datasets whose test set did not change (same
    `dataset_version` in both manifests), add the previous corpus version's runs with
    `--run prev-all=<path>` so the table shows old vs new side by side. Say clearly when a
-   comparison is not valid (changed test labels, changed vocabulary).
-3. **Transfer videos:** with `pose-video`, the 12-view panel of the all-data model on each
-   dataset's test frames, one version showing every keypoint and one showing only keypoints the
-   dataset does not label (confidence >= 0.6). These are the videos the user looks at first.
-4. **Suspect-channel check:** raw heatmaps for any keypoint the user or the tables flag
-   (the `whisker-heatmaps` scripts from v1 are the template: heatmap stats, bump count,
-   flat-map rate, raw peak), because confidence alone does not reveal a channel firing on the
-   wrong feature.
+   comparison is not valid (changed test labels, changed vocabulary). When only a dataset's LABELS
+   changed but its frames did not, re-score the old model's saved `eval/<ds>/predictions.csv`
+   against the new labels (same image index) — that makes the comparison valid without new
+   inference. When a dataset gained keypoints, report them separately from the old ones.
+3. **Transfer videos:** with `pose-video`, the 16-view panel (`render_panel.py --mode all
+   --conf 0.7`, cheese-2d excluded) of each all-data model on every dataset's test frames; also
+   `--mode transfer` (only keypoints the dataset does not label) when transfer is the question.
+   These are the videos the user looks at first.
+4. **Transfer proxy without labels:** for every dataset and every keypoint group it does not
+   label, (a) the share of test frames with a confident (>= 0.7) prediction and (b) the share of
+   those that land within ~10 px of a labelled keypoint of a DIFFERENT body part. (b) is a
+   wrong-placement signal only for parts that are not anatomically adjacent (digits / wrist /
+   tongue on a face = wrong; pupil inside the eye corners, pad next to the nose = normal). Do
+   not propose raw-heatmap diagnostics — the user dropped them (2026-09-27).
+5. **Leave-one-out zero-shot (the labelled transfer measure):** for each leave-X-out trunk, score
+   the left-out dataset on BOTH its train and test frames (more frames): test predictions are in
+   `<run>/eval/<X>/predictions.csv`, train predictions in `<run>/zeroshot/<X>_train_predictions.csv`
+   (written by the training queue; otherwise predict `CollectedData_<X>_train.csv` with the run's
+   `*-best.ckpt`). Per keypoint: median px error, detection rate (>= 0.7), confident-but-wrong rate
+   (> 25 px or a dataset-appropriate scale), ViT-S vs ViT-B side by side, and the all-data trunk
+   (which saw the labels) as the upper-bound reference.
 
 ## Ad-hoc investigations
 

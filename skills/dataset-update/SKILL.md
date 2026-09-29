@@ -8,7 +8,15 @@ description: Run when the user says a dataset's labels (CollectedData CSVs) were
 The corpus changes often: label CSVs of one dataset are replaced (frames never change), or a new
 dataset arrives. Every such event is a new **dataset version** and a new **corpus version**.
 Details and rules: `docs/data_versioning.md`. Do these steps in order; do not skip the register
-step even for a "tiny" fix, and never rebuild into the current corpus version.
+step even for a "tiny" fix, and never rebuild into the current corpus version — with one exception
+the user set on 2026-09-29: when the raw labels did not change (only converter code did) and nothing
+trained on the current version is worth keeping, the user may choose to rebuild it under the same
+number (delete its results, rebuild the data, record the rebuild in its `DATA_VERSIONS.md` entry).
+Ask; never assume.
+
+A converter change is a data change too: per-dataset visibility rules live in `POST_PROCESS` in
+`mighty_mouse/convert.py` (upstream refactor 2026-09-29; `scripts/convert_dataset.py` is only the
+CLI). A change there alters converted CSVs without touching any raw CSV or `configs/datasets/*.yaml`.
 
 ## 1. Find out what changed
 
@@ -59,6 +67,13 @@ against the other rigs; same scale as an existing rig = same range).
 
 ## 4. Build the next corpus version
 
+0. Before building: `python -m pytest tests` must pass (pytest is not installed in `cloudspace`;
+   `pip install --target <scratch>/pytestdeps pytest` and put that dir on `PYTHONPATH`). Check
+   whether runs are training from this checkout (`ps aux | grep "[s]cripts/train_sweep.py"`): queued
+   runs read `paths.yaml` when they launch, so do NOT repoint it while a queue is live. Build from a
+   separate worktree instead (`git worktree add --detach ../mouse-pose-build <commit>`, its own
+   `paths.yaml` pointing at v<N>, run every script with `PYTHONPATH=<worktree>` so `mighty_mouse`
+   and `paths.yaml` resolve there), and switch the main `paths.yaml` once the queue is done.
 1. Next free N: `ls poseinterface/data | grep head-fixed-v`. Set `paths.yaml` `data_dir` and
    `results_dir` to `head-fixed-v<N>` (both, same N).
 2. Videos never change between versions: `ln -s ../head-fixed-v<N-1>/videos data/head-fixed-v<N>/videos`
@@ -69,7 +84,8 @@ against the other rigs; same scale as an existing rig = same range).
    `python scripts/build_dataset.py` for the tags in use (`docs/build_dataset.md`).
    Frames: convert with `--link_frames` (symlink `labeled-data/<ds>` to the shared frame pool)
    once that flag exists; until then copies are acceptable.
-3. `python scripts/data_manifest.py` (writes `MANIFEST.json`), then
+3. `python -m mighty_mouse.inventory` (writes `dataset_inventory.json`, which the manifest needs,
+   and `docs/dataset_inventory.md`), then `python scripts/data_manifest.py` (writes `MANIFEST.json`), then
    `python scripts/data_manifest.py --diff v<N-1>` and paste its output into
    `poseinterface/DATA_VERSIONS.md` under `## v<N> — built <YYYY-MM-DD>` with: the user's one-line
    "why", and per changed dataset the date the labels changed (the `date` of its entry in
@@ -78,8 +94,14 @@ against the other rigs; same scale as an existing rig = same range).
 ## 5. Set up the results tree and the reuse decision
 
 Create `results/head-fixed-v<N>/README.md` (data version, manifest hash, which datasets changed).
-The `--diff` output lists unchanged datasets. Reuse rule: **a model is reusable in v<N> only if
-every dataset it was trained on is unchanged** (same raw hash and converter config).
+The `--diff` output lists unchanged datasets, but it compares only raw hashes and
+`configs/datasets/*.yaml`: it does NOT see `POST_PROCESS` / converter-code changes (2026-09-29 it
+called kaufman "unchanged" after a converter fix). Always confirm with a byte comparison of the
+converted CSVs against the previous version (`cmp data/head-fixed-v<N-1>/CollectedData_<ds>_*.csv
+data/head-fixed-v<N>/...`), and for a changed dataset, a cell-level diff of which columns / flags
+changed. Reuse rule: **a model is reusable in v<N> only if its training CSV is byte-identical** to
+the previous version's (compare the tag CSV itself; a leave-X-out tag without the changed dataset
+usually is). Reusable data is not a reusable model — check the model directory actually exists.
 
 - Dedicated single-dataset models of unchanged datasets: symlink
   `results/head-fixed-v<N>/dedicated/<ds>` → `../../head-fixed-v<N-1>/<ds>_train` (or the
