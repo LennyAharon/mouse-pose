@@ -1,8 +1,16 @@
 # Building the head-fixed combined dataset
 
-This covers how the training tags are built and — more importantly — *why* this particular set of
-tags and not others. The question the head-fixed experiment exists to answer is: **does adding more
-datasets to the training mix improve or degrade pose estimation, per dataset and overall?**
+**Historical snapshot.** Every frame count in this doc (per-dataset and per-tag) is a
+frozen fact about the specific `data/head-fixed_v2` build described below — datasets get
+relabeled/expanded over time (e.g. `ibl` has grown since this build), so these numbers
+will not match current CSVs. For current counts, check the CSVs directly; don't treat
+anything here as live.
+
+This walks through the exact commands used to build `data/head-fixed_v2`, and — more
+importantly — *why* the dataset is shaped the way it is. The goal of the head-fixed
+experiment is to answer: **does adding more datasets to the training mix improve or
+degrade pose estimation performance**, per dataset and overall? Everything about how
+these CSVs are built follows from making that comparison fair.
 
 ---
 

@@ -86,9 +86,7 @@ predict a suppressed heatmap for a side that was simply never assessed. A
 `POST_PROCESS["hantman-mv"]` entry in `scripts/convert_dataset.py` forces every `_left`
 column to `visible=0` after the standard split processing, **except** the four
 `ear_*_left` columns (see the 2026-09-17 entry in `CHANGELOG.md`), which are
-deliberately left at `visible=1` instead. Same pattern as `cheese-2d`'s post-process
-function, simpler here since there's only one side/one scoring rule instead of
-per-session left/right/null.
+deliberately left at `visible=1` instead.
 
 To actually run stage 2:
 ```bash
