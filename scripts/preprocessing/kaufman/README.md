@@ -28,8 +28,9 @@ session timestamps x cam1/cam2), each with its own per-session
   is already baked into the source names, e.g. `LFPm` vs `RHPm`). Stage 2 keeps only
   the 4 right-forepaw digit tips (`RFPf1`-`RFPf4` → `d4_tip`-`d1_tip`, note the reversed
   digit order — see `configs/datasets/kaufman.yaml`), all already-canonical, lateralized
-  to `_right` since every session only ever assessed the right forepaw; the other 23
-  keypoints are excluded.
+  to `_right` since only the right forepaw's fingers were ever labeled (the left forepaw
+  only has a few coarse keypoints, `LFPm`/`LFPl`/`LFPp`); the other 23 keypoints are
+  excluded.
 - **Train/test split**: grouped by **subject**, using the mouse-to-session mapping the
   user supplied at `_raw/_dlc/kaufman/labeled-sessions-mouse-date-time.txt` (one
   `<mouse>/<timestamp>` per line — all 52 labeled-data timestamps resolve to one of 6
@@ -67,10 +68,12 @@ names and excludes everything else; all already existed in
 `configs/keypoints.yaml`/`configs/model.yaml`, so no vocab changes were needed. All 104
 sessions are declared `right`.
 
-Only the right forepaw was ever filmed, so the default per-split output would mark
-every `d[1-4]_tip_left` `visible=1` ("in dataset, unlabeled") rather than `visible=0`
-("not part of this dataset") — training on that would teach the model to predict a
-suppressed heatmap for a side that was simply never assessed. A
+The left forepaw is visible, but its fingers were never labeled (it only has a few
+coarse keypoints, `LFPm`/`LFPl`/`LFPp`, which are excluded). The default per-split
+output would mark every `d[1-4]_tip_left` `visible=1` ("in dataset, unlabeled") rather
+than `visible=0` ("not part of this dataset") — training on that would teach the model
+to predict a suppressed heatmap for fingers that are there but were simply never
+labeled. A
 `POST_PROCESS["kaufman"]` entry in `scripts/convert_dataset.py` forces the `_left`
 forepaw columns (`d[1-4]_tip_left`, plus `wrist_left` if it's ever mapped) to
 `visible=0` after the standard split processing (same pattern as `hantman-mv`). The

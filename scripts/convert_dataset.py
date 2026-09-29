@@ -87,9 +87,10 @@ def _post_process_hantman_mv(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 
 
 # kaufman: every session is lateralized to "right" (configs/datasets/kaufman.yaml) -- same
-# situation as hantman-mv above: the camera setup meant only the right forepaw was ever
-# labeled, but the left forepaw is visible in these frames too -- an annotation gap, not
-# occlusion. process_split()'s default (vis=1) would train the model that this is an
+# situation as hantman-mv above: only the right forepaw's fingers were ever labeled. The
+# left forepaw is visible in these frames too, but only has a few coarse keypoints
+# (LFPm/LFPl/LFPp, excluded) -- its fingers are an annotation gap, not occlusion.
+# process_split()'s default (vis=1) would train the model that this is an
 # occluded keypoint (uniform heatmap target, teaches low confidence everywhere) for a paw
 # that's actually there. Force vis=0 (excluded from the loss entirely, no opinion) for
 # the _left forepaw columns only.
@@ -250,6 +251,18 @@ def validate(
     accounted = set(cfg_sessions.keys()) | set(exc_sessions)
     for s in sorted(all_csv_sessions - accounted):
         errors.append(f"CSV session '{s}' missing from sessions and exclude.sessions")
+
+    # process_split() only routes a {side} keypoint's labels to a session whose side is
+    # exactly "left" or "right" -- any other value (null, "top", ...) would silently drop
+    # that session's labels for every lateralized keypoint and mark them visible=1.
+    side_kps = [src for src, tgt in mapping.items() if "{side}" in tgt and src not in exc_kps]
+    if side_kps:
+        for s, side in sorted(cfg_sessions.items()):
+            if s not in exc_sessions and side not in ("left", "right"):
+                errors.append(
+                    f"sessions: '{s}' has side {side!r}, but {side_kps} are mapped to "
+                    "*_{side} names -- side must be 'left' or 'right'"
+                )
 
     return errors
 
