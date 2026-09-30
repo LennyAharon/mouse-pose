@@ -48,8 +48,10 @@ def _dataset_rng(seed: int, name: str) -> np.random.Generator:
     return np.random.default_rng([seed, h])
 
 
-def main(datasets: list[str], n_frames: int, seed: int, tag: str, caps: dict[str, int] | None = None) -> None:
-    caps = caps or {}
+def main(datasets: list[str], n_frames: int, seed: int, tag: str, caps: dict[str, int] | None = None,
+         masks: dict[str, str] | None = None) -> None:
+    caps  = caps or {}
+    masks = masks or {}
     train_dfs: list[tuple[str, pd.DataFrame]] = []
     test_dfs:  list[tuple[str, pd.DataFrame]] = []
 
@@ -81,6 +83,16 @@ def main(datasets: list[str], n_frames: int, seed: int, tag: str, caps: dict[str
             idx = rng.choice(len(train_df), size=n, replace=False)
         sample = train_df.iloc[sorted(idx)]
         print(f"  Sampled {len(sample)} frames")
+        if name in masks:
+            # hide these keypoints' labels in the TRAIN frames only (x, y -> NaN, visible -> 0 = unlabeled,
+            # no loss); test labels stay, so the hidden keypoints can still be scored on test frames
+            import re
+            sample = sample.copy()
+            kps = [k for k in dict.fromkeys(sample.columns.get_level_values(1)) if re.search(masks[name], k)]
+            for col in sample.columns:
+                if col[1] in kps:
+                    sample[col] = 0 if col[2] == "visible" else np.nan
+            print(f"  masked (train only, visible -> 0): {kps}")
         train_dfs.append((name, sample))
 
         if test_csv.exists():
@@ -134,6 +146,12 @@ if __name__ == "__main__":
         help="per-dataset frame cap overriding --n_frames for that dataset, e.g. --cap ibl=200; frames are the "
              "first N of one fixed shuffle, so ibl=200 is a subset of ibl=1000",
     )
+    parser.add_argument(
+        "--mask", nargs="*", default=[], metavar="DATASET=REGEX",
+        help="hide keypoints matching REGEX in that dataset's TRAIN frames (visible -> 0, unlabeled); test labels "
+             "are kept, e.g. --mask kaufman=^ear_",
+    )
     args = parser.parse_args()
-    caps = {k: int(v) for k, v in (c.split("=") for c in args.cap)}
-    main(args.datasets, args.n_frames, args.seed, args.tag, caps)
+    caps  = {k: int(v) for k, v in (c.split("=") for c in args.cap)}
+    masks = dict(m.split("=", 1) for m in args.mask)
+    main(args.datasets, args.n_frames, args.seed, args.tag, caps, masks)
