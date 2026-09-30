@@ -56,7 +56,11 @@ Default models to compare (user, 2026-09-29): the all-data trunk as ViT-S 12k AN
 
 ## Fine-tuning a trunk on one dataset (anchored LoRA)
 
-`scripts/anchor_ft.sh <trunk> <ds> <N|all> <steps> <out>` (recipe of record, S or B trunk).
+`scripts/anchor_ft.sh <trunk> <ds> <N|all> <steps> auto [draw]` (recipe of record, S or B trunk). Always pass
+`auto` as the output (user, 2026-09-30): the run lands in
+`finetune/<trunks|trunks_24k>/<trunk tag>_train/<backbone>-seed<k>/<method + settings>/<target>/tf<N>-s<steps>-draw<d>/`,
+i.e. the path starts with the exact trunk run it was fine-tuned from, and `run_info.json` in the run folder records
+the trunk and checkpoint, method, every setting, frames, draw, code commits, date and the target's test result.
 **Judge it ONLY on the dataset it was fine-tuned on** (user, 2026-09-29): the fine-tuned model is
 that lab's model, so other datasets' test sets are irrelevant — do not report or weigh retention on
 other datasets. Report, on that dataset's held-out (OOD) test frames, per labelled keypoint: mean /

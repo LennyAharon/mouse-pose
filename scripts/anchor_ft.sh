@@ -7,7 +7,10 @@
 # every earlier anchored run), validation every VAL_EVERY steps (env, default 500; user 2026-09-29) --
 # the best-validation checkpoint is the one evaluated.
 #
-#   scripts/anchor_ft.sh <trunk_run_dir> <dataset> <n_frames|all> <steps> <out_dir> [draw=0]
+#   scripts/anchor_ft.sh <trunk_run_dir> <dataset> <n_frames|all> <steps> <out_dir|auto> [draw=0]
+#   out_dir=auto (use this): finetune/<trunks|trunks_24k>/<tag>_train/<backbone>-seed<k>/<method>/<target>/
+#   tf<N>-s<steps>-draw<d>, plus <run>/run_info.json (trunk, checkpoint, method, settings, frames, draw, commits,
+#   date, result; scripts/write_run_info.py)
 #
 # The trunk's backbone comes from its config.yaml; its datasets from the frames of the training csv
 # it saved (config dataset_names lists every registry dataset, not only the trained ones); anchored
@@ -16,8 +19,26 @@
 # reloaded model is checked to carry the trained adapters. Writes <out_dir>/.done on success.
 set -u
 TRUNK="$1"; DS="$2"; N="$3"; STEPS="$4"; OUT="$5"; DRAW="${6:-0}"
+TRUNK="${TRUNK%/}"
 cd "$(dirname "$0")/.."
 DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['data_dir'])")
+RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
+# ablation knobs (env; defaults = recipe of record): LORA_RANK, LORA_LR (adapters), HEAD_LR (head), ANCHOR_W,
+# FULL_FT=1 -> no LoRA, the whole backbone trains at FT_LR (default 5e-5, the few-shot `anchor` arm) with the anchor
+LORA_RANK="${LORA_RANK:-16}"; LORA_LR="${LORA_LR:-5e-5}"; HEAD_LR="${HEAD_LR:-5e-4}"; ANCHOR_W="${ANCHOR_W:-1.0}"
+FULL_FT="${FULL_FT:-0}"
+FT_LR="${FT_LR:-5e-5}"
+if [ "$FULL_FT" = 1 ]; then METHOD="anchor-fullft-lr$FT_LR-w$ANCHOR_W-conf1"
+else METHOD="anchor-lora-r$LORA_RANK-lr$LORA_LR-head$HEAD_LR-w$ANCHOR_W-conf1"; fi
+# OUT=auto (convention from 2026-09-30): the path starts with the exact trunk run, then method+settings, target, run:
+#   finetune/<trunks|trunks_24k>/<tag>_train/<backbone>-seed<k>/<method>/<target>/tf<N>-s<steps>-draw<d>
+# trunk run dir = <results>/<area>/<tag>_train/supervised/sampling-T2/tf1/<backbone>/seed<k>
+if [ "$OUT" = auto ]; then
+    SEEDD=$(basename "$TRUNK"); BBD=$(basename "$(dirname "$TRUNK")")
+    TAGD=$(echo "$TRUNK" | awk -F/ '{print $(NF-5)}'); AREA=$(echo "$TRUNK" | awk -F/ '{print $(NF-6)}')
+    OUT="$RESULTS/finetune/$AREA/$TAGD/$BBD-$SEEDD/$METHOD/$DS/tf$N-s$STEPS-draw$DRAW"
+    echo "output: $OUT"
+fi
 [ -f "$OUT/.done" ] && { echo "skip (done): $OUT"; exit 0; }
 CKPT=$(ls "$TRUNK"/tb_logs/test/version_0/checkpoints/*-best.ckpt 2>/dev/null | head -1)
 [ -f "$CKPT" ] || CKPT=$(ls "$TRUNK"/tb_logs/test/version_0/checkpoints/*.ckpt | head -1)
@@ -35,12 +56,8 @@ PY
 )
 TF="$N"; [ "$N" = all ] && TF=1
 HALF=$(( STEPS / 2 )); VAL_EVERY="${VAL_EVERY:-500}"
-# ablation knobs (env; defaults = recipe of record): LORA_RANK, LORA_LR (adapters), HEAD_LR (head), ANCHOR_W,
-# FULL_FT=1 -> no LoRA, the whole backbone trains at FT_LR (default 5e-5, the few-shot `anchor` arm) with the anchor
-LORA_RANK="${LORA_RANK:-16}"; LORA_LR="${LORA_LR:-5e-5}"; HEAD_LR="${HEAD_LR:-5e-4}"; ANCHOR_W="${ANCHOR_W:-1.0}"
-FULL_FT="${FULL_FT:-0}"
 if [ "$FULL_FT" = 1 ]; then
-    LR="${FT_LR:-5e-5}"; ADAPT=""
+    LR="$FT_LR"; ADAPT=""
 else
     LR="$HEAD_LR"; ADAPT="+model.lora.rank=$LORA_RANK +model.lora.alpha=$((2 * LORA_RANK)) +model.lora.lr=$LORA_LR"
 fi
@@ -85,4 +102,9 @@ ok = len(loras) == 72 and all(torch.equal(l.lora_B.detach().cpu(), sd["backbone.
 print("LoRA reload check:", "OK" if ok else "FAILED", f"({len(loras)} layers, {ck})"); sys.exit(0 if ok else 1)
 PY
 echo "eval exit $E - $OUT"
+# run_info.json: everything needed to identify this run later (trunk, method, settings, frames, code, result)
+python scripts/write_run_info.py --out "$OUT" --trunk "$TRUNK" --ckpt "$CKPT" --dataset "$DS" --n_frames "$N" \
+    --steps "$STEPS" --draw "$DRAW" --method "$METHOD" --full_ft "$FULL_FT" --lora_rank "$LORA_RANK" \
+    --lora_lr "$LORA_LR" --head_lr "$HEAD_LR" --ft_lr "$FT_LR" --anchor_w "$ANCHOR_W" --val_every "$VAL_EVERY" \
+    --backbone "$BACKBONE"
 [ $E -eq 0 ] && [ -f "$OUT/eval/$DS/predictions.csv" ] && touch "$OUT/.done"
