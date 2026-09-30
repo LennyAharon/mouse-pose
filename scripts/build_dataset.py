@@ -19,6 +19,7 @@ name (e.g. "face+cheese"), while balanced tags include it (e.g. "face+cheese-600
 Usage:
   python scripts/build_dataset.py --tag face+ibl-600 --datasets facemap ibl --n_frames 600
   python scripts/build_dataset.py --tag face+ibl     --datasets facemap ibl --n_frames -1
+  python scripts/build_dataset.py --tag face+ibl200+cheese --datasets facemap ibl cheese-2d --n_frames -1 --cap ibl=200
 """
 
 import argparse
@@ -47,7 +48,8 @@ def _dataset_rng(seed: int, name: str) -> np.random.Generator:
     return np.random.default_rng([seed, h])
 
 
-def main(datasets: list[str], n_frames: int, seed: int, tag: str) -> None:
+def main(datasets: list[str], n_frames: int, seed: int, tag: str, caps: dict[str, int] | None = None) -> None:
+    caps = caps or {}
     train_dfs: list[tuple[str, pd.DataFrame]] = []
     test_dfs:  list[tuple[str, pd.DataFrame]] = []
 
@@ -70,7 +72,13 @@ def main(datasets: list[str], n_frames: int, seed: int, tag: str) -> None:
             if n < n_frames:
                 print(f"  WARNING: only {n} frames available (requested {n_frames})")
         rng    = _dataset_rng(seed, name)
-        idx    = rng.choice(len(train_df), size=n, replace=False)
+        if name in caps:
+            # per-dataset cap: first N of one fixed shuffle, so smaller caps are subsets of larger ones
+            n   = min(caps[name], len(train_df))
+            idx = rng.permutation(len(train_df))[:n]
+            print(f"  cap {caps[name]} (nested across caps)")
+        else:
+            idx = rng.choice(len(train_df), size=n, replace=False)
         sample = train_df.iloc[sorted(idx)]
         print(f"  Sampled {len(sample)} frames")
         train_dfs.append((name, sample))
@@ -121,5 +129,11 @@ if __name__ == "__main__":
         help="frames to sample per dataset (default: 600); -1 = use every available frame, no subsampling",
     )
     parser.add_argument("--seed",     type=int, default=42,  help="random seed (default: 42)")
+    parser.add_argument(
+        "--cap", nargs="*", default=[], metavar="DATASET=N",
+        help="per-dataset frame cap overriding --n_frames for that dataset, e.g. --cap ibl=200; frames are the "
+             "first N of one fixed shuffle, so ibl=200 is a subset of ibl=1000",
+    )
     args = parser.parse_args()
-    main(args.datasets, args.n_frames, args.seed, args.tag)
+    caps = {k: int(v) for k, v in (c.split("=") for c in args.cap)}
+    main(args.datasets, args.n_frames, args.seed, args.tag, caps)
