@@ -137,9 +137,10 @@ def build_combos(
 
 def make_train_command(
     csv_file, backbone, train_frames, seed, losses, output_dir, debug=False,
-    temperature=None, head_mode=None, config_file=None,
+    temperature=None, head_mode=None, config_file=None, extra_overrides=None,
 ) -> list[str]:
-    """Build the `litpose train ...` argv for one sweep combo."""
+    """Build the `litpose train ...` argv for one sweep combo; ``extra_overrides`` (Hydra strings)
+    are appended last, e.g. ``["+training.ckpt_every_n_steps=2000"]``."""
     lr = 5e-5 if "vit" in backbone else 1e-3
     losses_hydra = f"[{','.join(losses)}]"
 
@@ -183,6 +184,8 @@ def make_train_command(
             "training.lr_scheduler_params.multisteplr.milestone_steps=[2]",
             "eval.predict_vids_after_training=false",
         ]
+
+    overrides += list(extra_overrides or [])
 
     return (
         ["litpose", "train", str(config_file or CONFIG_FILE),

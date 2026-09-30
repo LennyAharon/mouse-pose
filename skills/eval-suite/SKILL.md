@@ -12,7 +12,14 @@ docstring) and the script that produced the outputs. `python scripts/qualitative
 `qualitative/INDEX.md` from those READMEs — run it after every delivery. Nothing is written into a
 run's folder; runs are read-only inputs. Videos and figures follow the `pose-video` skill
 (colors, legend in the banner, frame identifier per panel, re-encode with ffmpeg, no separate
-legend PNG); its project adapter now names this convention.
+legend PNG); its project adapter now names this convention. Folder layout (user, 2026-09-30):
+`videos/` for mp4s, `csv/` for tables, NO PNG files at all; every file name states the model(s) it
+comes from (zero-shot trunk / leave-X-out / subset trunk / all-data trunk / dedicated / anchored LoRA
+from which trunk, N, draw) and the README maps those names to run directories. VIDEOS: one video per
+request, and draw the ground-truth markers in it only when the user asks for them (default `--no_gt`).
+This is about what is DRAWN in videos only: every evaluation (pixel error, detection, per-keypoint tables)
+always scores against the ground-truth labels as before — see `pose-video`
+"Output hygiene" and `results/head-fixed-v9/qualitative/ibl-adapt-09-29/README.md` as the example.
 
 ## The standard battery (run once per corpus version, after `train-plan` reports `done`)
 
@@ -46,6 +53,18 @@ Default models to compare (user, 2026-09-29): the all-data trunk as ViT-S 12k AN
    `*-best.ckpt`). Per keypoint: median px error, detection rate (>= 0.7), confident-but-wrong rate
    (> 25 px or a dataset-appropriate scale), ViT-S vs ViT-B side by side, and the all-data trunk
    (which saw the labels) as the upper-bound reference.
+
+## Fine-tuning a trunk on one dataset (anchored LoRA)
+
+`scripts/anchor_ft.sh <trunk> <ds> <N|all> <steps> <out>` (recipe of record, S or B trunk).
+**Judge it ONLY on the dataset it was fine-tuned on** (user, 2026-09-29): the fine-tuned model is
+that lab's model, so other datasets' test sets are irrelevant — do not report or weigh retention on
+other datasets. Report, on that dataset's held-out (OOD) test frames, per labelled keypoint: mean /
+median px, detection (>= 0.7) and confident-but-wrong, before (the trunk, or zero-shot for a
+leave-X-out trunk) vs after each N. On the same frames, the keypoints the dataset does NOT label
+(the anchored ones) may be checked for staying put (confident share, shift vs the trunk). Video:
+before | after columns on that dataset's test frames, same frame per column, conf >= 0.7, its
+labels as x markers (template: `results/head-fixed-v9/qualitative/ibl-adapt-09-29/render_compare.py`).
 
 ## Ad-hoc investigations
 

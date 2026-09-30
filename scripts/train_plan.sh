@@ -77,7 +77,8 @@ case "$cmd" in
     {
       echo "#!/bin/bash"
       echo "cd $(pwd)"
-      echo 'running() { ps aux | grep -c "[s]cripts/train_sweep.py"; }'
+      # count real python processes only: a /commands/python wrapper shows up as a second train_sweep line
+      echo 'running() { ps -eo args | grep -c "^[^ ]*python[0-9.]* scripts/train_sweep.py"; }'
       echo "zeroshot() {  # run_dir left_out: predict the left-out dataset's train frames"
       echo "  [ -f \"\$1/zeroshot/\${2}_train_predictions.csv\" ] && return; mkdir -p \"\$1/zeroshot\""
       echo "  python scripts/zeroshot_predict.py --run \"\$1\" --dataset \"\$2\" --data_dir \"$DATA\""
@@ -97,7 +98,7 @@ case "$cmd" in
     [ "$cmd" != dry ] && echo "wait" >> "$script"
     echo 'echo "=== TRAIN PLAN COMPLETE ==="' >> "$script"
     if [ "$cmd" = dry ]; then bash "$script"; elif [ "$cmd" = show ]; then cat "$script"; else
-      n=$(ps aux | grep -c "[s]cripts/train_sweep.py"); [ "$n" -ge 2 ] && echo "NOTE: 2 runs already training; the plan waits for a free slot"; [ "$n" -eq 1 ] && echo "NOTE: 1 run already training; the plan fills the second slot now"
+      n=$(ps -eo args | grep -c "^[^ ]*python[0-9.]* scripts/train_sweep.py"); [ "$n" -ge 2 ] && echo "NOTE: 2 runs already training; the plan waits for a free slot"; [ "$n" -eq 1 ] && echo "NOTE: 1 run already training; the plan fills the second slot now"
       setsid nohup bash "$script" > "$LOG" 2>&1 < /dev/null & echo "$!" > "$RESULTS/_train_plan.pid"
       echo "launched pid $(cat "$RESULTS/_train_plan.pid"); log $LOG"; fi ;;
   status) tail -n 15 "$(ls -t "$RESULTS"/_logs/train_plan_*.log 2>/dev/null | head -1)" 2>/dev/null || echo "no plan log";;

@@ -87,6 +87,9 @@ def main():
     parser.add_argument("--config_file", type=Path, help="Explicit training recipe YAML")
     parser.add_argument("--output_root", type=Path, help="Separate root for new experiment results")
     parser.add_argument("--stop_on_failure", action="store_true", help="Stop a sequential sweep on its first failure")
+    parser.add_argument("--extra_overrides", default="",
+                        help='semicolon-separated extra Hydra overrides for every combo, e.g. '
+                             '"+training.ckpt_every_n_steps=2000" (does not change the output path)')
     args = parser.parse_args()
     if args.config_file is not None and not args.config_file.is_file():
         parser.error("--config_file must exist")
@@ -129,6 +132,7 @@ def main():
             cmd = make_train_command(
                 csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug,
                 temperature, head_mode, config_file=args.config_file,
+                extra_overrides=[o for o in args.extra_overrides.split(";") if o],
             )
             print("   " + " ".join(cmd))
 

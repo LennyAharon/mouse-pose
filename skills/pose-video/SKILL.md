@@ -18,8 +18,9 @@ the same pattern (paths module + conventions doc) applies to any other project.
 2. **Start from an existing renderer if the project has one**; otherwise write a small
    cv2 script in the scratchpad. For one-off format requests, copy-and-edit in the
    scratchpad — only fold a change into a repo script when it is generally reusable.
-3. **Render → re-encode → spot-check → deliver.** Extract one frame with cv2, look at
-   it, and verify markers/colors/legend match what was requested before handing over.
+3. **Render → re-encode → spot-check → deliver.** Extract one frame of the finished mp4 with
+   cv2 into the SCRATCHPAD (never into the delivery folder), look at it, and verify
+   markers/colors/legend match what was requested before handing over.
 
 ## Data formats (DLC-style, used by DeepLabCut / Lightning Pose and kin)
 
@@ -40,8 +41,8 @@ the same pattern (paths module + conventions doc) applies to any other project.
 - **Color design:** distinct color per keypoint via a golden-ratio hue wheel
   (`h = (offset + i * 0.618034) % 1`, high saturation/value); if red is reserved for
   ground truth, exclude the red band (`h < 0.06 or h > 0.94 → shift`). Keep the SAME
-  keypoint→color map across every video/view/figure in a delivery, and emit a
-  standalone `legend.png` (matplotlib swatches + names) instead of cluttering frames.
+  keypoint→color map across every video/view/figure in a delivery, and put the legend in
+  the banner of every frame (no separate legend image).
 - **Ground truth vs prediction:** GT in one reserved color; draw a thin line from each
   GT point to its prediction — a visible per-keypoint error vector.
 - **Uncertainty:** never silently hide low-confidence points (built-in renderers often
@@ -81,6 +82,18 @@ the same pattern (paths module + conventions doc) applies to any other project.
 - Write to a NEW folder `<results_dir>/qualitative/<topic>-<MM-DD>/` with a README.md whose
   front matter (title, date, data_version, question, models, outputs, finding) feeds
   `scripts/qualitative_index.py`; never overwrite an existing video set (`eval-suite` skill).
+- **Folder layout (user, 2026-09-30):** videos go in `<folder>/videos/`, CSV tables in
+  `<folder>/csv/`; scripts, README and .md tables stay at the top. **Never write PNGs** (no
+  `_check.png`, no stills, no legend images) unless the user asks for an image.
+- **Every file name says which model(s) produced it**, `<what is shown>__<model tokens>.mp4`
+  (e.g. `zeroshot__LOO-ibl-vits12k.mp4`, `rows-allkps__zeroshot-LOO-ibl-vits12k_vs_alldata-vits12k.mp4`,
+  `ensemble-mixture__aLoRA-r16-N2000-from-4ds-vits12k-3draws.mp4`): zero-shot vs trained-on-it,
+  which trunk (leave-X-out / named subset / all-data), backbone and steps, fine-tuning method
+  (anchored LoRA rank/lr, N frames, draw) and ensemble type. The README has a table mapping
+  every token to its run directory, and the banner of every frame names the model per panel.
+- **One video per request; ground-truth markers only when the user asks for them** (user,
+  2026-09-30): default render with `--no_gt` (file suffix `_nogt`), and a labelled version only on
+  request. This governs what is drawn; pixel-error evaluation always uses the labels.
 - cv2's `mp4v` doesn't play in VS Code/browsers — always re-encode:
   `ffmpeg -y -i x.mp4 -c:v libx264 -pix_fmt yuv420p out.mp4`. If `ffmpeg` isn't on
   PATH: `python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())"`.
@@ -114,8 +127,8 @@ The video the user asks for whenever a new all-data trunk finishes: one panel pe
 in the corpus, showing only the keypoints that view's dataset never supervises, so the whole
 transfer class is inspectable at a glance. Do not rebuild it from scratch — reuse
 
-    poseinterface/results/head-fixed-v7/qualitative/trunk-panels-09-25/render_panel.py
-    (latest copy; a superset of render_transfer_panel.py, default --mode transfer)
+    poseinterface/results/head-fixed-v9/qualitative/trunk-panels-09-29/render_panel.py
+    (latest copy; imports mighty_mouse, the renamed package; default --mode transfer)
     python render_panel.py --model <run dir with eval/> --out <name>.mp4 \
         [--mode transfer|all|own] [--datasets a,b] [--exclude a,b] [--data_dir <corpus>] \
         [--conf 0.7] [--frames 60] [--panel 300] [--cols 5] [--fps 3]
