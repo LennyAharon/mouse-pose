@@ -116,7 +116,10 @@ usually is). Reusable data is not a reusable model — check the model directory
   versions (`facemap@v2, hantman-mv@v1, ...`) and vocabulary size; push. Then append the commit
   hash to the `## v<N>` entry in `poseinterface/DATA_VERSIONS.md` (`code: mouse-pose <hash>`),
   so the data version and the code that built it are cross-referenced both ways.
-- `CLAUDE.md` "Phase" paragraph: current corpus version and date.
+- Studio `CLAUDE.md` (= `AGENTS.md`): update the "as of" corpus version and date in the "Phase"
+  paragraph, then reread the whole file for any line this update made untrue (a dataset, keypoint,
+  path or branch it names) and fix it. Keep counts and lists out of it: point to their source
+  (`configs/keypoints.yaml`, `configs/datasets/`, `MANIFEST.json`) instead.
 - Memory: one note per corpus version bump (what changed, which models were reused/retrained).
 - Never touch `results/head-fixed-v<N-1>` afterwards except to read.
 - Next: the `train-plan` skill (what to train now).

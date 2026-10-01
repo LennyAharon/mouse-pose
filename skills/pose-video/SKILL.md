@@ -10,6 +10,41 @@ layouts); the craft below stays constant. The skill is project-agnostic — a
 project-specific adapter section at the end covers the repo this skill ships with, and
 the same pattern (paths module + conventions doc) applies to any other project.
 
+## House style for mouse-pose — MANDATORY, overrides the generic craft below
+
+Every video or figure made in this workspace, by any agent (Claude, Codex, Cursor), looks the
+same. The generic "Rendering craft" section further down is for other projects; where it differs,
+**this section wins.** Do not invent a new layout: copy the closest reference script below into
+the new delivery folder and change only what the request needs.
+
+1. **Colours = the standing GROUP palette, never one hue per keypoint.** One saturated BGR hue
+   per keypoint group, none white or grey: eye (255,255,0), pupil (0,255,255), ear (255,0,255),
+   nose (0,140,255), whisker pad (150,190,0), mouth/lips (255,130,60), tongue (170,110,255),
+   wrist (255,0,127), digit tips R (0,255,120), digit tips L (0,0,255). The legend is ONE row of
+   group swatches in the banner. No per-keypoint numbered legends, no golden-ratio wheel.
+2. **Banner** (top of every frame, ~62 px): the group legend row, then one auto-fitted line
+   saying which model(s), what is drawn, the confidence gate, any bar scale, and whether ground
+   truth is drawn.
+3. **Every panel** has a black header (view name, keypoint count, one summary number) and a
+   black footer `step i/n | frame | source file` (see [[qualitative-video-conventions]]).
+4. **Uncertainty = a +-1 SD cross** (x and y bars separately) centred on the dot, plus a side
+   **strip** beside each panel listing, per drawn keypoint, SD x / y in true pixels (and
+   confidence). Bars are true length; if they are sub-pixel (typical of EKS posteriors), scale
+   them by a stated factor (x10) and say so in the banner; the strip keeps true pixels.
+5. **Confidence gate 0.7** unless the user says otherwise; say it in the banner.
+6. **Output hygiene** (below) applies unchanged: `videos/` + `csv/`, NO PNGs, file name
+   `<what>__<model tokens>[_nogt].mp4`, README maps tokens to run dirs, one video per request,
+   no ground truth unless asked. Cheese-2d is left out unless the user names it.
+
+Reference scripts (copy, don't rewrite):
+
+| video kind | reference |
+|---|---|
+| multi-view trunk panel (transfer / all keypoints) | `results/head-fixed-v9/qualitative/trunk-panels-09-29/render_panel.py` |
+| model comparison, rows of models | `results/head-fixed-v9/qualitative/ibl-adapt-09-29/render_compare.py` |
+| ensemble median + variance crosses | `results/head-fixed-v9/qualitative/ibl-adapt-09-29/ensemble_variance_rows.py` |
+| EKS output with posterior-variance crosses (continuous clip) | `results/head-fixed-v9/qualitative/ibl-singleview-eks-09-30/render_sv_eks.py` |
+
 ## Workflow
 
 1. **Find the source of truth for what to draw.** Predictions live in DLC-style CSVs
@@ -38,7 +73,8 @@ the same pattern (paths module + conventions doc) applies to any other project.
 
 - **Left vs right must be tellable apart** whenever a lateral pair is drawn as a group (digit
   tips, wrists, ears): give the two sides two hues, never one hue for the pair.
-- **Color design:** distinct color per keypoint via a golden-ratio hue wheel
+- **Color design (other projects only; mouse-pose uses the group palette above):** distinct color
+  per keypoint via a golden-ratio hue wheel
   (`h = (offset + i * 0.618034) % 1`, high saturation/value); if red is reserved for
   ground truth, exclude the red band (`h < 0.06 or h > 0.94 → shift`). Keep the SAME
   keypoint→color map across every video/view/figure in a delivery, and put the legend in

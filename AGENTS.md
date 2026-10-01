@@ -29,6 +29,7 @@ short `name`/`description` frontmatter — readable by any agent, not just Claud
 - **Versioning a dataset's label CSVs** → [`skills/bump-dataset-version/SKILL.md`](skills/bump-dataset-version/SKILL.md)
 - **Training a standalone LP model on one raw dataset** → [`skills/train-lightning-pose-model/SKILL.md`](skills/train-lightning-pose-model/SKILL.md)
 - **Pseudo-labeling a raw dataset (from another dataset's model, precomputed predictions, or its own hand-corrected rows)** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
+- **Any overlay video or figure of predictions / labels** → [`skills/pose-video/SKILL.md`](skills/pose-video/SKILL.md) (its *House style* section is mandatory: group palette, banner, SD crosses + strip, file naming)
 
 Read the relevant one before starting the task — they have hard-won detail (what
 to ask before converting a dataset, why a version bump can refuse as a no-op, etc.)
