@@ -24,7 +24,8 @@ cd "$(dirname "$0")/.."
 DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['data_dir'])")
 RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
 # ablation knobs (env; defaults = recipe of record): LORA_RANK, LORA_LR (adapters), HEAD_LR (head), ANCHOR_W,
-# FULL_FT=1 -> no LoRA, the whole backbone trains at FT_LR (default 5e-5, the few-shot `anchor` arm) with the anchor
+# FULL_FT=1 -> no LoRA, the whole backbone trains at FT_LR (default 5e-5, the few-shot `anchor` arm) with the anchor;
+# HEAD_HIDDEN=256 for a trunk trained with the nonlinear head (and PYTHONPATH=<lightning-pose-wt-head-mlp>)
 LORA_RANK="${LORA_RANK:-16}"; LORA_LR="${LORA_LR:-5e-5}"; HEAD_LR="${HEAD_LR:-5e-4}"; ANCHOR_W="${ANCHOR_W:-1.0}"
 FULL_FT="${FULL_FT:-0}"
 FT_LR="${FT_LR:-5e-5}"
@@ -61,6 +62,8 @@ if [ "$FULL_FT" = 1 ]; then
 else
     LR="$HEAD_LR"; ADAPT="+model.lora.rank=$LORA_RANK +model.lora.alpha=$((2 * LORA_RANK)) +model.lora.lr=$LORA_LR"
 fi
+# trunk trained with the nonlinear head (LP exp/head-mlp): rebuild it before loading; run with PYTHONPATH=<head worktree>
+[ -n "${HEAD_HIDDEN:-}" ] && ADAPT="$ADAPT +model.head_hidden_channels=$HEAD_HIDDEN"
 mkdir -p "$(dirname "$OUT")"; LOG="$OUT.log"
 if [ -d "$OUT" ]; then mv "$OUT" "$OUT.partial-$(date -u +%m%d%H%M)"; fi
 echo "=== [$(date -u +%H:%M)] anchored $([ "$FULL_FT" = 1 ] && echo "full FT lr $LR" || echo "LoRA r$LORA_RANK lr $LORA_LR head $HEAD_LR"): $BACKBONE $DS N=$N steps=$STEPS draw=$DRAW anchor w $ANCHOR_W"
