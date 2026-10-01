@@ -2,7 +2,8 @@
 
 Predicts a dataset's TEST frames with the run's best checkpoint and, from the same heatmaps that produce the
 predictions, computes per (frame, keypoint):
-  conf_lp      today's Lightning Pose confidence (5x5 mass after a temperature-1000 re-softmax)
+  conf_lp      the confidence the model outputs (the learned branch's sigmoid for model.conf_branch models)
+  conf_heatmap Lightning Pose's heatmap confidence (5x5 mass after a temperature-1000 re-softmax), always
   peak         maximum of the model's own (temperature-1) softmax heatmap
   mass_r1/2/4  probability mass of that heatmap within radius 1 / 2 / 4 heatmap pixels of its argmax
                (1 heatmap pixel = 4 image pixels at the 256x256 input)
@@ -24,7 +25,7 @@ import pandas as pd
 
 FRAME_W = {"kaufman": 800, "ibl": 320, "facemap": 400, "cazettes-side": 750, "cheese-3d": 640, "cheese-2d": 640,
            "kondo": 600, "hantman-mv": 640}
-READOUTS = ["conf_lp", "peak", "mass_r1", "mass_r2", "mass_r4", "neg_entropy", "peak_ratio"]
+READOUTS = ["conf_lp", "conf_heatmap", "peak", "mass_r1", "mass_r2", "mass_r4", "neg_entropy", "peak_ratio"]
 
 
 def heatmap_readouts(hm):
@@ -77,9 +78,12 @@ def main() -> None:
     orig = head.run_subpixelmaxima
 
     def wrapped(heatmaps):
+        out = orig(heatmaps)
         with torch.no_grad():
-            captured.append({k: v.detach().cpu() for k, v in heatmap_readouts(heatmaps.float()).items()})
-        return orig(heatmaps)
+            r = {k: v.detach().cpu() for k, v in heatmap_readouts(heatmaps.float()).items()}
+            r["conf_heatmap"] = out[1].detach().cpu()   # heatmap confidence, even when a learned branch replaces it
+            captured.append(r)
+        return out
 
     head.run_subpixelmaxima = wrapped
     csv = a.data_dir / f"CollectedData_{a.dataset}_test.csv"
