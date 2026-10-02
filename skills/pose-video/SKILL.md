@@ -14,8 +14,12 @@ the same pattern (paths module + conventions doc) applies to any other project.
 
 Every video or figure made in this workspace, by any agent (Claude, Codex, Cursor), looks the
 same. The generic "Rendering craft" section further down is for other projects; where it differs,
-**this section wins.** Do not invent a new layout: copy the closest reference script below into
-the new delivery folder and change only what the request needs.
+**this section wins.** Do not invent a new layout: run the closest renderer below (versioned in
+`mouse-pose/scripts/qualitative/`, house style shared from `mighty_mouse/plots/house_style.py`) with
+`--out <delivery dir>/<name>.mp4`, and record the exact command and the mouse-pose commit in the
+delivery README. Only when a request needs something no flag gives, copy the script into the
+delivery folder and edit it there; if the change is generally useful, add it as a flag to the
+versioned script instead.
 
 1. **Colours = the standing GROUP palette, never one hue per keypoint.** One saturated BGR hue
    per keypoint group, none white or grey: eye (255,255,0), pupil (0,255,255), ear (255,0,255),
@@ -36,14 +40,18 @@ the new delivery folder and change only what the request needs.
    `<what>__<model tokens>[_nogt].mp4`, README maps tokens to run dirs, one video per request,
    no ground truth unless asked. Cheese-2d is left out unless the user names it.
 
-Reference scripts (copy, don't rewrite):
+Renderers (in `mouse-pose/scripts/qualitative/`; each writes `<out dir>/videos/<name>.mp4`):
 
-| video kind | reference |
+| video kind | script |
 |---|---|
-| multi-view trunk panel (transfer / all keypoints) | `results/head-fixed-v9/qualitative/trunk-panels-09-29/render_panel.py` |
-| model comparison, rows of models | `results/head-fixed-v9/qualitative/ibl-adapt-09-29/render_compare.py` |
-| ensemble median + variance crosses | `results/head-fixed-v9/qualitative/ibl-adapt-09-29/ensemble_variance_rows.py` |
-| EKS output with posterior-variance crosses (continuous clip) | `results/head-fixed-v9/qualitative/ibl-singleview-eks-09-30/render_sv_eks.py` |
+| multi-view trunk panel (transfer / all keypoints) | `render_panel.py` |
+| model comparison, rows or columns of models | `render_compare.py` |
+| ensemble median + variance crosses (+ `csv/` tables) | `ensemble_variance_rows.py` |
+| EKS output with posterior-variance crosses (continuous clip) | `render_eks.py` |
+
+Per-keypoint numbers for a delivery (fine-tune convention: target dataset only) come from
+`scripts/score_target.py --spec <table>.yaml` (example spec:
+`results/head-fixed-v9/qualitative/ibl-adapt-09-29/all_models_ibl.yaml`).
 
 ## Workflow
 
@@ -161,15 +169,14 @@ Reference scripts (copy, don't rewrite):
 
 The video the user asks for whenever a new all-data trunk finishes: one panel per camera view
 in the corpus, showing only the keypoints that view's dataset never supervises, so the whole
-transfer class is inspectable at a glance. Do not rebuild it from scratch — reuse
+transfer class is inspectable at a glance. Do not rebuild it from scratch — run
 
-    poseinterface/results/head-fixed-v9/qualitative/trunk-panels-09-29/render_panel.py
-    (latest copy; imports mighty_mouse, the renamed package; default --mode transfer)
-    python render_panel.py --model <run dir with eval/> --out <name>.mp4 \
+    python scripts/qualitative/render_panel.py --model <run dir with eval/> \
+        --out <results_dir>/qualitative/<topic>-<MM-DD>/<name>.mp4 \
         [--mode transfer|all|own] [--datasets a,b] [--exclude a,b] [--data_dir <corpus>] \
         [--conf 0.7] [--frames 60] [--panel 300] [--cols 5] [--fps 3]
 
-copied into the new delivery folder (`<topic>-<MM-DD>/`) so each delivery keeps its own script.
+and put the command in the delivery README.
 Conventions it encodes, which the user has asked for repeatedly:
 
 - **Cheese-2d is left out of every video unless the user names it** (standing preference,

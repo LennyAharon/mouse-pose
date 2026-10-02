@@ -36,7 +36,7 @@ Default models to compare (user, 2026-09-29): the all-data trunk as ViT-S 12k AN
    changed but its frames did not, re-score the old model's saved `eval/<ds>/predictions.csv`
    against the new labels (same image index) — that makes the comparison valid without new
    inference. When a dataset gained keypoints, report them separately from the old ones.
-3. **Transfer videos:** with `pose-video`, the 16-view panel (`render_panel.py --mode all
+3. **Transfer videos:** with `pose-video`, the 16-view panel (`scripts/qualitative/render_panel.py --mode all
    --conf 0.7`, cheese-2d excluded) of each all-data model on every dataset's test frames; also
    `--mode transfer` (only keypoints the dataset does not label) when transfer is the question.
    These are the videos the user looks at first.
@@ -68,7 +68,9 @@ median px, detection (>= 0.7) and confident-but-wrong, before (the trunk, or zer
 leave-X-out trunk) vs after each N. On the same frames, the keypoints the dataset does NOT label
 (the anchored ones) may be checked for staying put (confident share, shift vs the trunk). Video:
 before | after columns on that dataset's test frames, same frame per column, conf >= 0.7, its
-labels as x markers (template: `results/head-fixed-v9/qualitative/ibl-adapt-09-29/render_compare.py`).
+labels as x markers (`scripts/qualitative/render_compare.py`). Numbers: `scripts/score_target.py`
+(per keypoint, mean / median, untrained keypoints marked; detection and confident-but-wrong are not
+in it yet).
 
 ## Ad-hoc investigations
 
