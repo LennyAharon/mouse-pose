@@ -3,9 +3,8 @@
 #   trunk : init = zoomaug leave-<DS>-out super-mouse trunk, lr 1e-5  -> fewshot-exp/
 #   dino  : init = DINOv3 backbone + random head (LP default), lr 5e-5 -> fewshot-exp-dino/
 #   trunk5: init = same trunk as `trunk`, lr 5e-5 (identical protocol to dino) -> fewshot-exp-lr5/
-#   trunk5-hf: trunk5 + head filters of the supported keypoints frozen
-#             (model.head_freeze_keypoints) -> fewshot-exp-headfreeze/
-#   trunk5-bf: trunk5-hf + backbone frozen (unfreezing_step=1e6) -> fewshot-exp-backfreeze/
+#   (trunk5-hf / trunk5-bf, the head-filter freeze probes -> fewshot-exp-{head,back}freeze/, were
+#    removed with model.head_freeze_keypoints on 2026-10-02; code at tag pre-cleanup-2026-10-02)
 #   lora     : trunk + LoRA on the backbone (base frozen), head trainable -> fewshot-exp-lora-r<R>[-lr<L>]/
 #   anchor-video: anchor-lora + the trunk distilled on unlabeled video (env STEPS, ANCHOR_VIDEO_DIR) -> fewshot-exp-anchor-lora-video[-conf<C>][-s<STEPS>]/
 #   anchor / anchor-lora: trunk-distilled (anchored) fine-tuning, full FT / LoRA form (env ANCHOR_W, ANCHOR_CONF) -> fewshot-exp-anchor[-lora][-w<W>][-conf<C>]/
@@ -67,35 +66,6 @@ PY
          ROOT="$RESULTS/fewshot-exp-xfer-${SRC_TAG:?SRC_TAG required}"; LR="5e-05"; LRPAT="learning_rate: 5.0e-05"
          CKPT="${SRC_CKPT:?SRC_CKPT required}"; [ -f "$CKPT" ] || { echo "ABORT: SRC_CKPT not found: $CKPT"; exit 1; }
          CKPT_OVR="+model.checkpoint='$CKPT'" ;;
-  trunk5-hf) ROOT="$RESULTS/fewshot-exp-headfreeze"; LR="5e-05"; LRPAT="learning_rate: 5.0e-05"
-         CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
-         CKPT_OVR="+model.checkpoint='$CKPT'"
-         # freeze the head filters the trunk already trained (= the supported set); the rest learn
-         KEEP=$(python - "$DS" <<'PY'
-import json, sys
-from mighty_mouse.paths import load_paths
-inv = json.load(open(load_paths()["data_dir"] + "/dataset_inventory.json"))["datasets"]
-ds = sys.argv[1]
-others = set().union(*[set(inv[o]["trainable"]) for o in inv if o != ds])
-print(",".join(k for k in inv[ds]["eval"] if k in others and k != "pupil_center_right"))
-PY
-)
-         EXTRA_OVR="+model.head_freeze_keypoints=[$KEEP]" ;;
-  trunk5-bf) ROOT="$RESULTS/fewshot-exp-backfreeze"; LR="5e-05"; LRPAT="learning_rate: 5.0e-05"
-         CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
-         CKPT_OVR="+model.checkpoint='$CKPT'"
-         # backbone never unfreezes (lr stays 0) + supported head filters frozen: supported
-         # keypoints are exactly zero-shot by construction; untrained filters learn on frozen features
-         KEEP=$(python - "$DS" <<'PY'
-import json, sys
-from mighty_mouse.paths import load_paths
-inv = json.load(open(load_paths()["data_dir"] + "/dataset_inventory.json"))["datasets"]
-ds = sys.argv[1]
-others = set().union(*[set(inv[o]["trainable"]) for o in inv if o != ds])
-print(",".join(k for k in inv[ds]["eval"] if k in others and k != "pupil_center_right"))
-PY
-)
-         EXTRA_OVR="+model.head_freeze_keypoints=[$KEEP] training.unfreezing_step=1000000" ;;
   lora|dino-lora)
          # LoRA on the backbone (base frozen), head fully trainable. Env: LORA_RANK (16),
          # LORA_LR (global lr). Root name carries rank (+ lr when overridden).
@@ -227,9 +197,6 @@ print(f"lr check: config {got:g} vs expected {want:g}"); sys.exit(0 if abs(got -
 PY
     if [ "$ARM" != dino ] && [ "$ARM" != dino-lora ]; then
         grep -q "loading weights from" "$LOG" || { echo "ABORT: trunk weights not loaded"; exit 1; }
-        if [ "$ARM" = trunk5-hf ] || [ "$ARM" = trunk5-bf ]; then
-            grep -q "head filter freeze:" "$LOG" || { echo "ABORT: head freeze not installed"; exit 1; }
-        fi
         [ "$REPLAY" = 1 ] && { grep -q "TemperatureSampler" "$LOG" || { echo "ABORT: replay without sampler"; exit 1; }; }
         case "$ARM" in anchor|anchor-lora|anchor-video)
             grep -q "anchor: frozen teacher attached" "$LOG" || { echo "ABORT: anchor teacher not attached"; exit 1; } ;;
@@ -237,9 +204,6 @@ PY
         case "$ARM" in lora|dino-lora|replay-lora|anchor-lora|anchor-video)
             grep -q "LoRA: wrapped 72 linear layers" "$LOG" || { echo "ABORT: LoRA not applied"; exit 1; } ;;
         esac
-        if [ "$ARM" = trunk5-bf ]; then
-            grep -q "unfreezing_step: 1000000" "$OUT/config.yaml" || { echo "ABORT: backbone not frozen (unfreezing_step override lost)"; exit 1; }
-        fi
     else
         grep -Eq "^\s+checkpoint: " "$OUT/config.yaml" && { echo "ABORT: dino arm has a checkpoint"; exit 1; }
     fi
