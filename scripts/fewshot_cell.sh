@@ -1,5 +1,5 @@
 #!/bin/bash
-# Few-shot grid cell. Usage: fewshot_cell.sh <arm: trunk|dino> <dataset> <n_frames> <draw_seed>
+# Few-shot grid cell. Usage: fewshot_cell.sh <arm (list below)> <dataset> <n_frames> <draw_seed>
 #   trunk : init = zoomaug leave-<DS>-out super-mouse trunk, lr 1e-5  -> fewshot-exp/
 #   dino  : init = DINOv3 backbone + random head (LP default), lr 5e-5 -> fewshot-exp-dino/
 #   trunk5: init = same trunk as `trunk`, lr 5e-5 (identical protocol to dino) -> fewshot-exp-lr5/
