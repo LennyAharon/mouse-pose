@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
 Evaluate a NAMED checkpoint of a run on every dataset's test set (the sweep's evaluate_model only
-knows the canonical *-best.ckpt). Used to compare checkpoints selected by different validation
-monitors (training.ckpt_monitors_extra), e.g. *-best.ckpt vs *-best-val_supervised_loss_T.ckpt.
+knows the canonical *-best.ckpt), e.g. a periodic checkpoint (training.ckpt_every_n_steps,
+*-periodic.ckpt) or one kept by an older run's extra validation monitor (*-best-<monitor>.ckpt).
 
 Writes <out>/<dataset>/{predictions,pixel_error}.csv in the same format as the run's eval/ folder,
 plus <out>/summary.csv (per dataset: frames, labels, median / mean px over visible == 2 labels,
 visible == 2 only) and prints it next to the canonical eval's numbers when present.
 
-    python scripts/eval_checkpoint.py --run <run_dir> --ckpt "*best-val_supervised_loss_T.ckpt"
+    python scripts/eval_checkpoint.py --run <run_dir> --ckpt "*step=6000-periodic.ckpt"
     python scripts/eval_checkpoint.py --run <run_dir> --ckpt <file> --out <dir>   # default <run_dir>/eval_<ckpt-stem>
 """
 
