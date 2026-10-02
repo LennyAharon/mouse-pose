@@ -53,3 +53,42 @@ def comparison_summary(errors: pd.DataFrame, diagonals: np.ndarray) -> dict:
             excluded=sorted(excluded),
         )
     return result
+
+
+def trained_keypoints(datasets: set[str], inventory: dict) -> set[str]:
+    """Keypoints a model trained on these datasets supervises: union of their `trainable` sets.
+
+    Args:
+        datasets: dataset names of the model's training csv (unknown names are ignored).
+        inventory: the `datasets` dict of dataset_inventory.json.
+    """
+    return set().union(*[set(inventory[d]["trainable"]) for d in datasets if d in inventory])
+
+
+def target_scores(errors: pd.DataFrame, keypoints: list[str],
+                  trained: set[str] | None = None) -> dict:
+    """Per-keypoint (mean, median) px on one target dataset, plus their pooled (mean, median).
+
+    Args:
+        errors: output of `visible_errors` (NaN where not visible == 2).
+        keypoints: keypoints to report, in order.
+        trained: keypoints the model supervised; others are reported as "untrained" and left
+            out of the pooled number. None = treat every keypoint as trained.
+
+    Returns:
+        {keypoint: (mean, median) | "untrained" | None (no labelled cell),
+         "pooled": (mean, median)}
+    """
+    out, pooled = {}, []
+    for k in keypoints:
+        e = errors[k].dropna().to_numpy(dtype=float) if k in errors else np.array([])
+        if trained is not None and k not in trained:
+            out[k] = "untrained"
+        elif len(e) == 0:
+            out[k] = None
+        else:
+            out[k] = (float(e.mean()), float(np.median(e)))
+            pooled.append(e)
+    allerr = np.concatenate(pooled) if pooled else np.array([np.nan])
+    out["pooled"] = (float(np.mean(allerr)), float(np.median(allerr)))
+    return out
