@@ -18,6 +18,8 @@
 # 1000/2000 (<=2 selection points), stock dlc aug, no temperature sampling, no registry.
 # epoch_repeat=100 packs 100 shuffled passes per loader epoch (stock batches, only Lightning's
 # per-epoch turnover amortized); num_workers=2 keeps 4 concurrent jobs off each other's CPUs.
+# NOTE: the trunk paths below ($RESULTS/zoom-aug-exp/<LOO tag>-<suffix>) and the LOO table are the head-fixed-v1
+# layout; for v9 trunks use scripts/anchor_ft.sh.
 set -u
 ARM="$1"; DS="$2"; N="$3"; DRAW="$4"
 declare -A LOO=(
@@ -27,14 +29,20 @@ declare -A LOO=(
 )
 DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['data_dir'])")
 RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
+# the trunk's canonical *-best.ckpt; v9 trunks also keep *-periodic.ckpt files, so "the first *.ckpt" is wrong
+trunk_ckpt() {
+  local c; c=$(ls "$1"/*-best.ckpt 2>/dev/null | head -1)
+  [ -n "$c" ] || c=$(ls "$1"/*.ckpt 2>/dev/null | head -1)
+  echo "$c"
+}
 case "$ARM" in
   trunk) ROOT="$RESULTS/fewshot-exp";      LR="1e-05"; LRPAT="learning_rate: 1.0e-05"
-         CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
+         CKPT=$(trunk_ckpt "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints")
          CKPT_OVR="+model.checkpoint='$CKPT'" ;;
   dino)  ROOT="$RESULTS/fewshot-exp-dino"; LR="5e-05"; LRPAT="learning_rate: 5.0e-05"
          CKPT_OVR="" ;;
   trunk5) ROOT="$RESULTS/fewshot-exp-lr5"; LR="5e-05"; LRPAT="learning_rate: 5.0e-05"
-         CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
+         CKPT=$(trunk_ckpt "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints")
          CKPT_OVR="+model.checkpoint='$CKPT'" ;;
   anchor|anchor-lora|anchor-video)
          # Anchored fine-tuning: the frozen trunk distills its heatmaps into every keypoint it
@@ -49,7 +57,7 @@ case "$ARM" in
              ROOT="$RESULTS/fewshot-exp-anchor-lora-video$SUF"; [ "${STEPS:-2000}" != 2000 ] && ROOT="$ROOT-s${STEPS}"
          fi
          LRPAT="learning_rate: $(python -c "print(f'{float(\"$LR\"):.1e}')")"
-         CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
+         CKPT=$(trunk_ckpt "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints")
          CKPT_OVR="+model.checkpoint='$CKPT'"
          AKP=$(python - "$DS" <<'PY'
 import json, sys
@@ -75,7 +83,7 @@ PY
          LR="${HLR:-5e-05}"; LRPAT="learning_rate: $(python -c "print(f'{float(\"$LR\"):.1e}')")"
          if [ "$ARM" = lora ]; then
              ROOT="$RESULTS/fewshot-exp-lora-$SUFFIX"
-             CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
+             CKPT=$(trunk_ckpt "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints")
              CKPT_OVR="+model.checkpoint='$CKPT'"
          else
              ROOT="$RESULTS/fewshot-exp-dino-lora-$SUFFIX"; CKPT_OVR=""
@@ -89,7 +97,7 @@ PY
          REPLAY=1; RANK="${LORA_RANK:-16}"
          if [ "$ARM" = replay ]; then ROOT="$RESULTS/fewshot-exp-replay"; LR="5e-05"; else ROOT="$RESULTS/fewshot-exp-replay-lora"; LR="${HEAD_LR:-5e-4}"; fi
          LRPAT="learning_rate: $(python -c "print(f'{float(\"$LR\"):.1e}')")"
-         CKPT=$(ls "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints/"*.ckpt | head -1)
+         CKPT=$(trunk_ckpt "$RESULTS/zoom-aug-exp/${LOO[$DS]}-${TRUNK_SUFFIX:-T2-zoomaug}/seed0/tb_logs/test/version_0/checkpoints")
          CKPT_OVR="+model.checkpoint='$CKPT'"
          EXTRA_OVR="training.sampling_temperature='inf' data.dataset_names=['facemap','ibl','cheese-2d','cazettes-side','kondo']"
          [ "$ARM" = replay-lora ] && EXTRA_OVR="$EXTRA_OVR +model.lora.rank=$RANK +model.lora.alpha=$((2 * RANK)) +model.lora.lr=${LORA_LR:-5e-4}" ;;
@@ -231,4 +239,6 @@ PY
     ;;
 esac
 echo "eval exit $E — $ARM $DS/tf$N-draw$DRAW DONE"
-[ $E -eq 0 ] && [ "$(ls "$OUT/eval" | wc -l)" -eq 5 ] && touch "$OUT/.done"
+# done = evaluated on every dataset of the corpus (5 in v1, 8 in v9)
+NDS=$(python -c "import json; print(len(json.load(open('$DATA/dataset_inventory.json'))['datasets']))")
+[ $E -eq 0 ] && [ "$(ls "$OUT/eval" | wc -l)" -eq "$NDS" ] && touch "$OUT/.done"
