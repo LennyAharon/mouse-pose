@@ -25,7 +25,10 @@ DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()[
 RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
 # ablation knobs (env; defaults = recipe of record): LORA_RANK, LORA_LR (adapters), HEAD_LR (head), ANCHOR_W,
 # FULL_FT=1 -> no LoRA, the whole backbone trains at FT_LR (default 5e-5, the few-shot `anchor` arm) with the anchor;
-# HEAD_HIDDEN=256 for a trunk trained with the nonlinear head (and PYTHONPATH=<lightning-pose-wt-head-mlp>)
+# The trunk's head (head_hidden_channels, head_groups, head_shared_channels, head_group_fan_in_gain) is read from its
+# config.yaml and rebuilt before loading: a grouped checkpoint has the same keys as a plain nonlinear head and would
+# otherwise load silently into the wrong head. HEAD_HIDDEN (env) still overrides head_hidden_channels. A trunk with
+# head_groups needs a Lightning Pose that supports them (PYTHONPATH=<lightning-pose-wt-head-groups-fanin>); else ABORT.
 LORA_RANK="${LORA_RANK:-16}"; LORA_LR="${LORA_LR:-5e-5}"; HEAD_LR="${HEAD_LR:-5e-4}"; ANCHOR_W="${ANCHOR_W:-1.0}"
 FULL_FT="${FULL_FT:-0}"
 FT_LR="${FT_LR:-5e-5}"
@@ -44,7 +47,7 @@ fi
 CKPT=$(ls "$TRUNK"/tb_logs/test/version_0/checkpoints/*-best.ckpt 2>/dev/null | head -1)
 [ -f "$CKPT" ] || CKPT=$(ls "$TRUNK"/tb_logs/test/version_0/checkpoints/*.ckpt | head -1)
 [ -f "$CKPT" ] || { echo "ABORT: no checkpoint in $TRUNK"; exit 1; }
-read -r BACKBONE AKP < <(python - "$TRUNK/config.yaml" "$DATA/dataset_inventory.json" <<'PY'
+read -r BACKBONE AKP HEADOV < <(python - "$TRUNK/config.yaml" "$DATA/dataset_inventory.json" <<'PY'
 import json, sys, yaml
 from pathlib import Path
 import pandas as pd
@@ -52,7 +55,14 @@ cfg = yaml.safe_load(open(sys.argv[1])); inv = json.load(open(sys.argv[2]))["dat
 csv = Path(sys.argv[1]).parent / cfg["data"]["csv_file"]
 trained = sorted(set(pd.read_csv(csv, header=[0, 1, 2], index_col=0).index.str.split("/").str[1]))
 names = sorted(set().union(*[set(inv[d]["trainable"]) for d in trained]))
-print(cfg["model"]["backbone"], "[" + ",".join(f"'{n}'" for n in names) + "]")
+m = cfg["model"]; ov = []
+if m.get("head_hidden_channels"):
+    ov.append(f"+model.head_hidden_channels={int(m['head_hidden_channels'])}")
+if m.get("head_groups"):
+    groups = ",".join(f"{g}:[{','.join(kps)}]" for g, kps in m["head_groups"].items())
+    ov += [f"+model.head_groups={{{groups}}}", f"+model.head_shared_channels={int(m.get('head_shared_channels') or 0)}",
+           f"+model.head_group_fan_in_gain={str(bool(m.get('head_group_fan_in_gain', False))).lower()}"]
+print(cfg["model"]["backbone"], "[" + ",".join(f"'{n}'" for n in names) + "]", ";".join(ov) or "-")
 PY
 )
 TF="$N"; [ "$N" = all ] && TF=1
@@ -62,8 +72,18 @@ if [ "$FULL_FT" = 1 ]; then
 else
     LR="$HEAD_LR"; ADAPT="+model.lora.rank=$LORA_RANK +model.lora.alpha=$((2 * LORA_RANK)) +model.lora.lr=$LORA_LR"
 fi
-# trunk trained with the nonlinear head (LP exp/head-mlp): rebuild it before loading; run with PYTHONPATH=<head worktree>
-[ -n "${HEAD_HIDDEN:-}" ] && ADAPT="$ADAPT +model.head_hidden_channels=$HEAD_HIDDEN"
+# the trunk's head (from its config.yaml), rebuilt before loading; HEAD_HIDDEN (env) overrides the hidden width
+[ "$HEADOV" = - ] && HEADOV=""
+if [ -n "${HEAD_HIDDEN:-}" ]; then
+    HEADOV=$(echo "$HEADOV" | tr ';' '\n' | grep -v '^+model.head_hidden_channels=' | tr '\n' ';')
+    HEADOV="${HEADOV}+model.head_hidden_channels=$HEAD_HIDDEN"
+fi
+HEADOV="${HEADOV%;}"
+if [[ "$HEADOV" == *head_groups* ]]; then
+    python -c "from lightning_pose.models.factory import resolve_head_groups" 2>/dev/null || {
+        echo "ABORT: the trunk has model.head_groups but this lightning_pose ($(python -c 'import lightning_pose, os; print(os.path.dirname(lightning_pose.__file__))')) does not support them; run with PYTHONPATH=<lightning-pose-wt-head-groups-fanin>"; exit 1; }
+fi
+[ -n "$HEADOV" ] && { ADAPT="$ADAPT ${HEADOV//;/ }"; echo "    head from trunk: ${HEADOV//;/ }" | cut -c1-200; }
 mkdir -p "$(dirname "$OUT")"; LOG="$OUT.log"
 if [ -d "$OUT" ]; then mv "$OUT" "$OUT.partial-$(date -u +%m%d%H%M)"; fi
 echo "=== [$(date -u +%H:%M)] anchored $([ "$FULL_FT" = 1 ] && echo "full FT lr $LR" || echo "LoRA r$LORA_RANK lr $LORA_LR head $HEAD_LR"): $BACKBONE $DS N=$N steps=$STEPS draw=$DRAW anchor w $ANCHOR_W"
@@ -82,6 +102,10 @@ litpose train configs/model.yaml --output_dir "$OUT" --overrides \
 echo "train exit $?"
 grep -q "loading weights from"             "$LOG" || { echo "ABORT: trunk weights not loaded"; exit 1; }
 grep -q "anchor: frozen teacher attached"  "$LOG" || { echo "ABORT: anchor teacher not attached"; exit 1; }
+if [[ "$HEADOV" == *head_groups* ]]; then
+    grep -q "head_group_fan_in_gain" "$OUT/config.yaml" && grep -q "head_groups" "$OUT/config.yaml" \
+        || { echo "ABORT: the fine-tune config lost the trunk's head groups"; exit 1; }
+fi
 if [ "$FULL_FT" = 1 ]; then
     grep -q "LoRA: wrapped" "$LOG" && { echo "ABORT: LoRA applied in a full-FT run"; exit 1; }
 else
