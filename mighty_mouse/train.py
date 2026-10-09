@@ -318,7 +318,9 @@ def make_publish_command(output_dir: Path, publish_root: Path) -> str:
 
 # ── evaluation ────────────────────────────────────────────────────────────────
 
-def evaluate_model(output_dir: Path, csv_file: str, keep_checkpoints: bool = False) -> None:
+def evaluate_model(
+    output_dir: Path, csv_file: str, keep_checkpoints: bool = False, datasets: list[str] | None = None,
+) -> None:
     """Evaluate a trained model against every per-dataset test CSV, then clean
     up the scratch prediction files litpose leaves behind in output_dir and,
     unless keep_checkpoints, delete model checkpoints (*.ckpt) — evaluation
@@ -327,7 +329,10 @@ def evaluate_model(output_dir: Path, csv_file: str, keep_checkpoints: bool = Fal
     keep_checkpoints=True is required for any model whose weights are needed
     after evaluation: per-dataset-head models (blind/oracle re-scoring runs all
     heads over the test sets again) and all-data or leave-one-out models kept
-    for zero-/few-shot adaptation."""
+    for zero-/few-shot adaptation.
+
+    datasets: evaluate only these test sets (default: every registry dataset), e.g. the target
+    dataset of an adaptation cell."""
     from lightning_pose.api import Model
     from PIL import Image
     from mighty_mouse.comparison import comparison_summary, visible_errors
@@ -337,7 +342,7 @@ def evaluate_model(output_dir: Path, csv_file: str, keep_checkpoints: bool = Fal
     print("  Loading model...")
     model = Model.from_dir(output_dir)
 
-    for eval_name in EVAL_DATASETS:
+    for eval_name in (datasets or EVAL_DATASETS):
         test_csv = DATA_DIR / f"CollectedData_{eval_name}_test.csv"
 
         if not test_csv.exists():
@@ -412,11 +417,16 @@ def _main():
         help="Retain *.ckpt files after evaluation (needed for blind/oracle "
              "re-scoring of per-dataset-head models and zero-/few-shot adaptation).",
     )
+    parser.add_argument(
+        "--datasets", default=None,
+        help="Comma-separated test sets to evaluate (default: every registry dataset).",
+    )
     args = parser.parse_args()
     csv_file = args.csv_file or infer_csv_file(args.output_dir)
     print(f"output_dir: {args.output_dir}")
     print(f"csv_file:   {csv_file}")
-    evaluate_model(args.output_dir, csv_file, keep_checkpoints=args.keep_checkpoints)
+    datasets = [d for d in args.datasets.split(",") if d] if args.datasets else None
+    evaluate_model(args.output_dir, csv_file, keep_checkpoints=args.keep_checkpoints, datasets=datasets)
 
 
 if __name__ == "__main__":
