@@ -1,0 +1,61 @@
+# Adaptation grid for the Cosyne 2026 abstract (user, 2026-10-09).
+# Per target dataset: zero-shot (the leave-that-dataset-out trunk, N = 0), few-shot (N = 10 / 25 / 50, 3 frame
+# draws) and all-frames adaptation, comparing
+#   MM + anchored LoRA          (leave-one-out Mighty-Mouse trunk with the SHARED NONLINEAR head)
+#   DINOv3 from scratch         (linear head and nonlinear head; its all-frames point is the dedicated model)
+#   dedicated model             (DINOv3, all frames, recipe of record, 12k steps; reference line, both heads)
+# plus the masked-label bars (one keypoint group hidden from the N = 10 frames, scored on its test labels):
+# MM + anchored LoRA vs MM + plain LoRA (zero-shot and labelled references come from the curve cells).
+#
+# Paths are relative to results_dir (paths.yaml), so the same file runs on any machine with the same results tree.
+# Rerun after a data update: retrain the trunks / dedicated models it lists, bump `name`, run the skill.
+# Skill: skills/adaptation-curves/SKILL.md.  Code: mighty_mouse/adaptation.py, scripts/adapt/.
+
+name: cosyne-2026
+out_subdir: adaptation            # cells go to <results_dir>/adaptation/<name>/<dataset>/<arm>/[mask-<kps>/]tf<N>-draw<d>
+keep_checkpoints: false           # cells are evaluated on the target test set, then their checkpoints deleted
+
+n_frames: [10, 25, 50, all]
+draws: [0, 1, 2]                  # training.rng_seed_data_pt; `all` runs once (every draw is the same frames)
+steps: {few: 2000, all: 6000}     # 2000 for N <= 50 (v1: anchored LoRA still improving at 2000), 6000 for all frames
+val_every: 250                    # best-validation checkpoint is evaluated
+
+arms:
+  mm-anchored-lora: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                     anchor_weight: 1.0, anchor_conf_power: 1}
+  mm-lora:          {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: false}
+  dino-linear:      {init: dinov3, head: linear, lr: 5.0e-5, skip_all: true}
+  dino-nonlinear:   {init: dinov3, head: nonlinear, head_hidden_channels: 256, lr: 5.0e-5, skip_all: true}
+
+curve_arms: [mm-anchored-lora, dino-linear, dino-nonlinear]
+
+# leave-that-dataset-out trunks, shared nonlinear head (256 hidden), ViT-S DINOv3 12k, seed 0.
+# cheese-2d and cheese-3d share rig and mice: one trunk leaves out both and serves both targets.
+datasets:
+  facemap:       {trunk: experiments/E11-LOO-facemap-headmlp256/ibl+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  ibl:           {trunk: experiments/E6c-LOO-ibl-headmlp256/face+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  cheese-2d:     {trunk: experiments/E13-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  cazettes-side: {trunk: experiments/E12-LOO-cazettes-side-headmlp256/face+ibl+cheese+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  kondo:         {trunk: experiments/E10-LOO-kondo-headmlp256/face+ibl+cheese+caz+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  hantman-mv:    {trunk: experiments/E14-LOO-hantman-mv-headmlp256/face+ibl+cheese+caz+kondo+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  cheese-3d:     {trunk: experiments/E13-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  kaufman:       {trunk: experiments/E6a-LOO-kaufman-headmlp256/face+ibl+cheese+caz+kondo+hmv+c3d_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+
+# dedicated models, `{ds}` = dataset (recipe of record on one dataset, 12k steps, seed 0)
+dedicated:
+  linear:    dedicated/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
+  nonlinear: dedicated-headmlp256/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
+
+masked:
+  n_frames: [10]
+  draws: [0, 1, 2]
+  arms: [mm-anchored-lora, mm-lora]
+  settings:                       # every keypoint here is labelled by the target AND trained by its trunk
+    ibl:           [[pupil_center_left], [wrist_left, wrist_right]]
+    cazettes-side: [[pupil_center_left], [wrist_left, wrist_right], [tongue_tip]]
+    kondo:         [[wrist_left, wrist_right], [lowerlip]]
+    cheese-2d:     [[eye_back_left, eye_back_right]]
+    facemap:       [[nose_tip]]
+    kaufman:       [[ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right], [d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right]]
+    cheese-3d:     [[pupil_center_left], [ear_top_left, ear_tip_left, ear_bottom_left, ear_base_left, ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right]]
+    hantman-mv:    [[wrist_right], [eye_back_right, eye_bottom_right, eye_front_right, eye_top_right]]
