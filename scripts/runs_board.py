@@ -13,7 +13,9 @@ train_status.json for the step and the ETA), every adaptation grid with a queue
 (configs/adaptation/*.yaml -> <results_dir>/<out_subdir>/<name>/_queue: queue.log, started_*
 markers, the queue's last plan in pending.txt, STOP, max_gpu), and the batch queues in
 --batch_logs (batch<X>.sh with a live batch<X>.pid: STOP file, batch<X>.started_<id> markers,
-the job list from `DRY=1 bash batch<X>.sh`, and batch<X>.log). Times are UTC.
+the job list from `DRY=1 bash batch<X>.sh`, and batch<X>.log), and the job queues of
+scripts/queue_runs.sh (<results_dir>/_queues/<name>/: jobs.tsv, started_/done_ markers,
+queue.log). Times are UTC.
 """
 
 import argparse
@@ -68,19 +70,27 @@ def log_lines(path: Path) -> list[tuple[datetime, str]]:
 # ── running now ──────────────────────────────────────────────────────────────
 
 
-def gpu_state() -> tuple[list[tuple[int, int]], str]:
-    """(pid, MiB) of every GPU process, and a one-line GPU summary."""
+def gpu_state() -> tuple[list[tuple[int, int, str]], str]:
+    """(pid, MiB, GPU index) of every GPU process, and a per-GPU summary."""
     q = ["nvidia-smi", "--format=csv,noheader,nounits"]
     try:
-        apps = subprocess.run(q + ["--query-compute-apps=pid,used_memory"], capture_output=True,
-                              text=True, timeout=30).stdout
-        gpu = subprocess.run(q + ["--query-gpu=utilization.gpu,memory.used,memory.total"],
-                             capture_output=True, text=True, timeout=30).stdout.strip()
+        apps = subprocess.run(q + ["--query-compute-apps=pid,used_memory,gpu_uuid"],
+                              capture_output=True, text=True, timeout=30).stdout
+        gpus = subprocess.run(q + ["--query-gpu=index,uuid,utilization.gpu,memory.used,"
+                                   "memory.total"], capture_output=True, text=True,
+                              timeout=30).stdout
     except (OSError, subprocess.TimeoutExpired):
         return [], "nvidia-smi unavailable"
-    procs = [tuple(int(x) for x in line.split(",")) for line in apps.splitlines() if line.strip()]
-    util, used, total = (x.strip() for x in gpu.split(","))
-    return procs, f"{len(procs)} jobs, utilisation {util} %, memory {used} / {total} MiB"
+    rows  = [[x.strip() for x in line.split(",")] for line in gpus.splitlines() if line.strip()]
+    index = {r[1]: r[0] for r in rows}
+    procs = []
+    for line in apps.splitlines():
+        if line.strip():
+            pid, mib, uuid = (x.strip() for x in line.split(","))
+            procs.append((int(pid), int(mib), index.get(uuid, "?")))
+    per = [f"GPU {i}: {sum(p[2] == i for p in procs)} jobs, {u} %, "
+           f"{int(m) // 1024}/{int(t) // 1024} GB" for i, _, u, m, t in rows]
+    return procs, "; ".join(per)
 
 
 def output_dir(pid: int) -> Path | None:
@@ -123,9 +133,9 @@ def describe(run: Path, results: Path) -> tuple[str, str]:
     return "/".join(rel[:4]), rel[0]
 
 
-def running_rows(procs: list[tuple[int, int]], results: Path) -> list[list[str]]:
+def running_rows(procs: list[tuple[int, int, str]], results: Path) -> list[list[str]]:
     rows = []
-    for pid, mib in procs:
+    for pid, mib, gpu in procs:
         run = output_dir(pid)
         if run is None:
             continue
@@ -149,7 +159,7 @@ def running_rows(procs: list[tuple[int, int]], results: Path) -> list[list[str]]
                     eta = hm(started + timedelta(seconds=elapsed * total / done))
             except (KeyError, ValueError, json.JSONDecodeError):
                 pass
-        rows.append([model, kind, step, hm(started), eta, f"{mib / 1024:.1f} GB"])
+        rows.append([model, kind, step, hm(started), eta, gpu, f"{mib / 1024:.1f} GB"])
     return rows
 
 
@@ -236,6 +246,29 @@ def batch_sections(batch_logs: Path) -> tuple[list[str], list[tuple[datetime, st
     return lines, finished
 
 
+def job_queue_sections(results: Path) -> tuple[list[str], list[tuple[datetime, str, str]]]:
+    """Queues of scripts/queue_runs.sh: <results_dir>/_queues/<name>/jobs.tsv."""
+    lines, finished = [], []
+    for jobs in sorted((results / "_queues").glob("*/jobs.tsv")):
+        q = jobs.parent
+        ids = [line.split("\t")[0] for line in jobs.read_text().splitlines() if line.strip()]
+        for t, msg in log_lines(q / "queue.log"):
+            m = re.match(r"end (\S+) \(exit (\d+)\)", msg)
+            if m:
+                finished.append((t, f"{m.group(1)} ({q.name})",
+                                 "done" if m.group(2) == "0" else f"FAILED (exit {m.group(2)})"))
+        done    = [i for i in ids if (q / f"done_{i}").exists()]
+        started = [i for i in ids if (q / f"started_{i}").exists() and i not in done]
+        pending = [i for i in ids if not (q / f"started_{i}").exists()]
+        state = "alive" if alive(q / "queue.pid", "queue_runs.sh") else "not running"
+        if (q / "STOP").exists():
+            state += ", HELD by STOP"
+        lines += [f"- **{q.name}** ({state}): {len(done)} / {len(ids)} done, "
+                  f"{len(started)} running or failed; pending: "
+                  + (", ".join(pending) if pending else "none")]
+    return lines, finished
+
+
 def md(header: list[str], rows: list[list[str]]) -> list[str]:
     out = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
     return out + ["| " + " | ".join(r) + " |" for r in rows]
@@ -245,7 +278,8 @@ def board(results: Path, batch_logs: Path) -> str:
     procs, gpu = gpu_state()
     grid_lines, fin_grid = grid_sections(results)
     batch_lines, fin_batch = batch_sections(batch_logs)
-    finished = sorted(fin_grid + fin_batch, reverse=True)[:40]
+    job_lines, fin_jobs = job_queue_sections(results)
+    finished = sorted(fin_grid + fin_batch + fin_jobs, reverse=True)[:40]
     lines = [f"# Runs board: {results.name}", "",
              f"Updated {now():%Y-%m-%d %H:%M} UTC by `mouse-pose/scripts/runs_board.py`. "
              f"GPU: {gpu}.", ""]
@@ -254,9 +288,10 @@ def board(results: Path, batch_logs: Path) -> str:
         lines += [notes.read_text().strip(), ""]
     lines += ["## Running now", ""]
     rows = running_rows(procs, results)
-    lines += (md(["model", "kind", "step", "started", "ETA (training)", "GPU mem"], rows)
+    lines += (md(["model", "kind", "step", "started", "ETA (training)", "GPU", "mem"], rows)
               if rows else ["Nothing on the GPU."]) + [""]
     lines += ["## Queued", ""] + grid_lines
+    lines += ["### Job queues", ""] + (job_lines or ["None."]) + [""]
     lines += ["### Batch queues", ""] + (batch_lines or ["No batch queue alive."]) + [""]
     lines += ["## Finished (latest 40)", ""]
     lines += md(["finished", "model", "result"], [[hm(t), m, r] for t, m, r in finished])
