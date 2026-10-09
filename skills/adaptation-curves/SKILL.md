@@ -70,7 +70,8 @@ any masked setting whose keypoints the target does not label or its trunk does n
 ## Run on this machine
 
 Commit first: queues and `run_info.json` record the commit, and a dirty main checkout breaks the
-gated queues of other batches. GPU budget (user): at most 2 GPU jobs at once, counting every queue.
+gated queues of other batches. GPU budget (user, 2026-10-09): at most 3 GPU jobs at once, counting every queue (4 was too
+many). `echo N > <queue dir>/max_gpu` changes the limit of a running queue.
 
 1. Canary, one cell per arm type, before any full launch. Read the overrides first:
 
@@ -78,13 +79,13 @@ gated queues of other batches. GPU budget (user): at most 2 GPU jobs at once, co
 
    then queue the canary cells `ibl__dino-linear__tf10__draw0`, `ibl__dino-nonlinear__tf10__draw0`,
    `ibl__mm-anchored-lora__tf10__draw0` and `ibl__mm-lora__mask-pupil_center_left__tf10__draw0`
-   (one id per line in a file) with `run_local.sh <cfg> 2 <file>`. Check their `DONE ... px`
+   (one id per line in a file) with `run_local.sh <cfg> 3 <file>`. Check their `DONE ... px`
    against the zero-shot and dedicated references in `summary/table.md`. Anchored LoRA at N = 10
    should beat zero-shot; DINOv3 at N = 10 should be far worse than both. Look at the train / val
    curves, and note the minutes per cell.
 2. Full grid, durable (survives session restarts; never `run_in_background`):
 
-       setsid nohup bash scripts/adapt/run_local.sh <cfg> 2 > /dev/null 2>&1 < /dev/null & disown
+       setsid nohup bash scripts/adapt/run_local.sh <cfg> 3 > /dev/null 2>&1 < /dev/null & disown
 
    The queue dir is `<results_dir>/adaptation/<name>/_queue`. Hold launches with `touch
    <queue dir>/STOP`; running cells finish. Track progress in `<queue dir>/queue.log` or with

@@ -11,7 +11,8 @@
 #       > /dev/null 2>&1 < /dev/null & disown
 #
 # Queue dir: <results_dir>/<out_subdir>/<name>/_queue. Hold new launches: touch <queue dir>/STOP
-# (running cells finish). Log: <queue dir>/queue.log; per cell <queue dir>/<cell id>.out (run_cell
+# (running cells finish). Change the limit while it runs: echo 3 > <queue dir>/max_gpu (read before
+# every launch; running cells are never stopped). Log: <queue dir>/queue.log; per cell <queue dir>/<cell id>.out (run_cell
 # output) next to the training log written beside the cell directory.
 set -u
 CFG="$1"; MAX_GPU="${2:-2}"; ONLY="${3:-}"
@@ -53,7 +54,9 @@ while true; do
   # our launches take ~1 min to reach the GPU: count them too until they show up there
   mine=$(jobs -rp | wc -l)
   n=$(gpu_jobs); [ "$mine" -gt "$n" ] && n=$mine
-  if [ "$n" -ge "$MAX_GPU" ]; then sleep 30; continue; fi
+  max=$MAX_GPU; [ -s "$Q/max_gpu" ] && max=$(tr -dc 0-9 < "$Q/max_gpu"); max=${max:-$MAX_GPU}
+  [ "$max" != "${last_max:-}" ] && { log "limit: $max GPU jobs"; last_max=$max; }
+  if [ "$n" -ge "$max" ]; then sleep 30; continue; fi
   if ! CELL=$(next_cell); then log "plan.py failed: $(tail -1 "$Q/plan.out")"; sleep 300; continue; fi
   if [ -z "$CELL" ]; then
     [ "$(jobs -rp | wc -l)" -gt 0 ] && { sleep 60; continue; }
