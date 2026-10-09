@@ -11,7 +11,8 @@ overrides, and scores the evaluated cells. It does no I/O at import time and nev
 Arms (``init`` x ``adapter`` x ``anchor``):
 
 - ``init: trunk``  -- start from the dataset's leave-one-out trunk (its head is rebuilt from the
-  trunk's config.yaml); ``adapter: lora`` trains LoRA adapters + the head; ``anchor: true``
+  trunk's config.yaml); ``adapter: lora`` trains LoRA adapters (``lora_lr``) + the head
+  (``head_lr``), no adapter = full fine-tuning of every weight at ``lr``; ``anchor: true``
   distils the frozen trunk into the channels the target frame does not label (anchored LoRA).
 - ``init: dinov3`` -- DINOv3 backbone + a new head (``head: linear`` or ``nonlinear``) trained
   from scratch on the N frames, every weight at ``lr``.
@@ -92,6 +93,10 @@ def load_grid(path: str | Path) -> Grid:
     for name, arm in grid.arms.items():
         if arm.get("init") not in (INIT_TRUNK, INIT_DINO):
             raise ValueError(f"arm {name}: init must be '{INIT_TRUNK}' or '{INIT_DINO}'")
+        need = ("rank", "lora_lr", "head_lr") if arm.get("adapter") == "lora" else ("lr",)
+        missing = [k for k in need if k not in arm]
+        if missing:
+            raise ValueError(f"arm {name}: missing {missing}")
     used = set(grid.curve_arms) | set(grid.masked.get("arms", []))
     unknown = used - set(grid.arms)
     if unknown:
@@ -258,10 +263,11 @@ def build_overrides(
     if arm["init"] == INIT_TRUNK:
         if trunk is None:
             raise ValueError(f"arm {cell.arm} starts from a trunk but none was given")
+        lora = arm.get("adapter") == "lora"   # else full fine-tuning: every weight at `lr`
         ov += [f"model.backbone={trunk['backbone']}",
                f"+model.checkpoint='{trunk['checkpoint']}'",
-               f"training.optimizer_params.learning_rate={arm['head_lr']}"]
-        if arm.get("adapter") == "lora":
+               f"training.optimizer_params.learning_rate={arm['head_lr' if lora else 'lr']}"]
+        if lora:
             r = int(arm["rank"])
             ov += [f"+model.lora.rank={r}", f"+model.lora.alpha={2 * r}",
                    f"+model.lora.lr={arm['lora_lr']}"]

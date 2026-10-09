@@ -69,6 +69,20 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def train_env() -> dict:
+    """Environment of the training process: one thread per CPU pool unless set by the caller.
+
+    Cells are CPU-bound (image decoding + augmentation in the data workers) and several share
+    the CPUs; every worker otherwise spawns a full-size OpenMP / MKL / OpenCV thread pool, and the
+    pools of concurrent cells fight over the cores. Results do not depend on these settings.
+    """
+    env = os.environ.copy()
+    for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+                "OPENCV_FOR_THREADS_NUM"):
+        env.setdefault(var, "1")
+    return env
+
+
 def git_head(path: Path) -> str:
     r = subprocess.run(["git", "-C", str(path), "rev-parse", "--short", "HEAD"],
                        capture_output=True, text=True)
@@ -161,7 +175,7 @@ def main() -> None:
     started = now()
     print(f"=== {cell.id}: training -> {out}")
     with open(log, "w") as fh:
-        rc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT).returncode
+        rc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, env=train_env()).returncode
     problems = log_checks(arm, log.read_text(errors="replace"))
     if rc != 0:
         problems.insert(0, f"litpose exit {rc}")

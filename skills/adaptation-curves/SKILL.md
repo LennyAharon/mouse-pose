@@ -12,14 +12,17 @@ target dataset the grid trains and scores:
 |---|---|---|---|
 | zero-shot | the leave-that-dataset-out MM trunk (shared nonlinear head) | nothing | N = 0 |
 | `mm-anchored-lora` | the same trunk | LoRA r64 + head; the frozen trunk is distilled into every channel the frame does not label | 10, 25, 50, all |
+| `mm-lora` | the same trunk | LoRA r64 + head, no anchor (paper baseline "LoRA") | 10, 25, 50, all |
+| `mm-full-ft` | the same trunk | every weight at 5e-5 (paper baseline "full fine-tuning") | 10, 25, 50, all |
 | `dino-linear`, `dino-nonlinear` | DINOv3 ViT-S + a new head | every weight, lr 5e-5 | 10, 25, 50 |
 | dedicated (linear, nonlinear) | DINOv3, recipe of record on all frames, 12k steps | everything | reference line |
 
 The masked-label bars: hide one keypoint group from the N = 10 frames the target DOES label,
-adapt with `mm-lora` or `mm-anchored-lora`, and score that group on its held-back test labels.
+adapt with `mm-full-ft`, `mm-lora` or `mm-anchored-lora`, and score that group on its held-back
+test labels.
 The references are zero-shot and `labelled` (the anchored curve cell at the same N and draw,
-which saw those labels). Anchored LoRA transfers a keypoint the lab never labelled; plain LoRA
-forgets it.
+which saw those labels). Anchored LoRA keeps a keypoint the lab never labelled; full
+fine-tuning degrades it and plain LoRA can erase it (the paper's finding).
 
 Scoring is pooled mean px over visible == 2 test labels of the target only (never other datasets).
 `all` = every keypoint the target labels; `supported` = those its trunk trained, where zero-shot

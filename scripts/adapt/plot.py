@@ -10,8 +10,8 @@ Figures of an adaptation grid from collect.py's cells.csv (PDF + SVG; PNG only w
    mean +- sd over draws; one line per curve arm (MM arms start at the zero-shot point);
    dedicated models as dashed horizontal lines.
 2. masked.pdf: masked-label protocol, one bar group per (dataset, hidden keypoints): zero-shot
-   trunk, MM + plain LoRA, MM + anchored LoRA, and the labelled reference (anchored LoRA that saw
-   the labels), mean +- sd over draws.
+   trunk, each masked arm (e.g. MM + full fine-tuning, MM + LoRA, MM + anchored LoRA), and the
+   labelled reference (anchored LoRA that saw the labels), mean +- sd over draws.
 """
 
 import argparse
@@ -30,6 +30,7 @@ from mighty_mouse.paths import load_paths  # noqa: E402
 STYLE = {  # arm -> (label, colour, marker)
     "mm-anchored-lora":    ("MM + anchored LoRA", "#c0392b", "o"),
     "mm-lora":             ("MM + LoRA", "#e67e22", "s"),
+    "mm-full-ft":          ("MM + full fine-tuning", "#b7950b", "X"),
     "dino-linear":         ("DINOv3 from scratch (linear head)", "#2471a3", "^"),
     "dino-nonlinear":      ("DINOv3 from scratch (nonlinear head)", "#17a589", "v"),
     "dedicated-linear":    ("dedicated (linear head)", "#2471a3", None),

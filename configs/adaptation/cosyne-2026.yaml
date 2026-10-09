@@ -2,10 +2,12 @@
 # Per target dataset: zero-shot (the leave-that-dataset-out trunk, N = 0), few-shot (N = 10 / 25 / 50, 3 frame
 # draws) and all-frames adaptation, comparing
 #   MM + anchored LoRA          (leave-one-out Mighty-Mouse trunk with the SHARED NONLINEAR head)
+#   MM + LoRA, MM + full FT     (same trunk; the paper's two standard-adaptation baselines)
 #   DINOv3 from scratch         (linear head and nonlinear head; its all-frames point is the dedicated model)
 #   dedicated model             (DINOv3, all frames, recipe of record, 12k steps; reference line, both heads)
 # plus the masked-label bars (one keypoint group hidden from the N = 10 frames, scored on its test labels):
-# MM + anchored LoRA vs MM + plain LoRA (zero-shot and labelled references come from the curve cells).
+# MM + anchored LoRA vs MM + plain LoRA vs MM + full FT (zero-shot and labelled references come from the curve
+# cells). Full FT and LoRA alone added 2026-10-09 (user: the paper's baselines).
 #
 # Paths are relative to results_dir (paths.yaml), so the same file runs on any machine with the same results tree.
 # Rerun after a data update: retrain the trunks / dedicated models it lists, bump `name`, run the skill.
@@ -24,10 +26,11 @@ arms:
   mm-anchored-lora: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
                      anchor_weight: 1.0, anchor_conf_power: 1}
   mm-lora:          {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: false}
+  mm-full-ft:       {init: trunk, lr: 5.0e-5}          # every weight at 5e-5 (paper: full fine-tuning)
   dino-linear:      {init: dinov3, head: linear, lr: 5.0e-5, skip_all: true}
   dino-nonlinear:   {init: dinov3, head: nonlinear, head_hidden_channels: 256, lr: 5.0e-5, skip_all: true}
 
-curve_arms: [mm-anchored-lora, dino-linear, dino-nonlinear]
+curve_arms: [mm-anchored-lora, mm-lora, mm-full-ft, dino-linear, dino-nonlinear]
 
 # leave-that-dataset-out trunks, shared nonlinear head (256 hidden), ViT-S DINOv3 12k, seed 0.
 # cheese-2d and cheese-3d share rig and mice: one trunk leaves out both and serves both targets.
@@ -49,7 +52,7 @@ dedicated:
 masked:
   n_frames: [10]
   draws: [0, 1, 2]
-  arms: [mm-anchored-lora, mm-lora]
+  arms: [mm-anchored-lora, mm-lora, mm-full-ft]
   settings:                       # every keypoint here is labelled by the target AND trained by its trunk
     ibl:           [[pupil_center_left], [wrist_left, wrist_right]]
     cazettes-side: [[pupil_center_left], [wrist_left, wrist_right], [tongue_tip]]

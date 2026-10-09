@@ -31,6 +31,7 @@ GRID = {
     "steps": {"few": 2000, "all": 6000}, "val_every": 250,
     "arms": {"mm":   {**LORA, "anchor": True},
              "lora": LORA,
+             "ft":   {"init": "trunk", "lr": 5.0e-5},
              "dino": {"init": "dinov3", "head": "nonlinear", "lr": 5.0e-5, "skip_all": True}},
     "curve_arms": ["mm", "dino"],
     "datasets": {"ibl": {"trunk": "x/ibl"}, "kondo": {"trunk": "x/kondo"}},
@@ -66,6 +67,7 @@ class TestLoadGrid:
         ({"curve_arms": ["nope"]}, "unknown arm"),
         ({"arms": {"mm": {"init": "x"}}, "curve_arms": ["mm"], "masked": {}}, "init must be"),
         ({"datasets": {"ibl": {}}}, "no trunk"),
+        ({"arms": {"mm": {"init": "trunk"}}, "curve_arms": ["mm"], "masked": {}}, "missing"),
         ({"n_frames": [0]}, "positive"),
     ])
     def test_load_grid_invalid_raises(self, tmp_path: Path, patch, match):
@@ -133,6 +135,12 @@ class TestBuildOverrides:
         ov = build_overrides(grid, Cell("ibl", "lora", 10, 0), Path("/d"), "x.csv", TRUNK)
         assert "+model.lora.rank=64" in ov
         assert not any(o.startswith("+model.anchor") for o in ov)
+
+    def test_build_overrides_full_ft(self, grid):
+        ov = build_overrides(grid, Cell("ibl", "ft", 25, 1), Path("/d"), "x.csv", TRUNK)
+        assert "+model.checkpoint='/r/t.ckpt'" in ov and "+model.head_hidden_channels=256" in ov
+        assert "training.optimizer_params.learning_rate=5e-05" in ov
+        assert not any("lora" in o or "anchor" in o for o in ov)
 
     def test_build_overrides_all_frames(self, grid):
         ov = build_overrides(grid, Cell("ibl", "mm", ALL, 0), Path("/d"), "x.csv", TRUNK)
