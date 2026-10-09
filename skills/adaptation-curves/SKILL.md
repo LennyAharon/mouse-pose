@@ -33,7 +33,7 @@ is comparable; `new` = the rest; `hidden` = the masked group.
 | `mighty_mouse/adaptation.py` | grid expansion, cell ids and directories, Lightning Pose overrides, log checks, scoring (unit-tested: `tests/test_adaptation.py`) |
 | `scripts/adapt/plan.py` | prerequisites, done / runnable / blocked, `--jobs` (pending ids), `--status`, `--bundle` (files to copy elsewhere) |
 | `scripts/adapt/run_cell.py` | one cell end to end: masked csv, train, log checks, eval on the target, LoRA reload check, delete ckpts, `run_info.json` + `.done` |
-| `scripts/adapt/run_local.sh` | queue on this machine (max GPU jobs, STOP file, restart-safe) |
+| `scripts/adapt/run_local.sh` | queue on this machine: re-plans before each launch (blocked cells join once their trunk finishes), max GPU jobs, STOP file, restart-safe |
 | `scripts/adapt/slurm_array.sbatch` | the same cells as a SLURM array (ACCESS) |
 | `scripts/adapt/collect.py` | `summary/cells.csv` + `summary/table.md` (cells + zero-shot + dedicated + masked references) |
 | `scripts/adapt/plot.py` | `summary/curves_<keypoints>.{pdf,svg}`, `summary/masked.{pdf,svg}` (`--png` only when asked) |
@@ -69,27 +69,27 @@ any masked setting whose keypoints the target does not label or its trunk does n
 Commit first: queues and `run_info.json` record the commit, and a dirty main checkout breaks the
 gated queues of other batches. GPU budget (user): at most 2 GPU jobs at once, counting every queue.
 
-1. Canary, one cell per arm type, before any full launch:
+1. Canary, one cell per arm type, before any full launch. Read the overrides first:
 
-       python scripts/adapt/run_cell.py --config <cfg> --cell <id> --dry_run    # read the overrides
-       python scripts/adapt/run_cell.py --config <cfg> --cell <id>
+       python scripts/adapt/run_cell.py --config <cfg> --cell <id> --dry_run
 
-   with `ibl__dino-linear__tf10__draw0`, `ibl__dino-nonlinear__tf10__draw0`,
-   `ibl__mm-anchored-lora__tf10__draw0` and `ibl__mm-lora__mask-pupil_center_left__tf10__draw0`.
-   Check `DONE ... px` against the zero-shot and dedicated references in `summary/table.md`
-   (anchored LoRA at N = 10 should beat zero-shot; DINOv3 at N = 10 should be far worse than
-   both), look at the train / val curve, and note the minutes per cell.
+   then queue the canary cells `ibl__dino-linear__tf10__draw0`, `ibl__dino-nonlinear__tf10__draw0`,
+   `ibl__mm-anchored-lora__tf10__draw0` and `ibl__mm-lora__mask-pupil_center_left__tf10__draw0`
+   (one id per line in a file) with `run_local.sh <cfg> 2 <file>`. Check their `DONE ... px`
+   against the zero-shot and dedicated references in `summary/table.md`. Anchored LoRA at N = 10
+   should beat zero-shot; DINOv3 at N = 10 should be far worse than both. Look at the train / val
+   curves, and note the minutes per cell.
 2. Full grid, durable (survives session restarts; never `run_in_background`):
 
-       Q=<results_dir>/adaptation/<name>/_queue
-       python scripts/adapt/plan.py --config <cfg> --jobs $Q/jobs.txt
-       setsid nohup bash scripts/adapt/run_local.sh <cfg> $Q/jobs.txt 2 > $Q/run_local.out 2>&1 < /dev/null & disown
+       setsid nohup bash scripts/adapt/run_local.sh <cfg> 2 > /dev/null 2>&1 < /dev/null & disown
 
-   Hold: `touch $Q/STOP` (running cells finish). Progress: `$Q/queue.log`, `plan.py --status`.
-   Cells blocked on a trunk are not in `jobs.txt`: once the trunk is COMPLETED, regenerate
-   `jobs.txt` into a NEW file and start a second `run_local.sh` on it when the first has finished
-   (`run_local.sh` reads its job file as it goes; never edit it while it runs). A failed cell
-   (`end ... (exit 1)` in the log) is retried by deleting `$Q/started_<id>` and re-running the queue.
+   The queue dir is `<results_dir>/adaptation/<name>/_queue`. Hold launches with `touch
+   <queue dir>/STOP`; running cells finish. Track progress in `<queue dir>/queue.log` or with
+   `plan.py --status`. Before every launch the queue re-plans and takes the first runnable cell in
+   grid order, so cells blocked on a trunk join as soon as that trunk is COMPLETED. While only
+   blocked cells remain, it polls every 10 min. A failed cell (`end ... (exit 1)` in the log) is
+   never relaunched by itself: read `<queue dir>/<id>.out` and the cell's log, fix the cause, delete
+   `<queue dir>/started_<id>`, and restart the queue if it has ended.
 3. `python scripts/adapt/collect.py --config <cfg>`, then `python scripts/adapt/plot.py --config <cfg>`
    (also `--keypoints supported`). Report the table, not only the figure.
 

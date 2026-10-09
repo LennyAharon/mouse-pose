@@ -8,8 +8,9 @@ Expand an adaptation grid config into cells, check prerequisites, and write the 
     python scripts/adapt/plan.py --config ... --bundle <file>  # result files another machine needs
 
 A cell is done when its directory has `.done`; it is runnable when its trunk finished training
-(arms that start from DINOv3 need nothing). The job file feeds scripts/adapt/run_local.sh (this
-machine) or scripts/adapt/slurm_array.sbatch (a SLURM cluster such as ACCESS): one task per line.
+(arms that start from DINOv3 need nothing). The job file feeds scripts/adapt/slurm_array.sbatch
+(a SLURM cluster such as ACCESS: one task per line); scripts/adapt/run_local.sh (this machine)
+re-plans before every launch.
 The bundle file lists, relative to results_dir, every file of the results tree the grid reads
 (per trunk: config.yaml, train_status.json, its training csv, best checkpoint, test predictions;
 per dedicated model: test predictions), for `rsync -a --files-from=<file> <results_dir>/ ...`.
