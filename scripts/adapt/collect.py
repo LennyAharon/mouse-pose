@@ -108,31 +108,34 @@ def main() -> None:
 
     # ── cells ──────────────────────────────────────────────────────────────────
     done = 0
-    first_masked_arm = (grid.masked.get("arms") or [None])[0]
-    first_draw = grid.masked.get("draws", grid.draws)[0]
     for c in expand(grid):
         d    = cell_dir(results, grid, c)
         pred = eval_pred(d, c.dataset)
         if not (d / ".done").exists() or not pred.exists() or c.dataset not in trunk_kps:
             continue
         done += 1
-        mask = "+".join(c.mask)
         sets = keypoint_sets(c.dataset, inv, trunk_kps[c.dataset], c.mask)
-        rows += [{"dataset": c.dataset, "arm": c.arm, "n": c.n, "draw": c.draw, "mask": mask,
-                  "kind": c.kind, **r} for r in score(pred, test_csv(c.dataset), sets)]
-        if not c.mask or c.arm != first_masked_arm:
-            continue
-        # once per masked (setting, N, draw): the same cell with the labels visible, and zero-shot
-        ref = cell_dir(results, grid, Cell(c.dataset, ANCHORED, c.n, c.draw))
-        if (ref / ".done").exists() and eval_pred(ref, c.dataset).exists():
-            r = score(eval_pred(ref, c.dataset), test_csv(c.dataset), {"hidden": list(c.mask)})
-            rows.append({"dataset": c.dataset, "arm": "labelled", "n": c.n, "draw": c.draw,
-                         "mask": mask, "kind": "masked", **r[0]})
-        zs = eval_pred(results / grid.datasets[c.dataset]["trunk"], c.dataset)
-        if zs.exists() and c.draw == first_draw:
-            r = score(zs, test_csv(c.dataset), {"hidden": list(c.mask)})
-            rows.append({"dataset": c.dataset, "arm": "zero-shot", "n": 0, "draw": 0,
-                         "mask": mask, "kind": "masked", **r[0]})
+        rows += [{"dataset": c.dataset, "arm": c.arm, "n": c.n, "draw": c.draw,
+                  "mask": "+".join(c.mask), "kind": c.kind, **r}
+                 for r in score(pred, test_csv(c.dataset), sets)]
+
+    # ── masked references: zero-shot, and the curve cell that saw the labels ──────
+    m = grid.masked
+    for ds, settings in (m.get("settings") or {}).items():
+        for kps in settings:
+            hidden = {"hidden": list(kps)}
+            zs = eval_pred(results / grid.datasets[ds]["trunk"], ds)
+            if zs.exists():
+                rows.append({"dataset": ds, "arm": "zero-shot", "n": 0, "draw": 0,
+                             "mask": "+".join(kps), "kind": "masked",
+                             **score(zs, test_csv(ds), hidden)[0]})
+            for n in m.get("n_frames", []):
+                for draw in m.get("draws", grid.draws):
+                    ref = cell_dir(results, grid, Cell(ds, ANCHORED, n, draw))
+                    if (ref / ".done").exists() and eval_pred(ref, ds).exists():
+                        rows.append({"dataset": ds, "arm": "labelled", "n": n, "draw": draw,
+                                     "mask": "+".join(kps), "kind": "masked",
+                                     **score(eval_pred(ref, ds), test_csv(ds), hidden)[0]})
 
     df = pd.DataFrame(rows)
     df.to_csv(out / "cells.csv", index=False)
@@ -152,7 +155,7 @@ def main() -> None:
                                   aggfunc="first")
             piv = piv[[c for c in [0] + grid.n_frames if c in piv.columns]]
             lines += [f"## keypoints: {kset}", "", md_table(piv), ""]
-        m = df[df.kind == "masked"]
+        m = df[(df.kind == "masked") & (df.keypoints == "hidden")]
         if len(m):
             agg = m.groupby(["dataset", "mask", "arm"])["mean_px"].agg(["mean", "std"])
             agg = agg.reset_index()
