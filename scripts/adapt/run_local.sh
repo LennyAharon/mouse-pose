@@ -13,7 +13,8 @@
 #
 # Queue dir: <results_dir>/<out_subdir>/<name>/_queue. Hold new launches: touch <queue dir>/STOP
 # (running cells finish). Change the per-GPU limit while it runs: echo 3 > <queue dir>/max_gpu (read
-# before every launch; running cells are never stopped). Log: <queue dir>/queue.log; per cell
+# before every launch; running cells are never stopped); the GPUs it may use: echo "0 1" >
+# <queue dir>/gpus (overrides $GPUS, also read before every launch). Log: <queue dir>/queue.log; per cell
 # <queue dir>/<cell id>.out (run_cell output) next to the training log written beside the cell
 # directory.
 set -u
@@ -55,8 +56,9 @@ waiting=""
 while true; do
   [ -f "$Q/STOP" ] && { log "STOP present: holding"; while [ -f "$Q/STOP" ]; do sleep 60; done; log "STOP removed: resuming"; }
   max=$PER_GPU; [ -s "$Q/max_gpu" ] && max=$(tr -dc 0-9 < "$Q/max_gpu"); max=${max:-$PER_GPU}
-  [ "$max" != "${last_max:-}" ] && { log "limit: $max jobs per GPU on [$GPUS]"; last_max=$max; }
-  g=$(pick_gpu "$GPUS" "$max")
+  gpus=$GPUS; [ -s "$Q/gpus" ] && gpus=$(tr -dc '0-9 ' < "$Q/gpus"); [ -n "${gpus// /}" ] || gpus=$GPUS
+  [ "$max/$gpus" != "${last_lim:-}" ] && { log "limit: $max jobs per GPU on [$gpus]"; last_lim="$max/$gpus"; }
+  g=$(pick_gpu "$gpus" "$max")
   if [ -z "$g" ]; then sleep 30; continue; fi
   if ! CELL=$(next_cell); then log "plan.py failed: $(tail -1 "$Q/plan.out")"; sleep 300; continue; fi
   if [ -z "$CELL" ]; then
