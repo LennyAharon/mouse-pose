@@ -157,10 +157,12 @@ relative to `results_dir`.
 
 ## Cost (L4, 2 jobs at once)
 
-The first grid (v9, 314 cells) is about 80 GPU-hours on top of the two missing trunks and 15
-dedicated models (about 20 more), so about 4 days on the studio's L4. On a cluster with 8+ GPUs it
-takes under a day. A few-shot cell is 2000 steps; an all-frames cell is 6000. Replace these
-estimates with the canary's measured minutes per cell.
+Measured on the first grid (v9, 2026-10-09, two cells sharing the L4): an anchored or plain LoRA
+cell takes 12-21 min and a DINOv3-from-scratch cell 8-11 min (2000 steps each), or about 7
+few-shot cells per hour. All-frames cells (6000 steps) are roughly 3x longer. The 314-cell grid
+takes about 2 days, and the 15 dedicated models about another day. The GPU is far from
+saturated (3.5 GB and well under 100 % utilisation per cell), so a cluster with more GPUs scales
+almost linearly: one GPU per array task.
 
 ## Gotchas
 
