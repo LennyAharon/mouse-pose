@@ -195,13 +195,15 @@ def grid_sections(results: Path) -> tuple[list[str], list[tuple[datetime, str, s
         state = "not running"
         if alive(q / "run_local.pid", "run_local.sh"):
             limit = (q / "max_gpu").read_text().strip() if (q / "max_gpu").exists() else "?"
-            state = f"running, limit {limit} GPU jobs" + (", HELD by STOP" if (q / "STOP").exists()
-                                                          else "")
+            gpus  = (q / "gpus").read_text().strip() if (q / "gpus").exists() else "all"
+            state = f"running, {limit} per GPU on GPUs [{gpus}]" + (
+                ", HELD by STOP" if (q / "STOP").exists() else "")
         recent = [t for t, msg in log if msg.startswith("end ") and "(exit 0)" in msg
-                  and t > now() - timedelta(hours=3)]
-        rate = len(recent) / 3
+                  and t > now() - timedelta(hours=1)]
+        rate = len(recent)   # cells/h over the last hour (follows machine and limit changes)
         left = len(cells) - len(done)
-        eta = f", about {left / rate:.0f} h left at {rate:.1f} cells/h (last 3 h)" if rate else ""
+        eta = (f", about {left / rate:.0f} h left at {rate} cells/h (last hour; all-frames cells "
+               "are ~3x longer)" if rate else "")
         lines += [f"### Grid `{grid.name}` ({state})", "",
                   f"{len(done)} / {len(cells)} cells done, {len(running)} running, "
                   f"{len(failed)} failed{eta}.", ""]
