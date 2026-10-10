@@ -32,6 +32,10 @@ arms:
 
 curve_arms: [mm-anchored-lora, mm-lora, mm-full-ft, dino-linear, dino-nonlinear]
 
+# launch order of the blocks (each N, and the masked cells); user 2026-10-10: masked bars before the
+# all-frames runs (and before N = 50, so the bars arrive early)
+order: [10, 25, masked, 50, all]
+
 # leave-that-dataset-out trunks, shared nonlinear head (256 hidden), ViT-S DINOv3 12k, seed 0.
 # cheese-2d and cheese-3d share rig and mice: one trunk leaves out both and serves both targets.
 datasets:

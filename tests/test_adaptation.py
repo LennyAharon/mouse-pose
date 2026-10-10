@@ -90,6 +90,21 @@ class TestExpand:
         masked = [c for c in cells if c.kind == "masked"]
         assert len(masked) == 2 * 1 * 2 * 2   # settings x N x arms x draws
 
+    def test_expand_order(self, grid, tmp_path: Path):
+        p = tmp_path / "o.yaml"
+        p.write_text(yaml.safe_dump({**GRID, "order": [10, "masked", 50, "all"]}))
+        cells = expand(load_grid(p))
+        kinds = [c.kind if c.kind == "masked" else c.n for c in cells]
+        first = {k: kinds.index(k) for k in (10, "masked", 50, ALL)}
+        assert first[10] < first["masked"] < first[50] < first[ALL]
+        assert sorted(c.id for c in cells) == sorted(c.id for c in expand(grid))   # same cells
+
+    def test_expand_order_incomplete_raises(self, tmp_path: Path):
+        p = tmp_path / "o.yaml"
+        p.write_text(yaml.safe_dump({**GRID, "order": [10, "masked", "all"]}))
+        with pytest.raises(ValueError, match="order must list"):
+            load_grid(p)
+
     def test_expand_ids_unique(self, grid):
         ids = [c.id for c in expand(grid)]
         assert len(ids) == len(set(ids))

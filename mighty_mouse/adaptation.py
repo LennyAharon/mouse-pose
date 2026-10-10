@@ -32,6 +32,7 @@ import pandas as pd
 import yaml
 
 ALL = "all"
+MASKED = "masked"
 INIT_TRUNK, INIT_DINO = "trunk", "dinov3"
 
 
@@ -72,6 +73,7 @@ class Grid:
     dedicated:   dict = field(default_factory=dict)
     out_subdir:  str = "adaptation"
     keep_checkpoints: bool = False
+    order:       list = field(default_factory=list)   # launch order of the N blocks and "masked"
 
 
 def load_grid(path: str | Path) -> Grid:
@@ -90,6 +92,10 @@ def load_grid(path: str | Path) -> Grid:
         dedicated=cfg.get("dedicated") or {}, out_subdir=cfg.get("out_subdir", "adaptation"),
         keep_checkpoints=bool(cfg.get("keep_checkpoints", False)),
     )
+    blocks = grid.n_frames + ([MASKED] if grid.masked.get("settings") else [])
+    grid.order = list(cfg.get("order") or blocks)
+    if sorted(map(str, grid.order)) != sorted(map(str, blocks)):
+        raise ValueError(f"order must list each of {blocks} once, got {grid.order}")
     for name, arm in grid.arms.items():
         if arm.get("init") not in (INIT_TRUNK, INIT_DINO):
             raise ValueError(f"arm {name}: init must be '{INIT_TRUNK}' or '{INIT_DINO}'")
@@ -111,28 +117,32 @@ def load_grid(path: str | Path) -> Grid:
 
 
 def expand(grid: Grid) -> list[Cell]:
-    """All cells of the grid, in launch order (curves by N then dataset, then masked).
+    """All cells of the grid, in launch order: the blocks of ``grid.order`` (each N value, and
+    ``masked``; default every N in ``n_frames`` order, then masked), each by dataset then arm.
 
     ``n: all`` is run once (draw 0): every draw would select the same frames. Arms with
     ``skip_all: true`` (e.g. DINOv3 from scratch, whose all-frames point is the dedicated model)
     get no ``all`` cell.
     """
-    cells = []
+    blocks = {}
     for n in grid.n_frames:
-        draws = [0] if n == ALL else grid.draws
+        draws, cells = ([0] if n == ALL else grid.draws), []
         for ds in grid.datasets:
             for arm in grid.curve_arms:
                 if n == ALL and grid.arms[arm].get("skip_all", False):
                     continue
                 cells += [Cell(ds, arm, n, d) for d in draws]
-    m = grid.masked
+        blocks[str(n)] = cells
+    m, masked = grid.masked, []
     for ds, settings in (m.get("settings") or {}).items():
         for kps in settings:
             for n in m.get("n_frames", []):
                 for arm in m.get("arms", []):
                     for d in ([0] if n == ALL else m.get("draws", grid.draws)):
-                        cells.append(Cell(ds, arm, n, d, tuple(kps), "masked"))
-    return cells
+                        masked.append(Cell(ds, arm, n, d, tuple(kps), "masked"))
+    blocks[MASKED] = masked
+    order = grid.order or grid.n_frames + [MASKED]
+    return [c for b in order for c in blocks[str(b)]]
 
 
 def cell_dir(results_dir: Path, grid: Grid, cell: Cell) -> Path:

@@ -32,7 +32,7 @@ is comparable; `new` = the rest; `hidden` = the masked group.
 
 | file | role |
 |---|---|
-| `configs/adaptation/<name>.yaml` | the whole grid: datasets + their trunks, dedicated paths, N, draws, steps, arms, masked settings. Header comments explain every field. |
+| `configs/adaptation/<name>.yaml` | the whole grid: datasets + their trunks, dedicated paths, N, draws, steps, arms, masked settings, launch `order` of the blocks (e.g. `[10, 25, masked, 50, all]`; a running queue picks it up at its next launch). Header comments explain every field. |
 | `mighty_mouse/adaptation.py` | grid expansion, cell ids and directories, Lightning Pose overrides, log checks, scoring (unit-tested: `tests/test_adaptation.py`) |
 | `scripts/adapt/plan.py` | prerequisites, done / runnable / blocked, `--jobs` (pending ids), `--status`, `--bundle` (files to copy elsewhere) |
 | `scripts/adapt/run_cell.py` | one cell end to end: masked csv, train, log checks, eval on the target, LoRA reload check, delete ckpts, `run_info.json` + `.done` |
