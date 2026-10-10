@@ -28,6 +28,13 @@ Scoring is pooled mean px over visible == 2 test labels of the target only (neve
 `all` = every keypoint the target labels; `supported` = those its trunk trained, where zero-shot
 is comparable; `new` = the rest; `hidden` = the masked group.
 
+Checkpoint selection: by default a cell is scored at its best validation loss, but the validation
+split is 5 % of ALL the target's frames, more labels than N. Full FT and LoRA overfit N frames and
+peak early (median step ~750-1000 of 2000; v9 grid), so best-val selection gives them free early
+stopping and understates their forgetting. `eval_last: true` (cosyne-2026 from the masked cells
+on) also scores the final step, what a lab without a validation set would use; `collect.py`
+writes both (`ckpt` column), `plot.py --ckpt last` plots it.
+
 ## Pieces
 
 | file | role |
@@ -35,7 +42,7 @@ is comparable; `new` = the rest; `hidden` = the masked group.
 | `configs/adaptation/<name>.yaml` | the whole grid: datasets + their trunks, dedicated paths, N, draws, steps, arms, masked settings, launch `order` of the blocks (e.g. `[10, 25, masked, 50, all]`; a running queue picks it up at its next launch). Header comments explain every field. |
 | `mighty_mouse/adaptation.py` | grid expansion, cell ids and directories, Lightning Pose overrides, log checks, scoring (unit-tested: `tests/test_adaptation.py`) |
 | `scripts/adapt/plan.py` | prerequisites, done / runnable / blocked, `--jobs` (pending ids), `--status`, `--bundle` (files to copy elsewhere) |
-| `scripts/adapt/run_cell.py` | one cell end to end: masked csv, train, log checks, eval on the target, LoRA reload check, delete ckpts, `run_info.json` + `.done` |
+| `scripts/adapt/run_cell.py` | one cell end to end: masked csv, train, log checks, eval on the target (best-validation checkpoint -> `eval/`; with the grid's `eval_last: true` also the final-step checkpoint -> `eval_last/`), LoRA reload check, delete ckpts, `run_info.json` + `.done` |
 | `scripts/adapt/run_local.sh` | queue on this machine: re-plans before each launch (blocked cells join once their trunk finishes), max GPU jobs, STOP file, restart-safe |
 | `scripts/adapt/slurm_array.sbatch` | the same cells as a SLURM array (ACCESS) |
 | `scripts/adapt/collect.py` | `summary/cells.csv` + `summary/table.md` (cells + zero-shot + dedicated + masked references) |

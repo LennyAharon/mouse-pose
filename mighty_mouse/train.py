@@ -320,6 +320,7 @@ def make_publish_command(output_dir: Path, publish_root: Path) -> str:
 
 def evaluate_model(
     output_dir: Path, csv_file: str, keep_checkpoints: bool = False, datasets: list[str] | None = None,
+    checkpoint: Path | None = None, eval_subdir: str = "eval",
 ) -> None:
     """Evaluate a trained model against every per-dataset test CSV, then clean
     up the scratch prediction files litpose leaves behind in output_dir and,
@@ -332,7 +333,10 @@ def evaluate_model(
     for zero-/few-shot adaptation.
 
     datasets: evaluate only these test sets (default: every registry dataset), e.g. the target
-    dataset of an adaptation cell."""
+    dataset of an adaptation cell.
+
+    checkpoint: evaluate this checkpoint instead of the run's *-best.ckpt (e.g. the
+    final-step *-periodic.ckpt of an adaptation cell), writing to output_dir/<eval_subdir>/."""
     from lightning_pose.api import Model
     from PIL import Image
     from mighty_mouse.comparison import comparison_summary, visible_errors
@@ -341,6 +345,11 @@ def evaluate_model(
 
     print("  Loading model...")
     model = Model.from_dir(output_dir)
+    if checkpoint is not None:   # preload, so the model does not pick the run's *-best.ckpt
+        from lightning_pose.api.model import load_model_from_checkpoint
+        print(f"  Using checkpoint {checkpoint}")
+        model.model = load_model_from_checkpoint(cfg=model.cfg, ckpt_file=str(checkpoint),
+                                                 eval=True, skip_data_module=True)
 
     for eval_name in (datasets or EVAL_DATASETS):
         test_csv = DATA_DIR / f"CollectedData_{eval_name}_test.csv"
@@ -369,7 +378,7 @@ def evaluate_model(
                 diagonals.append(float(np.linalg.norm(image.size)))
         summary = comparison_summary(error_df, np.asarray(diagonals))
 
-        save_dir = output_dir / "eval" / eval_name
+        save_dir = output_dir / eval_subdir / eval_name
         save_dir.mkdir(parents=True, exist_ok=True)
         preds_df.to_csv(save_dir / "predictions.csv")
         error_df.to_csv(save_dir / "pixel_error.csv")
@@ -421,12 +430,21 @@ def _main():
         "--datasets", default=None,
         help="Comma-separated test sets to evaluate (default: every registry dataset).",
     )
+    parser.add_argument(
+        "--checkpoint", default=None, type=Path,
+        help="Evaluate this checkpoint instead of the run's *-best.ckpt.",
+    )
+    parser.add_argument(
+        "--eval_subdir", default="eval",
+        help="Folder under output_dir for the predictions (default eval; e.g. eval_last).",
+    )
     args = parser.parse_args()
     csv_file = args.csv_file or infer_csv_file(args.output_dir)
     print(f"output_dir: {args.output_dir}")
     print(f"csv_file:   {csv_file}")
     datasets = [d for d in args.datasets.split(",") if d] if args.datasets else None
-    evaluate_model(args.output_dir, csv_file, keep_checkpoints=args.keep_checkpoints, datasets=datasets)
+    evaluate_model(args.output_dir, csv_file, keep_checkpoints=args.keep_checkpoints,
+                   datasets=datasets, checkpoint=args.checkpoint, eval_subdir=args.eval_subdir)
 
 
 if __name__ == "__main__":

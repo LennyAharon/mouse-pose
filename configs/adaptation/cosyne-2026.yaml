@@ -16,6 +16,8 @@
 name: cosyne-2026
 out_subdir: adaptation            # cells go to <results_dir>/adaptation/<name>/<dataset>/<arm>/[mask-<kps>/]tf<N>-draw<d>
 keep_checkpoints: false           # cells are evaluated on the target test set, then their checkpoints deleted
+eval_last: true                   # also evaluate the final-step checkpoint (eval_last/): best-val selection
+                                  # uses a val split larger than N; set 2026-10-10 from the masked cells on
 
 n_frames: [10, 25, 50, all]
 draws: [0, 1, 2]                  # training.rng_seed_data_pt; `all` runs once (every draw is the same frames)

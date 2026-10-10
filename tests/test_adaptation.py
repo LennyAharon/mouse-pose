@@ -146,6 +146,13 @@ class TestBuildOverrides:
                   "training.optimizer_params.learning_rate=0.0005"]:
             assert o in ov, o
 
+    def test_build_overrides_eval_last(self, grid):
+        assert not any("ckpt_every_n_steps" in o for o in
+                       build_overrides(grid, Cell("ibl", "mm", 10, 0), Path("/d"), "x.csv", TRUNK))
+        grid.eval_last = True
+        ov = build_overrides(grid, Cell("ibl", "mm", ALL, 0), Path("/d"), "x.csv", TRUNK)
+        assert "+training.ckpt_every_n_steps=6000" in ov
+
     def test_build_overrides_plain_lora_has_no_anchor(self, grid):
         ov = build_overrides(grid, Cell("ibl", "lora", 10, 0), Path("/d"), "x.csv", TRUNK)
         assert "+model.lora.rank=64" in ov

@@ -12,7 +12,8 @@ Steps: (masked cells) write the masked training csv into data_dir if missing; re
 the trunk trained; an experts trunk with model.head_groups needs PYTHONPATH pointing at a
 Lightning Pose that builds them, else ABORT); `litpose train configs/model.yaml` with the cell's
 overrides; check the log (weights loaded, anchor attached, LoRA rank, head); evaluate on the
-target dataset's test set only (`python -m mighty_mouse.train --datasets <ds>`); for LoRA arms
+target dataset's test set only (`python -m mighty_mouse.train --datasets <ds>`; with the grid's
+`eval_last`, also the final-step checkpoint into eval_last/); for LoRA arms
 check that the reloaded model carries the trained adapters; delete checkpoints unless the grid
 keeps them; write run_info.json and `.done`. Idempotent: a cell with `.done` is skipped; a
 partial directory is moved aside. Exit code != 0 on any failure.
@@ -21,6 +22,7 @@ partial directory is moved aside. Exit code != 0 on any failure.
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -41,6 +43,7 @@ from mighty_mouse.adaptation import (
     log_checks,
     masked_csv_name,
     pixel_errors,
+    steps_for,
     summarize,
     trained_keypoints,
     trunk_datasets,
@@ -197,6 +200,23 @@ def main() -> None:
     pred = out / "eval" / cell.dataset / "predictions.csv"
     if ev != 0 or not pred.exists():
         sys.exit(f"ABORT {cell.id}: evaluation failed (exit {ev})")
+    pred_last = None
+    if grid.eval_last:   # the final-step model too (what a lab without a validation set ships)
+        def step_of(p: Path) -> int:
+            m = re.search(r"step=(\d+)", p.name)
+            return int(m.group(1)) if m else -1
+        last = max(out.rglob("*-periodic.ckpt"), key=step_of, default=None)
+        if last is None or step_of(last) != steps_for(grid, cell.n):
+            sys.exit(f"ABORT {cell.id}: no final-step checkpoint ({last})")
+        with open(out.with_name(out.name + "-eval_last.log"), "w") as fh:
+            ev = subprocess.run([sys.executable, "-m", "mighty_mouse.train",
+                                 "--output_dir", str(out), "--csv_file", train_csv,
+                                 "--datasets", cell.dataset, "--checkpoint", str(last),
+                                 "--eval_subdir", "eval_last", "--keep_checkpoints"],
+                                stdout=fh, stderr=subprocess.STDOUT).returncode
+        pred_last = out / "eval_last" / cell.dataset / "predictions.csv"
+        if ev != 0 or not pred_last.exists():
+            sys.exit(f"ABORT {cell.id}: last-checkpoint evaluation failed (exit {ev})")
     if arm.get("adapter") == "lora":
         chk = subprocess.run([sys.executable, "-c", LORA_CHECK, str(out)],
                              capture_output=True, text=True)
@@ -215,6 +235,11 @@ def main() -> None:
     result   = {"all_labelled": summarize(errs, labelled)}
     if cell.mask:
         result["hidden"] = summarize(errs, list(cell.mask))
+    if pred_last is not None:
+        errs_last = pixel_errors(pred_last, data / f"CollectedData_{cell.dataset}_test.csv")
+        result["last_checkpoint"] = {"all_labelled": summarize(errs_last, labelled)}
+        if cell.mask:
+            result["last_checkpoint"]["hidden"] = summarize(errs_last, list(cell.mask))
     info = {
         "cell": cell.id, "grid": grid.name, "config": str(args.config),
         "dataset": cell.dataset, "arm": cell.arm, "arm_settings": arm, "n_frames": cell.n,
@@ -230,6 +255,11 @@ def main() -> None:
     msg = f"DONE {cell.id}: all labelled {result['all_labelled']['mean_px']:.2f} px"
     if cell.mask:
         msg += f", hidden {result['hidden']['mean_px']:.2f} px"
+    if pred_last is not None:
+        r = result["last_checkpoint"]
+        msg += f"; last ckpt {r['all_labelled']['mean_px']:.2f} px"
+        if cell.mask:
+            msg += f", hidden {r['hidden']['mean_px']:.2f} px"
     print(msg)
 
 

@@ -46,7 +46,7 @@ def save(fig, path: Path, png: bool) -> None:
     print(f"wrote {path.with_suffix('.pdf')} (+ svg{' + png' if png else ''})")
 
 
-def curves(df: pd.DataFrame, grid, keypoints: str, out: Path, png: bool) -> None:
+def curves(df: pd.DataFrame, grid, keypoints: str, out: Path, png: bool, suffix: str) -> None:
     xs   = ["0"] + [str(n) for n in grid.n_frames]
     xpos = {x: i for i, x in enumerate(xs)}
     cur  = df[(df.kind != "masked") & (df.keypoints == keypoints)]
@@ -90,10 +90,10 @@ def curves(df: pd.DataFrame, grid, keypoints: str, out: Path, png: bool) -> None
     fig.suptitle(f"{grid.name}: adaptation to a held-out lab (x = training frames of that lab)",
                  y=1.01)
     fig.tight_layout()
-    save(fig, out / f"curves_{keypoints}", png)
+    save(fig, out / f"curves_{keypoints}{suffix}", png)
 
 
-def masked_bars(df: pd.DataFrame, grid, out: Path, png: bool) -> None:
+def masked_bars(df: pd.DataFrame, grid, out: Path, png: bool, suffix: str) -> None:
     m = df[(df.kind == "masked") & (df.keypoints == "hidden")]
     if m.empty:
         return
@@ -117,7 +117,7 @@ def masked_bars(df: pd.DataFrame, grid, out: Path, png: bool) -> None:
     ax.legend(fontsize=8, ncol=4, frameon=False)
     ax.grid(alpha=0.3, axis="y", which="both")
     fig.tight_layout()
-    save(fig, out / "masked", png)
+    save(fig, out / f"masked{suffix}", png)
 
 
 def main() -> None:
@@ -125,15 +125,21 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config",    required=True, type=Path)
     ap.add_argument("--keypoints", default="all", choices=["all", "supported", "new"])
+    ap.add_argument("--ckpt",      default="best", choices=["best", "last"],
+                    help="cells evaluated at the best-validation or the final-step checkpoint")
     ap.add_argument("--png",       action="store_true", help="also write PNG (only when asked)")
     args = ap.parse_args()
 
     grid = load_grid(args.config)
     out  = Path(load_paths()["results_dir"]) / grid.out_subdir / grid.name / "summary"
-    df   = pd.read_csv(out / "cells.csv", dtype={"n": str, "mask": str}, keep_default_na=False,
+    df   = pd.read_csv(out / "cells.csv", dtype={"n": str, "mask": str, "ckpt": str},
+                       keep_default_na=False,
                        na_values={"mean_px": [""], "median_px": [""]})
-    curves(df, grid, args.keypoints, out, args.png)
-    masked_bars(df, grid, out, args.png)
+    if "ckpt" in df.columns:
+        df = df[df.ckpt.isin([args.ckpt, ""])]
+    suffix = "" if args.ckpt == "best" else "_last"
+    curves(df, grid, args.keypoints, out, args.png, suffix)
+    masked_bars(df, grid, out, args.png, suffix)
 
 
 if __name__ == "__main__":

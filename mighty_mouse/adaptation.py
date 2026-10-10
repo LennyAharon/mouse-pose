@@ -74,6 +74,7 @@ class Grid:
     out_subdir:  str = "adaptation"
     keep_checkpoints: bool = False
     order:       list = field(default_factory=list)   # launch order of the N blocks and "masked"
+    eval_last:   bool = False   # also save the final-step checkpoint and evaluate it (eval_last/)
 
 
 def load_grid(path: str | Path) -> Grid:
@@ -91,6 +92,7 @@ def load_grid(path: str | Path) -> Grid:
         val_every=int(cfg.get("val_every", 250)), masked=cfg.get("masked") or {},
         dedicated=cfg.get("dedicated") or {}, out_subdir=cfg.get("out_subdir", "adaptation"),
         keep_checkpoints=bool(cfg.get("keep_checkpoints", False)),
+        eval_last=bool(cfg.get("eval_last", False)),
     )
     blocks = grid.n_frames + ([MASKED] if grid.masked.get("settings") else [])
     grid.order = list(cfg.get("order") or blocks)
@@ -270,6 +272,8 @@ def build_overrides(
           "training.unfreezing_step=1", f"training.val_check_interval={grid.val_every}",
           f"training.lr_scheduler_params.multisteplr.milestone_steps=[{steps // 2}]",
           "+training.epoch_repeat=100", "+training.num_workers=2"]
+    if grid.eval_last:   # a periodic checkpoint at the final step, evaluated besides the best one
+        ov.append(f"+training.ckpt_every_n_steps={steps}")
     if arm["init"] == INIT_TRUNK:
         if trunk is None:
             raise ValueError(f"arm {cell.arm} starts from a trunk but none was given")

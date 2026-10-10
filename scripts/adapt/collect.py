@@ -12,8 +12,9 @@ scored on its test frames (visible == 2 labels): `all` = every keypoint the data
 `labelled` reference (the anchored-LoRA curve cell at the same N and draw, scored on the hidden
 keypoints).
 
-Writes <results_dir>/<out_subdir>/<name>/summary/cells.csv (one row per model x keypoint set)
-and table.md (mean +- sd over draws of the pooled mean px).
+Writes <results_dir>/<out_subdir>/<name>/summary/cells.csv (one row per model x keypoint set x
+checkpoint: `best` = best validation loss, `last` = final step when the grid has eval_last; empty
+for the references) and table.md (mean +- sd over draws of the pooled mean px).
 """
 
 import argparse
@@ -39,6 +40,7 @@ from mighty_mouse.adaptation import (
 from mighty_mouse.paths import load_paths
 
 ANCHORED = "mm-anchored-lora"   # the curve arm whose cells are the masked `labelled` reference
+CKPTS    = (("eval", "best"), ("eval_last", "last"))   # evaluation folder -> checkpoint label
 
 
 def md_table(piv: pd.DataFrame) -> str:
@@ -79,8 +81,8 @@ def main() -> None:
     def test_csv(ds: str) -> Path:
         return data / f"CollectedData_{ds}_test.csv"
 
-    def eval_pred(run: Path, ds: str) -> Path:
-        return run / "eval" / ds / "predictions.csv"
+    def eval_pred(run: Path, ds: str, sub: str = "eval") -> Path:
+        return run / sub / ds / "predictions.csv"
 
     trunk_kps = {}
     for ds, spec in grid.datasets.items():
@@ -98,12 +100,13 @@ def main() -> None:
         pred = eval_pred(results / spec["trunk"], ds)
         if pred.exists():
             rows += [{"dataset": ds, "arm": "zero-shot", "n": 0, "draw": 0, "mask": "",
-                      "kind": "reference", **r} for r in score(pred, test_csv(ds), sets)]
+                      "kind": "reference", "ckpt": "", **r}
+                     for r in score(pred, test_csv(ds), sets)]
         for head, pattern in grid.dedicated.items():
             pred = eval_pred(results / pattern.format(ds=ds), ds)
             if pred.exists():
                 rows += [{"dataset": ds, "arm": f"dedicated-{head}", "n": ALL, "draw": 0,
-                          "mask": "", "kind": "reference", **r}
+                          "mask": "", "kind": "reference", "ckpt": "", **r}
                          for r in score(pred, test_csv(ds), sets)]
 
     # ── cells ──────────────────────────────────────────────────────────────────
@@ -115,9 +118,12 @@ def main() -> None:
             continue
         done += 1
         sets = keypoint_sets(c.dataset, inv, trunk_kps[c.dataset], c.mask)
-        rows += [{"dataset": c.dataset, "arm": c.arm, "n": c.n, "draw": c.draw,
-                  "mask": "+".join(c.mask), "kind": c.kind, **r}
-                 for r in score(pred, test_csv(c.dataset), sets)]
+        for sub, ckpt in CKPTS:   # best-validation checkpoint, and the final step if evaluated
+            pred = eval_pred(d, c.dataset, sub)
+            if pred.exists():
+                rows += [{"dataset": c.dataset, "arm": c.arm, "n": c.n, "draw": c.draw,
+                          "mask": "+".join(c.mask), "kind": c.kind, "ckpt": ckpt, **r}
+                         for r in score(pred, test_csv(c.dataset), sets)]
 
     # ── masked references: zero-shot, and the curve cell that saw the labels ──────
     m = grid.masked
@@ -127,15 +133,17 @@ def main() -> None:
             zs = eval_pred(results / grid.datasets[ds]["trunk"], ds)
             if zs.exists():
                 rows.append({"dataset": ds, "arm": "zero-shot", "n": 0, "draw": 0,
-                             "mask": "+".join(kps), "kind": "masked",
+                             "mask": "+".join(kps), "kind": "masked", "ckpt": "",
                              **score(zs, test_csv(ds), hidden)[0]})
             for n in m.get("n_frames", []):
                 for draw in m.get("draws", grid.draws):
                     ref = cell_dir(results, grid, Cell(ds, ANCHORED, n, draw))
-                    if (ref / ".done").exists() and eval_pred(ref, ds).exists():
-                        rows.append({"dataset": ds, "arm": "labelled", "n": n, "draw": draw,
-                                     "mask": "+".join(kps), "kind": "masked",
-                                     **score(eval_pred(ref, ds), test_csv(ds), hidden)[0]})
+                    for sub, ckpt in CKPTS:
+                        p = eval_pred(ref, ds, sub)
+                        if (ref / ".done").exists() and p.exists():
+                            rows.append({"dataset": ds, "arm": "labelled", "n": n,
+                                         "draw": draw, "mask": "+".join(kps), "kind": "masked",
+                                         "ckpt": ckpt, **score(p, test_csv(ds), hidden)[0]})
 
     df = pd.DataFrame(rows)
     df.to_csv(out / "cells.csv", index=False)
@@ -144,8 +152,9 @@ def main() -> None:
     lines = [f"# {grid.name}: pooled mean px on the target's test frames (mean +- sd over draws)",
              "", f"{done} finished cells; config `{args.config}`.", ""]
     if len(df):
+        best = df[df.ckpt.isin(["best", ""])]
         for kset in ("all", "supported"):
-            sub = df[(df.kind != "masked") & (df.keypoints == kset)]
+            sub = best[(best.kind != "masked") & (best.keypoints == kset)]
             if sub.empty:
                 continue
             agg = sub.groupby(["dataset", "arm", "n"])["mean_px"].agg(["mean", "std"])
@@ -155,15 +164,17 @@ def main() -> None:
                                   aggfunc="first")
             piv = piv[[c for c in [0] + grid.n_frames if c in piv.columns]]
             lines += [f"## keypoints: {kset}", "", md_table(piv), ""]
-        m = df[(df.kind == "masked") & (df.keypoints == "hidden")]
-        if len(m):
+        for ckpt in ("best", "last"):
+            m = df[(df.kind == "masked") & (df.keypoints == "hidden") & df.ckpt.isin([ckpt, ""])]
+            if (m.ckpt == ckpt).sum() == 0:
+                continue
             agg = m.groupby(["dataset", "mask", "arm"])["mean_px"].agg(["mean", "std"])
             agg = agg.reset_index()
             agg["cell"] = agg.apply(mean_sd, axis=1)
             piv = agg.pivot_table(index=["dataset", "mask"], columns="arm", values="cell",
                                   aggfunc="first")
-            lines += ["## masked-label protocol: error on the hidden keypoints", "",
-                      md_table(piv), ""]
+            lines += [f"## masked-label protocol: error on the hidden keypoints ({ckpt} "
+                      "checkpoint)", "", md_table(piv), ""]
     (out / "table.md").write_text("\n".join(lines) + "\n")
     print(f"{done} finished cells, {len(df)} rows -> {out}/cells.csv, table.md")
 
