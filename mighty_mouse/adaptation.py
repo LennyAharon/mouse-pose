@@ -365,8 +365,9 @@ def keypoint_sets(
     """Keypoint sets scored for a target dataset.
 
     ``all`` = every keypoint the dataset labels (``direct``); ``supported`` = those the
-    leave-one-out trunk trained (comparable at N = 0); ``new`` = the rest; ``hidden`` = the
-    masked keypoints.
+    leave-one-out trunk trained (comparable at N = 0); ``new`` = the rest; for a masked cell,
+    ``hidden`` = the masked keypoints and ``shown`` = the labelled keypoints it trained on (all
+    minus hidden: did adaptation work on what the lab annotated?).
     """
     direct  = sorted(inventory[dataset]["direct"])
     trained = set(trunk_keypoints)
@@ -374,6 +375,7 @@ def keypoint_sets(
             "new": [k for k in direct if k not in trained]}
     if mask:
         sets["hidden"] = list(mask)
+        sets["shown"]  = [k for k in direct if k not in set(mask)]
     return sets
 
 

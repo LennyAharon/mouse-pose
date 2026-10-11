@@ -290,7 +290,8 @@ class TestKeypointSets:
                              ("pupil_center_left",))
         assert sets == {"all": ["nose_tip", "pupil_center_left", "tongue_end_left"],
                         "supported": ["nose_tip", "pupil_center_left"],
-                        "new": ["tongue_end_left"], "hidden": ["pupil_center_left"]}
+                        "new": ["tongue_end_left"], "hidden": ["pupil_center_left"],
+                        "shown": ["nose_tip", "tongue_end_left"]}
 
 
 class TestLogChecks:
