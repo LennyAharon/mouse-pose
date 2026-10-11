@@ -59,6 +59,9 @@ masked:
   n_frames: [10]
   draws: [0, 1, 2]
   arms: [mm-anchored-lora, mm-lora, mm-full-ft]
+  # a setting counts in the main bars only where zero-shot is good (user 2026-10-11): zero-shot error on
+  # the hidden keypoints <= usable_max_ratio x the best dedicated model's (all of the lab's labels)
+  usable_max_ratio: 2.5
   # Every keypoint here is labelled by the target AND trained by its trunk, and a hidden keypoint's
   # labelled _left/_right partner is hidden with it (the fine-tune's horizontal flip swaps a pair's
   # labels; plan.py checks all three). A setting is a keypoint list (run at n_frames above) or
@@ -78,7 +81,7 @@ masked:
       - [tongue_tip]
     kondo:         [[wrist_left, wrist_right], [lowerlip]]
     cheese-2d:     [[eye_back_left, eye_back_right], [wrist_left, wrist_right]]
-    facemap:       [[nose_tip], [pupil_center_left, pupil_center_right]]
+    facemap:       [[nose_tip]]   # pupils dropped 2026-10-11: zero-shot 9.1 px vs dedicated 1.5 (6x)
     kaufman:       [[ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right], [d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right], [nose_tip, nose_bottom]]
     cheese-3d:     [[pupil_center_left, pupil_center_right], [ear_top_left, ear_tip_left, ear_bottom_left, ear_base_left, ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right]]
     hantman-mv:

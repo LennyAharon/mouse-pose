@@ -9,9 +9,10 @@ Figures of an adaptation grid from collect.py's cells.csv (PDF + SVG; PNG only w
    the grid's N values and `all`), y = pooled mean px on the target's test frames (log scale),
    mean +- sd over draws; one line per curve arm (MM arms start at the zero-shot point);
    dedicated models as dashed horizontal lines.
-2. masked.pdf: masked-label protocol, one bar group per (dataset, hidden keypoints): zero-shot
-   trunk, each masked arm (e.g. MM + full fine-tuning, MM + LoRA, MM + anchored LoRA), and the
-   labelled reference (anchored LoRA that saw the labels), mean +- sd over draws.
+2. masked.pdf: masked-label protocol (only settings where zero-shot is good, see collect.py
+   settings.csv; --all_settings for every one), one bar group per (dataset, hidden keypoints):
+   zero-shot trunk, each masked arm (e.g. MM + full fine-tuning, MM + LoRA, MM + anchored LoRA),
+   and the labelled reference (anchored LoRA that saw the labels), mean +- sd over draws.
 """
 
 import argparse
@@ -93,8 +94,11 @@ def curves(df: pd.DataFrame, grid, keypoints: str, out: Path, png: bool, suffix:
     save(fig, out / f"curves_{keypoints}{suffix}", png)
 
 
-def masked_bars(df: pd.DataFrame, grid, out: Path, png: bool, suffix: str) -> None:
+def masked_bars(df: pd.DataFrame, grid, out: Path, png: bool, suffix: str,
+                all_settings: bool = False) -> None:
     m = df[(df.kind == "masked") & (df.keypoints == "hidden")]
+    if "usable" in m.columns and not all_settings:   # only settings where zero-shot is good
+        m = m[m["usable"].astype(str) == "True"]
     if m.empty:
         return
     order  = ["zero-shot"] + list(grid.masked["arms"])[::-1] + ["labelled"]
@@ -127,6 +131,8 @@ def main() -> None:
     ap.add_argument("--keypoints", default="all", choices=["all", "supported", "new"])
     ap.add_argument("--ckpt",      default="best", choices=["best", "last"],
                     help="cells evaluated at the best-validation or the final-step checkpoint")
+    ap.add_argument("--all_settings", action="store_true",
+                    help="masked bars for every setting, not only those where zero-shot is good")
     ap.add_argument("--png",       action="store_true", help="also write PNG (only when asked)")
     args = ap.parse_args()
 
@@ -139,7 +145,7 @@ def main() -> None:
         df = df[df.ckpt.isin([args.ckpt, ""])]
     suffix = "" if args.ckpt == "best" else "_last"
     curves(df, grid, args.keypoints, out, args.png, suffix)
-    masked_bars(df, grid, out, args.png, suffix)
+    masked_bars(df, grid, out, args.png, suffix, args.all_settings)
 
 
 if __name__ == "__main__":

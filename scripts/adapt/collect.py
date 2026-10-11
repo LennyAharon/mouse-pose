@@ -14,7 +14,9 @@ keypoints).
 
 Writes <results_dir>/<out_subdir>/<name>/summary/cells.csv (one row per model x keypoint set x
 checkpoint: `best` = best validation loss, `last` = final step when the grid has eval_last; empty
-for the references) and table.md (mean +- sd over draws of the pooled mean px).
+for the references; `usable` for masked rows), settings.csv (per masked setting: zero-shot and best
+dedicated error on the hidden keypoints, their ratio, usable = ratio <= masked.usable_max_ratio:
+the setting counts only where zero-shot is good) and table.md (mean +- sd over draws).
 """
 
 import argparse
@@ -145,7 +147,29 @@ def main() -> None:
                                      "draw": draw, "mask": "+".join(kps), "kind": "masked",
                                      "ckpt": ckpt, **score(p, test_csv(ds), hidden)[0]})
 
+    # ── which masked settings count: zero-shot must be good on the hidden keypoints ────────
+    # usable = zero-shot error <= masked.usable_max_ratio x the best dedicated model's error there
+    max_ratio, srows = float(m.get("usable_max_ratio", np.inf)), []
+    for ds, kps, _ in masked_settings(grid):
+        hidden = {"hidden": list(kps)}
+        zs  = eval_pred(results / grid.datasets[ds]["trunk"], ds)
+        ded = [eval_pred(results / pat.format(ds=ds), ds) for pat in grid.dedicated.values()]
+        zs_px  = score(zs, test_csv(ds), hidden)[0]["mean_px"] if zs.exists() else np.nan
+        ded_px = min((score(p, test_csv(ds), hidden)[0]["mean_px"] for p in ded if p.exists()),
+                     default=np.nan)
+        ratio  = zs_px / ded_px
+        srows.append({"dataset": ds, "mask": "+".join(kps), "zero_shot_px": zs_px,
+                      "dedicated_px": ded_px, "ratio": ratio,
+                      "usable": bool(ratio <= max_ratio) if np.isfinite(ratio) else False})
+    settings = pd.DataFrame(srows)
+    if len(settings):
+        settings.to_csv(out / "settings.csv", index=False)
+
     df = pd.DataFrame(rows)
+    if len(settings) and len(df):
+        ok = {(r.dataset, r.mask): r.usable for r in settings.itertuples()}
+        df["usable"] = [ok.get((d, mk), "") if k == "masked" else ""
+                        for d, mk, k in zip(df.dataset, df["mask"], df.kind, strict=True)]
     df.to_csv(out / "cells.csv", index=False)
 
     # ── markdown table: mean +- sd over draws ─────────────────────────────────
@@ -164,17 +188,28 @@ def main() -> None:
                                   aggfunc="first")
             piv = piv[[c for c in [0] + grid.n_frames if c in piv.columns]]
             lines += [f"## keypoints: {kset}", "", md_table(piv), ""]
-        for ckpt in ("best", "last"):
-            m = df[(df.kind == "masked") & (df.keypoints == "hidden") & df.ckpt.isin([ckpt, ""])]
-            if (m.ckpt == ckpt).sum() == 0:
+        if len(settings):
+            st = settings.copy()
+            for c in ("zero_shot_px", "dedicated_px", "ratio"):
+                st[c] = st[c].map(lambda v: f"{v:.1f}")
+            lines += [f"## masked settings: zero-shot vs dedicated on the hidden keypoints "
+                      f"(usable: ratio <= {max_ratio:g})", "",
+                      md_table(st.set_index(["dataset", "mask"])), ""]
+        for ckpt in ("last", "best"):
+            mk = df[(df.kind == "masked") & (df.keypoints == "hidden") & df.ckpt.isin([ckpt, ""])]
+            if (mk.ckpt == ckpt).sum() == 0:
                 continue
-            agg = m.groupby(["dataset", "mask", "arm"])["mean_px"].agg(["mean", "std"])
-            agg = agg.reset_index()
-            agg["cell"] = agg.apply(mean_sd, axis=1)
-            piv = agg.pivot_table(index=["dataset", "mask"], columns="arm", values="cell",
-                                  aggfunc="first")
-            lines += [f"## masked-label protocol: error on the hidden keypoints ({ckpt} "
-                      "checkpoint)", "", md_table(piv), ""]
+            for good, title in ((True, "zero-shot good"), (False, "zero-shot NOT good")):
+                sub = mk[mk["usable"] == good] if "usable" in mk.columns else mk
+                if sub.empty:
+                    continue
+                agg = sub.groupby(["dataset", "mask", "n", "arm"])["mean_px"].agg(["mean", "std"])
+                agg = agg.reset_index()
+                agg["cell"] = agg.apply(mean_sd, axis=1)
+                piv = agg.pivot_table(index=["dataset", "mask", "n"], columns="arm", values="cell",
+                                      aggfunc="first")
+                lines += [f"## masked-label protocol, {title}: error on the hidden keypoints "
+                          f"({ckpt} checkpoint)", "", md_table(piv), ""]
     (out / "table.md").write_text("\n".join(lines) + "\n")
     print(f"{done} finished cells, {len(df)} rows -> {out}/cells.csv, table.md")
 

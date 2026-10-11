@@ -190,8 +190,9 @@ def grid_sections(results: Path) -> tuple[list[str], list[tuple[datetime, str, s
                        if px and rc == "0" else f"FAILED (exit {rc})")
                 ds, arm, *rest = cid.split("__")
                 finished.append((t, cell_label(grid.name, ds, arm, rest), res))
-        failed = {c for c in failed if c not in done}
-        running = started - done - failed
+        ids     = {c.id for c in cells}   # cells dropped from the config keep their markers
+        failed  = {c for c in failed if c not in done and c in ids}
+        running = (started & ids) - done - failed
         state = "not running"
         if alive(q / "run_local.pid", "run_local.sh"):
             limit = (q / "max_gpu").read_text().strip() if (q / "max_gpu").exists() else "?"
