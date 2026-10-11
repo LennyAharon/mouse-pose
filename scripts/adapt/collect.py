@@ -32,6 +32,7 @@ from mighty_mouse.adaptation import (
     expand,
     keypoint_sets,
     load_grid,
+    masked_settings,
     pixel_errors,
     summarize,
     trained_keypoints,
@@ -127,23 +128,22 @@ def main() -> None:
 
     # ── masked references: zero-shot, and the curve cell that saw the labels ──────
     m = grid.masked
-    for ds, settings in (m.get("settings") or {}).items():
-        for kps in settings:
-            hidden = {"hidden": list(kps)}
-            zs = eval_pred(results / grid.datasets[ds]["trunk"], ds)
-            if zs.exists():
-                rows.append({"dataset": ds, "arm": "zero-shot", "n": 0, "draw": 0,
-                             "mask": "+".join(kps), "kind": "masked", "ckpt": "",
-                             **score(zs, test_csv(ds), hidden)[0]})
-            for n in m.get("n_frames", []):
-                for draw in m.get("draws", grid.draws):
-                    ref = cell_dir(results, grid, Cell(ds, ANCHORED, n, draw))
-                    for sub, ckpt in CKPTS:
-                        p = eval_pred(ref, ds, sub)
-                        if (ref / ".done").exists() and p.exists():
-                            rows.append({"dataset": ds, "arm": "labelled", "n": n,
-                                         "draw": draw, "mask": "+".join(kps), "kind": "masked",
-                                         "ckpt": ckpt, **score(p, test_csv(ds), hidden)[0]})
+    for ds, kps, ns in masked_settings(grid):
+        hidden = {"hidden": list(kps)}
+        zs = eval_pred(results / grid.datasets[ds]["trunk"], ds)
+        if zs.exists():
+            rows.append({"dataset": ds, "arm": "zero-shot", "n": 0, "draw": 0,
+                         "mask": "+".join(kps), "kind": "masked", "ckpt": "",
+                         **score(zs, test_csv(ds), hidden)[0]})
+        for n in ns:
+            for draw in m.get("draws", grid.draws):
+                ref = cell_dir(results, grid, Cell(ds, ANCHORED, n, draw))
+                for sub, ckpt in CKPTS:
+                    p = eval_pred(ref, ds, sub)
+                    if (ref / ".done").exists() and p.exists():
+                        rows.append({"dataset": ds, "arm": "labelled", "n": n,
+                                     "draw": draw, "mask": "+".join(kps), "kind": "masked",
+                                     "ckpt": ckpt, **score(p, test_csv(ds), hidden)[0]})
 
     df = pd.DataFrame(rows)
     df.to_csv(out / "cells.csv", index=False)

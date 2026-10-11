@@ -28,7 +28,9 @@ from mighty_mouse.adaptation import (
     best_checkpoint,
     cell_dir,
     expand,
+    flip_partner,
     load_grid,
+    masked_settings,
     trained_keypoints,
     trunk_datasets,
     trunk_problem,
@@ -78,21 +80,25 @@ def main() -> None:
             if not (results / pattern.format(ds=ds) / "eval" / ds / "predictions.csv").exists():
                 missing_ded.append(f"{ds} ({head})")
 
-    # a masked setting must hide keypoints the target labels and its trunk trains
-    bad_masks = []
-    for ds, settings in (grid.masked.get("settings") or {}).items():
-        trained = None
-        if trunk_ok[ds]:
+    # a masked setting must hide keypoints the target labels and its trunk trains, and hide their
+    # labelled _left/_right partners too: the horizontal flip (imgaug_hflip) swaps a pair's labels,
+    # so a hidden keypoint whose partner stays labelled is shown to the model on flipped frames
+    bad_masks, trained = [], {}
+    for ds, kps, _ in masked_settings(grid):
+        if ds not in trained and trunk_ok[ds]:
             t = results / grid.datasets[ds]["trunk"]
-            trained = trained_keypoints(trunk_datasets(t, yaml.safe_load(
+            trained[ds] = trained_keypoints(trunk_datasets(t, yaml.safe_load(
                 (t / "config.yaml").read_text())), inv)
-        for kps in settings:
-            unlabelled = [k for k in kps if k not in inv[ds]["direct"]]
-            untrained  = [k for k in kps if trained is not None and k not in trained]
-            if unlabelled:
-                bad_masks.append(f"{ds} {kps}: {unlabelled} not labelled by {ds}")
-            if untrained:
-                bad_masks.append(f"{ds} {kps}: {untrained} not trained by its trunk")
+        unlabelled = [k for k in kps if k not in inv[ds]["direct"]]
+        untrained  = [k for k in kps if ds in trained and k not in trained[ds]]
+        leaks      = [flip_partner(k) for k in kps if flip_partner(k) in inv[ds]["direct"]
+                      and flip_partner(k) not in kps]
+        if unlabelled:
+            bad_masks.append(f"{ds} {list(kps)}: {unlabelled} not labelled by {ds}")
+        if untrained:
+            bad_masks.append(f"{ds} {list(kps)}: {untrained} not trained by its trunk")
+        if leaks:
+            bad_masks.append(f"{ds} {list(kps)}: flip partner(s) {leaks} stay labelled")
 
     done, runnable, blocked = [], [], []
     for c in cells:

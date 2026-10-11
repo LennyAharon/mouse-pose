@@ -13,11 +13,13 @@ from mighty_mouse.adaptation import (
     build_overrides,
     cell_dir,
     expand,
+    flip_partner,
     hide_keypoints,
     keypoint_sets,
     load_grid,
     log_checks,
     masked_csv_name,
+    masked_settings,
     pixel_errors,
     steps_for,
     summarize,
@@ -108,6 +110,31 @@ class TestExpand:
     def test_expand_ids_unique(self, grid):
         ids = [c.id for c in expand(grid)]
         assert len(ids) == len(set(ids))
+
+
+class TestMaskedSettings:
+    """Test the function masked_settings (and expand with per-setting frame counts)."""
+
+    def test_masked_settings_dict_entry(self, tmp_path: Path):
+        settings = {"ibl": [{"keypoints": ["pupil_center_left"], "n_frames": [10, 50]},
+                            ["wrist_left", "wrist_right"]]}
+        p = tmp_path / "m.yaml"
+        p.write_text(yaml.safe_dump({**GRID, "masked": {**GRID["masked"], "settings": settings}}))
+        g = load_grid(p)
+        assert masked_settings(g) == [("ibl", ("pupil_center_left",), [10, 50]),
+                                      ("ibl", ("wrist_left", "wrist_right"), [10])]
+        masked = [c for c in expand(g) if c.kind == "masked"]
+        assert len(masked) == (2 + 1) * 2 * 2   # (N values) x arms x draws
+        assert {c.n for c in masked if c.mask == ("pupil_center_left",)} == {10, 50}
+
+
+class TestFlipPartner:
+    """Test the function flip_partner."""
+
+    def test_flip_partner(self):
+        assert flip_partner("pupil_center_left") == "pupil_center_right"
+        assert flip_partner("wrist_right") == "wrist_left"
+        assert flip_partner("nose_tip") is None
 
 
 class TestCellDir:

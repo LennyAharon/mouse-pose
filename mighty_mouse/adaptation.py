@@ -136,15 +136,38 @@ def expand(grid: Grid) -> list[Cell]:
                 cells += [Cell(ds, arm, n, d) for d in draws]
         blocks[str(n)] = cells
     m, masked = grid.masked, []
-    for ds, settings in (m.get("settings") or {}).items():
-        for kps in settings:
-            for n in m.get("n_frames", []):
-                for arm in m.get("arms", []):
-                    for d in ([0] if n == ALL else m.get("draws", grid.draws)):
-                        masked.append(Cell(ds, arm, n, d, tuple(kps), "masked"))
+    for ds, kps, ns in masked_settings(grid):
+        for n in ns:
+            for arm in m.get("arms", []):
+                for d in ([0] if n == ALL else m.get("draws", grid.draws)):
+                    masked.append(Cell(ds, arm, n, d, kps, "masked"))
     blocks[MASKED] = masked
     order = grid.order or grid.n_frames + [MASKED]
     return [c for b in order for c in blocks[str(b)]]
+
+
+def masked_settings(grid: Grid) -> list[tuple[str, tuple[str, ...], list]]:
+    """(dataset, hidden keypoints, frame counts) of every masked setting.
+
+    A setting is a list of keypoints (run at ``masked.n_frames``) or
+    ``{keypoints: [...], n_frames: [...]}`` for its own frame counts.
+    """
+    m, out = grid.masked, []
+    for ds, settings in (m.get("settings") or {}).items():
+        for st in settings:
+            if isinstance(st, dict):
+                out.append((ds, tuple(st["keypoints"]), list(st.get("n_frames", m["n_frames"]))))
+            else:
+                out.append((ds, tuple(st), list(m.get("n_frames", []))))
+    return out
+
+
+def flip_partner(keypoint: str) -> str | None:
+    """The _left/_right partner a horizontal flip swaps a keypoint with, or None."""
+    for a, b in (("_left", "_right"), ("_right", "_left")):
+        if keypoint.endswith(a):
+            return keypoint[: -len(a)] + b
+    return None
 
 
 def cell_dir(results_dir: Path, grid: Grid, cell: Cell) -> Path:

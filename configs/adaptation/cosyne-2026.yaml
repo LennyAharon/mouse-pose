@@ -59,12 +59,29 @@ masked:
   n_frames: [10]
   draws: [0, 1, 2]
   arms: [mm-anchored-lora, mm-lora, mm-full-ft]
-  settings:                       # every keypoint here is labelled by the target AND trained by its trunk
-    ibl:           [[pupil_center_left], [wrist_left, wrist_right]]
-    cazettes-side: [[pupil_center_left], [wrist_left, wrist_right], [tongue_tip]]
+  # Every keypoint here is labelled by the target AND trained by its trunk, and a hidden keypoint's
+  # labelled _left/_right partner is hidden with it (the fine-tune's horizontal flip swaps a pair's
+  # labels; plan.py checks all three). A setting is a keypoint list (run at n_frames above) or
+  # {keypoints: [...], n_frames: [...]}.
+  # 2026-10-11 (user: "we need places where zero shot is good"): + ibl nose, facemap pupils, cheese-2d
+  # wrists, hantman-mv nose, kaufman nose (zero-shot median 2-8 px); N = 50 too for three settings with
+  # a good zero-shot model; cheese-3d pupil now hides both pupils (left only leaked through the flip;
+  # its left-only cells stay on disk, outside the grid).
+  settings:
+    ibl:
+      - {keypoints: [pupil_center_left], n_frames: [10, 50]}
+      - [wrist_left, wrist_right]
+      - [nose_tip]
+    cazettes-side:
+      - {keypoints: [pupil_center_left], n_frames: [10, 50]}
+      - [wrist_left, wrist_right]
+      - [tongue_tip]
     kondo:         [[wrist_left, wrist_right], [lowerlip]]
-    cheese-2d:     [[eye_back_left, eye_back_right]]
-    facemap:       [[nose_tip]]
-    kaufman:       [[ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right], [d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right]]
-    cheese-3d:     [[pupil_center_left], [ear_top_left, ear_tip_left, ear_bottom_left, ear_base_left, ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right]]
-    hantman-mv:    [[wrist_right], [eye_back_right, eye_bottom_right, eye_front_right, eye_top_right]]
+    cheese-2d:     [[eye_back_left, eye_back_right], [wrist_left, wrist_right]]
+    facemap:       [[nose_tip], [pupil_center_left, pupil_center_right]]
+    kaufman:       [[ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right], [d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right], [nose_tip, nose_bottom]]
+    cheese-3d:     [[pupil_center_left, pupil_center_right], [ear_top_left, ear_tip_left, ear_bottom_left, ear_base_left, ear_top_right, ear_tip_right, ear_bottom_right, ear_base_right]]
+    hantman-mv:
+      - [wrist_right]
+      - {keypoints: [eye_back_right, eye_bottom_right, eye_front_right, eye_top_right], n_frames: [10, 50]}
+      - [nose_tip, nose_bottom]
