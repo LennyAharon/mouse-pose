@@ -46,6 +46,7 @@ writes both (`ckpt` column), `plot.py --ckpt last` plots it.
 | `scripts/adapt/run_local.sh` | queue on this machine: re-plans before each launch (blocked cells join once their trunk finishes), max GPU jobs, STOP file, restart-safe |
 | `scripts/adapt/slurm_array.sbatch` | the same cells as a SLURM array (ACCESS) |
 | `scripts/adapt/collect.py` | `summary/cells.csv` + `summary/table.md` (cells + zero-shot + dedicated + masked references) |
+| `scripts/adapt/figure_paper.py` | the paper's Figure 3a style (one row per dataset, x = annotated frames, chosen arms + dedicated line) in two metrics: pooled mean and the paper's 50 %-ensemble-std operating point (`summary/paper_<keypoints>_{pooled,ens50}.pdf`, numbers in `paper_<keypoints>.csv`) |
 | `scripts/adapt/plot.py` | `summary/curves_<keypoints>.{pdf,svg}`, `summary/masked.{pdf,svg}` (`--png` only when asked) |
 
 Cells land in `<results_dir>/adaptation/<name>/<dataset>/<arm>/[mask-<kps>/]tf<N>-draw<d>/`, each
