@@ -3,11 +3,13 @@
 #   source scripts/gpu_slots.sh
 #   g=$(pick_gpu "$GPUS" "$PER_GPU")      # least-loaded GPU in the list with load < PER_GPU, or empty
 #   ( CUDA_VISIBLE_DEVICES=$g <job> ) &
-#   claim_gpu "$g" $!                      # count the job on that GPU until it shows in nvidia-smi
+#   claim_gpu "$g" $!                      # count the job on that GPU while it lives
 #
-# Load of a GPU = its compute processes (nvidia-smi) + launch claims younger than 180 s whose pid is alive.
-# Claims live in $GPU_CLAIMS (default /tmp/mm_gpu_claims: per machine, shared by every queue), so two
-# queues placing jobs on the same GPUs at the same moment cannot overfill one.
+# Load of a GPU = max(its compute processes in nvidia-smi, live claims on it). A claim lasts as long
+# as its job's pid (the whole job: a cell's training, evaluations and checks run one after another, and
+# between two of them no process is on the GPU, so nvidia-smi alone would show a free slot -- that let a
+# 4th job onto a GPU and ran it out of memory, 2026-10-11). Claims live in $GPU_CLAIMS (default
+# /tmp/mm_gpu_claims: per machine, shared by every queue); the max also counts unclaimed GPU users.
 GPU_CLAIMS="${GPU_CLAIMS:-/tmp/mm_gpu_claims}"
 mkdir -p "$GPU_CLAIMS"
 
@@ -20,13 +22,9 @@ gpu_load() {  # <gpu index> -> number of jobs on it
   for f in "$GPU_CLAIMS"/"$g".*; do
     [ -e "$f" ] || continue
     pid="${f##*.}"
-    if kill -0 "$pid" 2>/dev/null && [ $(( $(date +%s) - $(stat -c %Y "$f") )) -lt 180 ]; then
-      claims=$((claims + 1))
-    else
-      rm -f "$f"
-    fi
+    if kill -0 "$pid" 2>/dev/null; then claims=$((claims + 1)); else rm -f "$f"; fi
   done
-  echo $((procs + claims))
+  echo $(( procs > claims ? procs : claims ))
 }
 
 pick_gpu() {  # "<gpu list>" <per-GPU limit> -> least-loaded GPU with load < limit, or empty

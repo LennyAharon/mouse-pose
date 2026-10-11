@@ -23,6 +23,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -173,7 +174,8 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         stamp = datetime.now(timezone.utc).strftime("%m%d%H%M%S")
-        out.rename(out.with_name(f"{out.name}.partial-{stamp}"))
+        # shutil.move: /teamspace refuses directory renames (EXDEV), so copy + delete
+        shutil.move(str(out), str(out.with_name(f"{out.name}.partial-{stamp}")))
     log = out.with_name(out.name + ".log")
     started = now()
     print(f"=== {cell.id}: training -> {out}")
