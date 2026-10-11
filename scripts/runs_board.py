@@ -178,8 +178,11 @@ def grid_sections(results: Path) -> tuple[list[str], list[tuple[datetime, str, s
         started = {p.name.removeprefix("started_") for p in q.glob("started_*")}
         done    = {c.id for c in cells if (cell_dir(results, grid, c) / ".done").exists()}
         log     = log_lines(q / "queue.log")
-        failed  = {}
+        failed  = {}   # cells whose latest event is a failed end (a later start = requeued)
         for t, msg in log:
+            st = re.match(r"start (\S+)", msg)
+            if st:
+                failed.pop(st.group(1), None)
             m = re.match(r"end (\S+) \(exit (\d+)\): ?(.*)", msg)
             if m:
                 cid, rc, tail = m.groups()
@@ -191,7 +194,7 @@ def grid_sections(results: Path) -> tuple[list[str], list[tuple[datetime, str, s
                 ds, arm, *rest = cid.split("__")
                 finished.append((t, cell_label(grid.name, ds, arm, rest), res))
         ids     = {c.id for c in cells}   # cells dropped from the config keep their markers
-        failed  = {c for c in failed if c not in done and c in ids}
+        failed  = {c for c in failed if c not in done and c in ids and c in started}
         running = (started & ids) - done - failed
         state = "not running"
         if alive(q / "run_local.pid", "run_local.sh"):
