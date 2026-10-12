@@ -10,7 +10,7 @@ Run one adaptation cell end to end: train, check, evaluate on the target dataset
 Steps: (masked cells) write the masked training csv into data_dir if missing; resolve the arm
 (trunk checkpoint, the trunk's head rebuilt from its config.yaml, anchored keypoints = everything
 the trunk trained; an experts trunk with model.head_groups needs PYTHONPATH pointing at a
-Lightning Pose that builds them, else ABORT); `litpose train configs/model.yaml` with the cell's
+Lightning Pose that builds them, else ABORT); `litpose train <arm config>` with the cell's
 overrides; check the log (weights loaded, anchor attached, LoRA rank, head); evaluate on the
 target dataset's test set only (`python -m mighty_mouse.train --datasets <ds>`; with the grid's
 `eval_last`, also the final-step checkpoint into eval_last/); for LoRA arms
@@ -35,6 +35,7 @@ import yaml
 
 from mighty_mouse.adaptation import (
     INIT_TRUNK,
+    base_config,
     best_checkpoint,
     build_overrides,
     cell_dir,
@@ -163,7 +164,7 @@ def main() -> None:
                          "build them (it would load the grouped weights into a plain head); run "
                          "with PYTHONPATH=<lightning-pose-wt-head-groups-fanin>")
     overrides = build_overrides(grid, cell, data, train_csv, trunk)
-    cmd = ["litpose", "train", "configs/model.yaml", "--output_dir", str(out),
+    cmd = ["litpose", "train", base_config(arm), "--output_dir", str(out),
            "--overrides", *overrides]
     if args.dry_run:
         print(" ".join(cmd))
@@ -208,7 +209,7 @@ def main() -> None:
             m = re.search(r"step=(\d+)", p.name)
             return int(m.group(1)) if m else -1
         last = max(out.rglob("*-periodic.ckpt"), key=step_of, default=None)
-        if last is None or step_of(last) != steps_for(grid, cell.n):
+        if last is None or step_of(last) != steps_for(grid, cell.n, arm):
             sys.exit(f"ABORT {cell.id}: no final-step checkpoint ({last})")
         with open(out.with_name(out.name + "-eval_last.log"), "w") as fh:
             ev = subprocess.run([sys.executable, "-m", "mighty_mouse.train",

@@ -17,6 +17,10 @@ Arms (``init`` x ``adapter`` x ``anchor``):
 - ``init: dinov3`` -- DINOv3 backbone + a new head (``head: linear`` or ``nonlinear``) trained
   from scratch on the N frames, every weight at ``lr``.
 
+Any arm may also set ``config`` (the Lightning Pose config it trains from, default
+``configs/model.yaml``; e.g. ``configs/model_zoominout.yaml`` for the recipe's augmentation),
+``steps`` ({few, all}, overriding the grid's) and ``overrides`` (extra Lightning Pose overrides).
+
 Scripts: ``scripts/adapt/{plan,run_cell,collect,plot}.py``; skill: ``skills/adaptation-curves/``.
 """
 
@@ -33,6 +37,7 @@ import yaml
 
 ALL = "all"
 MASKED = "masked"
+DEFAULT_CONFIG = "configs/model.yaml"
 INIT_TRUNK, INIT_DINO = "trunk", "dinov3"
 
 
@@ -178,9 +183,16 @@ def cell_dir(results_dir: Path, grid: Grid, cell: Cell) -> Path:
     return d / f"tf{cell.n}-draw{cell.draw}"
 
 
-def steps_for(grid: Grid, n: int | str) -> int:
-    """Training steps of a cell: ``steps.all`` for all frames, else ``steps.few``."""
-    return grid.steps[ALL] if n == ALL else grid.steps["few"]
+def steps_for(grid: Grid, n: int | str, arm: dict | None = None) -> int:
+    """Training steps of a cell: ``steps.all`` for all frames, else ``steps.few``; an arm's own
+    ``steps`` ({few, all}) overrides the grid's."""
+    steps = {**grid.steps, **((arm or {}).get("steps") or {})}
+    return int(steps[ALL] if n == ALL else steps["few"])
+
+
+def base_config(arm: dict) -> str:
+    """Lightning Pose config an arm trains from (default the plain fine-tune config)."""
+    return arm.get("config", DEFAULT_CONFIG)
 
 
 def masked_csv_name(dataset: str, mask: tuple[str, ...]) -> str:
@@ -269,7 +281,7 @@ def build_overrides(
     train_csv: str,
     trunk: dict | None,
 ) -> list[str]:
-    """Lightning Pose overrides (for ``litpose train configs/model.yaml``) of one cell.
+    """Lightning Pose overrides (for ``litpose train <base_config(arm)>``) of one cell.
 
     Args:
         grid: the grid.
@@ -287,7 +299,7 @@ def build_overrides(
         ValueError: if a trunk arm gets no trunk, or an override contains a space.
     """
     arm   = grid.arms[cell.arm]
-    steps = steps_for(grid, cell.n)
+    steps = steps_for(grid, cell.n, arm)
     ov = [f"data.data_dir={data_dir}", f"data.csv_file={train_csv}", "model.losses_to_use=[]",
           f"training.train_frames={1 if cell.n == ALL else int(cell.n)}",
           f"training.rng_seed_data_pt={cell.draw}",
@@ -321,6 +333,7 @@ def build_overrides(
         if arm.get("head") == "nonlinear":
             width = int(arm.get("head_hidden_channels", 256))
             ov.append(f"+model.head_hidden_channels={width}")
+    ov += list(arm.get("overrides") or [])   # arm-specific extra Lightning Pose overrides
     if any(" " in o for o in ov):
         raise ValueError(f"an override contains a space: {[o for o in ov if ' ' in o]}")
     return ov

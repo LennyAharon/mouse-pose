@@ -10,6 +10,7 @@ import yaml
 from mighty_mouse.adaptation import (
     ALL,
     Cell,
+    base_config,
     build_overrides,
     cell_dir,
     expand,
@@ -157,6 +158,19 @@ class TestStepsFor:
     def test_steps_for(self, grid):
         assert steps_for(grid, ALL) == 6000 and steps_for(grid, 25) == 2000
 
+    def test_steps_for_arm_override(self, grid):
+        arm = {"steps": {"few": 4000}}
+        assert steps_for(grid, 10, arm) == 4000 and steps_for(grid, ALL, arm) == 6000
+
+
+class TestBaseConfig:
+    """Test the function base_config."""
+
+    def test_base_config(self):
+        assert base_config({}) == "configs/model.yaml"
+        zoom = "configs/model_zoominout.yaml"
+        assert base_config({"config": zoom}) == zoom
+
 
 class TestBuildOverrides:
     """Test the function build_overrides."""
@@ -190,6 +204,14 @@ class TestBuildOverrides:
         assert "+model.checkpoint='/r/t.ckpt'" in ov and "+model.head_hidden_channels=256" in ov
         assert "training.optimizer_params.learning_rate=5e-05" in ov
         assert not any("lora" in o or "anchor" in o for o in ov)
+
+    def test_build_overrides_arm_steps_and_extra(self, grid):
+        grid.arms["mm"] = {**grid.arms["mm"], "steps": {"few": 4000},
+                           "overrides": ["training.optimizer_params.weight_decay=0.01"]}
+        ov = build_overrides(grid, Cell("ibl", "mm", 10, 0), Path("/d"), "x.csv", TRUNK)
+        assert "training.max_steps=4000" in ov
+        assert "training.lr_scheduler_params.multisteplr.milestone_steps=[2000]" in ov
+        assert ov[-1] == "training.optimizer_params.weight_decay=0.01"
 
     def test_build_overrides_all_frames(self, grid):
         ov = build_overrides(grid, Cell("ibl", "mm", ALL, 0), Path("/d"), "x.csv", TRUNK)
