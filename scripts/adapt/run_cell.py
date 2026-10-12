@@ -157,6 +157,9 @@ def main() -> None:
         trunk = {"checkpoint": str(ckpt), "backbone": tcfg["model"]["backbone"],
                  "head_overrides": trunk_head_overrides(tcfg),
                  "keypoints": trained_keypoints(trunk_datasets(trunk_dir, tcfg), inv)}
+        # the video anchor's channels: what the trunk knows and the target does not label
+        trunk["video_keypoints"] = [k for k in trunk["keypoints"]
+                                    if k not in set(inv[cell.dataset]["direct"])]
         if any("head_groups" in o for o in trunk["head_overrides"]):   # an experts trunk
             probe = "from lightning_pose.models.factory import resolve_head_groups"
             if subprocess.run([sys.executable, "-c", probe], capture_output=True).returncode:

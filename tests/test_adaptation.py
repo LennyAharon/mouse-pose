@@ -215,11 +215,25 @@ class TestBuildOverrides:
 
     def test_build_overrides_video(self, grid):
         grid.arms["vid"] = {**grid.arms["mm"], "video": True, "video_weight": 0.5}
-        ov = build_overrides(grid, Cell("ibl", "vid", 10, 0), Path("/d"), "x.csv", TRUNK,
+        trunk = {**TRUNK, "video_keypoints": ["ear_top_left"]}
+        ov = build_overrides(grid, Cell("ibl", "vid", 10, 0), Path("/d"), "x.csv", trunk,
                              Path("/d/videos_unlabelled/ibl"))
         assert "model.losses_to_use=[anchor_video]" in ov and "model.losses_to_use=[]" not in ov
         assert "data.video_dir=/d/videos_unlabelled/ibl" in ov
         assert "+model.anchor.video_weight=0.5" in ov
+        assert "+model.anchor.video_keypoints=['ear_top_left']" in ov
+
+    def test_build_overrides_video_all_channels(self, grid):
+        grid.arms["vid"] = {**grid.arms["mm"], "video": True, "video_keypoints": "all"}
+        ov = build_overrides(grid, Cell("ibl", "vid", 10, 0), Path("/d"), "x.csv", TRUNK,
+                             Path("/d/v"))
+        assert not any("video_keypoints" in o for o in ov)
+
+    def test_build_overrides_video_no_unlabelled_keypoints_raises(self, grid):
+        grid.arms["vid"] = {**grid.arms["mm"], "video": True}
+        with pytest.raises(ValueError, match="no keypoints left"):
+            build_overrides(grid, Cell("ibl", "vid", 10, 0), Path("/d"), "x.csv",
+                            {**TRUNK, "video_keypoints": []}, Path("/d/v"))
         with pytest.raises(ValueError, match="video needs"):
             build_overrides(grid, Cell("ibl", "vid", 10, 0), Path("/d"), "x.csv", TRUNK)
 
@@ -373,7 +387,12 @@ class TestLogChecks:
         log = ("loading weights from x\nanchor: frozen teacher attached\n"
                "LoRA: wrapped 72 linear layers (rank 64, alpha 128)")
         assert log_checks(arm, log) == ["video anchor not applied"]
-        assert log_checks(arm, log + "\nanchor loss on unlabeled video: weight 1") == []
+        assert log_checks(arm, log + "\nanchor loss on unlabeled video: weight 1") == [
+            "video anchor not restricted to the unlabelled keypoints"]
+        ok = log + "\nanchor loss on unlabeled video: weight 1, 38 keypoints"
+        assert log_checks(arm, ok) == []
+        assert log_checks({**arm, "video_keypoints": "all"},
+                          log + "\nanchor loss on unlabeled video: weight 1") == []
 
     def test_log_checks_dino(self):
         assert log_checks({"init": "dinov3", "head": "nonlinear"}, "LoRA: wrapped 72") == [

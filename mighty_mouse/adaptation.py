@@ -296,7 +296,9 @@ def build_overrides(
             ``anchor``).
         video_dir: the target lab's unlabelled video folder, for arms with ``video: true`` (the
             anchor is also applied to unlabelled video frames: Lightning Pose's anchor_video loss,
-            weight ``video_weight``, default the anchor weight).
+            weight ``video_weight``, default the anchor weight; by default only on the channels the
+            target does not label, ``trunk["video_keypoints"]``; ``video_keypoints: all`` for every
+            anchored channel).
 
     Returns:
         override strings, one per argv element (none contains a space).
@@ -349,6 +351,13 @@ def build_overrides(
                f"dali.base.train.sequence_length={int(arm.get('video_sequence_length', 16))}"]
         if "video_weight" in arm:
             ov.append(f"+model.anchor.video_weight={arm['video_weight']}")
+        if arm.get("video_keypoints", "unlabelled") == "unlabelled":
+            # anchor on video only the channels the target does not label: the labelled ones are
+            # adapted from its frames and must not be pulled back to the trunk on every video frame
+            vk = list(trunk.get("video_keypoints") or [])
+            if not vk:
+                raise ValueError(f"arm {cell.arm}: no keypoints left for the video anchor")
+            ov.append("+model.anchor.video_keypoints=[" + ",".join(f"'{k}'" for k in vk) + "]")
     ov += list(arm.get("overrides") or [])   # arm-specific extra Lightning Pose overrides
     if any(" " in o for o in ov):
         raise ValueError(f"an override contains a space: {[o for o in ov if ' ' in o]}")
@@ -372,6 +381,9 @@ def log_checks(arm: dict, log_text: str) -> list[str]:
         problems.append("nonlinear head not built")
     if arm.get("video") and "anchor loss on unlabeled video" not in log_text:
         problems.append("video anchor not applied")
+    elif (arm.get("video") and arm.get("video_keypoints", "unlabelled") == "unlabelled"
+          and not re.search(r"on unlabeled video: weight \S+, \d+ keypoints", log_text)):
+        problems.append("video anchor not restricted to the unlabelled keypoints")
     return problems
 
 

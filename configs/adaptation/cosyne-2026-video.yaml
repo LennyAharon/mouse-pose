@@ -15,9 +15,14 @@ steps: {few: 2000, all: 6000}
 val_every: 250
 
 arms:
-  aLoRA-video: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
-                anchor_weight: 1.0, anchor_conf_power: 1, video: true}
-curve_arms: [aLoRA-video]
+  # first version (2026-10-12 4:45 pm EDT, 3+ cells): anchored EVERY trunk channel on video, also the ones the lab
+  # labels, which pulled them back to the zero-shot trunk on every video frame -> stopped; kept for reference
+  aLoRA-video:     {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                    anchor_weight: 1.0, anchor_conf_power: 1, video: true, video_keypoints: all}
+  # fixed (user 2026-10-12, LP 330bb06): video anchor only on the keypoints the lab does NOT label
+  aLoRA-video-unl: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                    anchor_weight: 1.0, anchor_conf_power: 1, video: true}
+curve_arms: [aLoRA-video-unl]
 
 datasets:
   ibl:       {trunk: experiments/E6c-LOO-ibl-headmlp256/face+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0,
