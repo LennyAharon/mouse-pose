@@ -47,6 +47,8 @@ writes both (`ckpt` column), `plot.py --ckpt last` plots it.
 | `scripts/adapt/slurm_array.sbatch` | the same cells as a SLURM array (ACCESS) |
 | `scripts/adapt/collect.py` | `summary/cells.csv` + `summary/table.md` (cells + zero-shot + dedicated + masked references) |
 | `scripts/adapt/figure_paper.py` | the paper's Figure 3a style (one row per dataset, x = annotated frames, chosen arms + dedicated line) in two metrics: pooled mean and the paper's 50 %-ensemble-std operating point (`summary/paper_<keypoints>_{pooled,ens50}.pdf`, numbers in `paper_<keypoints>.csv`) |
+| `scripts/adapt/figure_keypoints.py` | per supported keypoint: one dot plot per dataset (zero-shot, dedicated, MM arm and DINO at the smallest/largest N; `summary/keypoints/<dataset>.pdf`) and the scatter of zero-shot quality vs Mighty Mouse's head start over DINO (`gain_scatter.pdf`) |
+| `scripts/adapt/keypoint_table.py` | per-keypoint zero-shot table (good / poor / failed / new vs the dedicated model; `summary/zero_shot_keypoints.md`) |
 | `scripts/adapt/plot.py` | `summary/curves_<keypoints>.{pdf,svg}`, `summary/masked.{pdf,svg}` (`--png` only when asked) |
 
 Cells land in `<results_dir>/adaptation/<name>/<dataset>/<arm>/[mask-<kps>/]tf<N>-draw<d>/`, each
