@@ -127,7 +127,7 @@ def masked_bars(df: pd.DataFrame, grid, out: Path, png: bool, suffix: str,
         groups = list(mn[mn.n == n].groupby(["dataset", "mask"]).groups)
         if not groups:
             continue
-        fig, ax = plt.subplots(figsize=(max(6, 0.95 * len(groups) + 2), 3.8))
+        fig, ax = plt.subplots(figsize=(max(9, 0.95 * len(groups) + 2), 3.8))
         w = 0.8 / len(order)
         for j, arm in enumerate(order):
             vals = [mn[(mn.dataset == ds) & (mn["mask"] == mk) & (mn.arm == arm)]["mean_px"]
