@@ -1,0 +1,34 @@
+# Unlabelled-video batch (user 2026-10-12, priority 2: "very important"): MM + anchored LoRA as in cosyne-2026
+# (rank 64, adapters 2e-4, head 5e-4, 2000 steps) PLUS the same anchor on the target lab's unlabelled video
+# (Lightning Pose anchor_video: the frozen trunk distilled into every eligible channel of unlabelled frames).
+# Same trunks, frames and draws as cosyne-2026 -> paired with its anchored cells. Videos: TRAINING or unlabelled
+# sessions only (data_dir/videos_unlabelled/README.md); labs whose usable video matches the labelled frames.
+
+name: cosyne-2026-video
+out_subdir: adaptation
+keep_checkpoints: false
+eval_last: true
+
+n_frames: [10, 25]
+draws: [0, 1, 2]
+steps: {few: 2000, all: 6000}
+val_every: 250
+
+arms:
+  aLoRA-video: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                anchor_weight: 1.0, anchor_conf_power: 1, video: true}
+curve_arms: [aLoRA-video]
+
+datasets:
+  ibl:       {trunk: experiments/E6c-LOO-ibl-headmlp256/face+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0,
+              video_dir: videos_unlabelled/ibl}
+  kaufman:   {trunk: experiments/E6a-LOO-kaufman-headmlp256/face+ibl+cheese+caz+kondo+hmv+c3d_train/supervised/sampling-T2/tf1/vits_dinov3/seed0,
+              video_dir: videos_unlabelled/kaufman}
+  cheese-2d: {trunk: experiments/E13-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0,
+              video_dir: videos_unlabelled/cheese-2d}
+  cheese-3d: {trunk: experiments/E13-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0,
+              video_dir: videos_unlabelled/cheese-3d}
+
+dedicated:
+  linear:    dedicated/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
+  nonlinear: dedicated-headmlp256/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0

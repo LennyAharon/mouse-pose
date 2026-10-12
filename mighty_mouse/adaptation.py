@@ -19,7 +19,9 @@ Arms (``init`` x ``adapter`` x ``anchor``):
 
 Any arm may also set ``config`` (the Lightning Pose config it trains from, default
 ``configs/model.yaml``; e.g. ``configs/model_zoominout.yaml`` for the recipe's augmentation),
-``steps`` ({few, all}, overriding the grid's) and ``overrides`` (extra Lightning Pose overrides).
+``steps`` ({few, all}, overriding the grid's) and ``overrides`` (extra Lightning Pose overrides);
+a trunk arm with ``anchor`` may set ``video: true`` to anchor on the target lab's unlabelled video
+as well (the dataset's ``video_dir`` in the grid config, relative to data_dir).
 
 Scripts: ``scripts/adapt/{plan,run_cell,collect,plot}.py``; skill: ``skills/adaptation-curves/``.
 """
@@ -280,6 +282,7 @@ def build_overrides(
     data_dir: Path,
     train_csv: str,
     trunk: dict | None,
+    video_dir: Path | None = None,
 ) -> list[str]:
     """Lightning Pose overrides (for ``litpose train <base_config(arm)>``) of one cell.
 
@@ -291,12 +294,16 @@ def build_overrides(
         trunk: for ``init: trunk`` arms, ``{"checkpoint", "backbone", "head_overrides",
             "keypoints"}`` (keypoints = the trunk's trained keypoints, anchored when the arm has
             ``anchor``).
+        video_dir: the target lab's unlabelled video folder, for arms with ``video: true`` (the
+            anchor is also applied to unlabelled video frames: Lightning Pose's anchor_video loss,
+            weight ``video_weight``, default the anchor weight).
 
     Returns:
         override strings, one per argv element (none contains a space).
 
     Raises:
-        ValueError: if a trunk arm gets no trunk, or an override contains a space.
+        ValueError: if a trunk arm gets no trunk, a video arm no anchor or video folder, or an
+            override contains a space.
     """
     arm   = grid.arms[cell.arm]
     steps = steps_for(grid, cell.n, arm)
@@ -333,6 +340,15 @@ def build_overrides(
         if arm.get("head") == "nonlinear":
             width = int(arm.get("head_hidden_channels", 256))
             ov.append(f"+model.head_hidden_channels={width}")
+    if arm.get("video"):   # anchor on the lab's unlabelled video too (semi-supervised path)
+        if not arm.get("anchor") or video_dir is None:
+            raise ValueError(f"arm {cell.arm}: video needs anchor: true and a dataset video_dir")
+        ov[ov.index("model.losses_to_use=[]")] = "model.losses_to_use=[anchor_video]"
+        ov += [f"data.video_dir={video_dir}", "callbacks.anneal_weight.init_val=1.0",
+               "callbacks.anneal_weight.freeze_until_epoch=0",
+               f"dali.base.train.sequence_length={int(arm.get('video_sequence_length', 16))}"]
+        if "video_weight" in arm:
+            ov.append(f"+model.anchor.video_weight={arm['video_weight']}")
     ov += list(arm.get("overrides") or [])   # arm-specific extra Lightning Pose overrides
     if any(" " in o for o in ov):
         raise ValueError(f"an override contains a space: {[o for o in ov if ' ' in o]}")
@@ -354,6 +370,8 @@ def log_checks(arm: dict, log_text: str) -> list[str]:
         problems.append("LoRA applied in a non-LoRA arm")
     if arm.get("head") == "nonlinear" and "nonlinear head:" not in log_text:
         problems.append("nonlinear head not built")
+    if arm.get("video") and "anchor loss on unlabeled video" not in log_text:
+        problems.append("video anchor not applied")
     return problems
 
 

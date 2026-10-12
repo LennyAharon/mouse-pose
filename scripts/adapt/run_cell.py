@@ -163,7 +163,12 @@ def main() -> None:
                 sys.exit("ABORT: the trunk has model.head_groups but this lightning_pose cannot "
                          "build them (it would load the grouped weights into a plain head); run "
                          "with PYTHONPATH=<lightning-pose-wt-head-groups-fanin>")
-    overrides = build_overrides(grid, cell, data, train_csv, trunk)
+    video_dir = None
+    if arm.get("video"):
+        video_dir = data / grid.datasets[cell.dataset].get("video_dir", "")
+        if not grid.datasets[cell.dataset].get("video_dir") or not any(video_dir.glob("*.mp4")):
+            sys.exit(f"ABORT: no unlabelled video for {cell.dataset} ({video_dir})")
+    overrides = build_overrides(grid, cell, data, train_csv, trunk, video_dir)
     cmd = ["litpose", "train", base_config(arm), "--output_dir", str(out),
            "--overrides", *overrides]
     if args.dry_run:

@@ -213,6 +213,16 @@ class TestBuildOverrides:
         assert "training.lr_scheduler_params.multisteplr.milestone_steps=[2000]" in ov
         assert ov[-1] == "training.optimizer_params.weight_decay=0.01"
 
+    def test_build_overrides_video(self, grid):
+        grid.arms["vid"] = {**grid.arms["mm"], "video": True, "video_weight": 0.5}
+        ov = build_overrides(grid, Cell("ibl", "vid", 10, 0), Path("/d"), "x.csv", TRUNK,
+                             Path("/d/videos_unlabelled/ibl"))
+        assert "model.losses_to_use=[anchor_video]" in ov and "model.losses_to_use=[]" not in ov
+        assert "data.video_dir=/d/videos_unlabelled/ibl" in ov
+        assert "+model.anchor.video_weight=0.5" in ov
+        with pytest.raises(ValueError, match="video needs"):
+            build_overrides(grid, Cell("ibl", "vid", 10, 0), Path("/d"), "x.csv", TRUNK)
+
     def test_build_overrides_all_frames(self, grid):
         ov = build_overrides(grid, Cell("ibl", "mm", ALL, 0), Path("/d"), "x.csv", TRUNK)
         assert "training.train_frames=1" in ov and "training.max_steps=6000" in ov
@@ -357,6 +367,13 @@ class TestLogChecks:
         assert set(log_checks(self.ARM, "")) == {"trunk weights not loaded",
                                                  "anchor teacher not attached",
                                                  "LoRA (rank 64) not applied"}
+
+    def test_log_checks_video(self):
+        arm = {**self.ARM, "video": True}
+        log = ("loading weights from x\nanchor: frozen teacher attached\n"
+               "LoRA: wrapped 72 linear layers (rank 64, alpha 128)")
+        assert log_checks(arm, log) == ["video anchor not applied"]
+        assert log_checks(arm, log + "\nanchor loss on unlabeled video: weight 1") == []
 
     def test_log_checks_dino(self):
         assert log_checks({"init": "dinov3", "head": "nonlinear"}, "LoRA: wrapped 72") == [
