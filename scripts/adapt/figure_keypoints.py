@@ -12,8 +12,9 @@ leave-that-dataset-out trunk trained them), from saved test predictions.
 2. summary/keypoints/gain_scatter.pdf: every supported keypoint of every target; x = zero-shot /
    dedicated error (how good the inherited prediction is), y = from-scratch / MM error at the
    smallest N (> 1: Mighty Mouse is the better start), with the Spearman correlation.
-Numbers: summary/keypoints/keypoints.csv. Error = mean px over visible == 2 test labels.
-PDF + SVG (PNG only with --png).
+Numbers: summary/keypoints/keypoints.csv; readable tables per dataset (one row per keypoint,
+grouped by body part, the better start in bold): summary/keypoints/keypoints.md. Error = mean
+px over visible == 2 test labels. PDF + SVG (PNG only with --png).
 """
 
 import argparse
@@ -51,6 +52,52 @@ def save(fig, stem: Path, png: bool) -> None:
 def mean_err(errors: list[pd.DataFrame], k: str) -> float:
     vals = [e[k].dropna().mean() for e in errors if k in e.columns and e[k].notna().any()]
     return float(np.mean(vals)) if vals else np.nan
+
+
+def body_part(k: str) -> int:
+    """Sort key: eye, snout, ear, paw."""
+    if k.startswith(("eye", "pupil")):
+        return 0
+    if k.startswith("ear"):
+        return 2
+    if k.startswith("wrist") or (k[:1] == "d" and k[1:2].isdigit()):
+        return 3
+    return 1
+
+
+def write_markdown(df: pd.DataFrame, path: Path, arm: str, scratch: str, ns: list) -> None:
+    """keypoints.md: per dataset, one row per supported keypoint; the better start in bold."""
+    parts = ["eye", "snout", "ear", "paw"]
+    lines = ["# Supported keypoints: zero-shot vs adaptation, per dataset", "",
+             "Mean px on the target's test frames (visible == 2), mean over draws. "
+             "MM = Mighty Mouse + anchored LoRA, DINO = DINOv3 from scratch (nonlinear head); "
+             "the better of the two at each N in **bold**. zero-shot verdict: zero-shot / "
+             "dedicated error, good <= 2.5x, poor <= 7.5x, failed above. dedicated = all of "
+             "the lab's frames.", ""]
+    head = ("| part | keypoint | zero-shot | verdict | "
+            + " | ".join(f"MM N={n} | DINO N={n}" for n in ns) + " | dedicated |")
+    for ds, d in df.groupby("dataset", sort=False):
+        d = d.assign(part=d.keypoint.map(body_part)).sort_values(["part", "keypoint"])
+        wins = {n: int((d[f"{arm}_N{n}"] < d[f"{scratch}_N{n}"]).sum()) for n in ns}
+        lines += [f"## {ds}", "",
+                  "MM better than DINO on "
+                  + ", ".join(f"{wins[n]}/{len(d)} at N={n}" for n in ns) + " keypoints.", "",
+                  head, "|" + "---|" * (4 + 2 * len(ns) + 1)]
+        for _, r in d.iterrows():
+            ratio = r.zs_ratio
+            verdict = ("good" if ratio <= 2.5 else "poor" if ratio <= 7.5 else "failed")
+            cells = []
+            for n in ns:
+                a, b = r[f"{arm}_N{n}"], r[f"{scratch}_N{n}"]
+                fa, fb = f"{a:.1f}", f"{b:.1f}"
+                if np.isfinite(a) and np.isfinite(b):
+                    fa, fb = (f"**{fa}**", fb) if a < b else (fa, f"**{fb}**")
+                cells += [fa, fb]
+            lines.append(f"| {parts[int(r.part)]} | {r.keypoint} | {r.zero_shot:.1f} | "
+                         f"{verdict} ({ratio:.1f}x) | " + " | ".join(cells)
+                         + f" | {r.dedicated:.1f} |")
+        lines.append("")
+    path.write_text("\n".join(lines) + "\n")
 
 
 def main() -> None:
@@ -98,6 +145,7 @@ def main() -> None:
     df["zs_ratio"] = df.zero_shot / df.dedicated
     df["mm_gain"]  = df[f"{args.scratch}_N{lo}"] / df[f"{args.arm}_N{lo}"]
     df.to_csv(out / "keypoints.csv", index=False)
+    write_markdown(df, out / "keypoints.md", args.arm, args.scratch, ns)
 
     # ── 1. per dataset: one row per supported keypoint ─────────────────────────
     for ds, d in df.groupby("dataset", sort=False):
