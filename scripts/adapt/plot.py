@@ -9,10 +9,11 @@ Figures of an adaptation grid from collect.py's cells.csv (PDF + SVG; PNG only w
    the grid's N values and `all`), y = pooled mean px on the target's test frames (log scale),
    mean +- sd over draws; one line per curve arm (MM arms start at the zero-shot point);
    dedicated models as dashed horizontal lines.
-2. masked.pdf: masked-label protocol (only settings where zero-shot is good, see collect.py
-   settings.csv; --all_settings for every one), one bar group per (dataset, hidden keypoints):
-   zero-shot trunk, each masked arm (e.g. MM + full fine-tuning, MM + LoRA, MM + anchored LoRA),
-   and the labelled reference (anchored LoRA that saw the labels), mean +- sd over draws.
+2. masked_N<n>.pdf (one per masked N): masked-label protocol (only settings where zero-shot is
+   good, see collect.py settings.csv; --all_settings for every one), one bar group per
+   (dataset, hidden keypoints): zero-shot trunk, each masked arm (e.g. MM + full fine-tuning,
+   MM + LoRA, MM + anchored LoRA), and the labelled reference (anchored LoRA that saw the
+   labels), mean +- sd over draws.
 """
 
 import argparse
@@ -25,7 +26,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from mighty_mouse.adaptation import load_grid  # noqa: E402
+from mighty_mouse.adaptation import ALL, load_grid  # noqa: E402
 from mighty_mouse.paths import load_paths  # noqa: E402
 
 STYLE = {  # arm -> (label, colour, marker)
@@ -94,34 +95,59 @@ def curves(df: pd.DataFrame, grid, keypoints: str, out: Path, png: bool, suffix:
     save(fig, out / f"curves_{keypoints}{suffix}", png)
 
 
+def short_mask(mask: str) -> str:
+    """Short label of a hidden keypoint group, e.g. "pupil L", "wrist L+R", "eye x4 R"."""
+    kps   = mask.split("+")
+    sides = {k.rsplit("_", 1)[-1] for k in kps if k.endswith(("_left", "_right"))}
+    side  = {frozenset({"left", "right"}): " L+R", frozenset({"left"}): " L",
+             frozenset({"right"}): " R"}.get(frozenset(sides), "")
+    bases = {k.split("_")[0] for k in kps}
+    if len(kps) >= 3 and len(bases) == 1:
+        return f"{bases.pop()} x{len(kps)}{side}"
+    if all(b[:1] == "d" and b[1:].isdigit() for b in bases):
+        return f"digit tips x{len(kps)}{side}"
+    names = dict.fromkeys(k.replace("_center", "").replace("_left", "").replace("_right", "")
+                          .replace("_", " ") for k in kps)
+    return " + ".join(names) + side
+
+
 def masked_bars(df: pd.DataFrame, grid, out: Path, png: bool, suffix: str,
                 all_settings: bool = False) -> None:
+    """One figure per masked N: bars per (dataset, hidden group), zero-shot + arms + labelled."""
     m = df[(df.kind == "masked") & (df.keypoints == "hidden")]
     if "usable" in m.columns and not all_settings:   # only settings where zero-shot is good
         m = m[m["usable"].astype(str) == "True"]
     if m.empty:
         return
-    order  = ["zero-shot"] + list(grid.masked["arms"])[::-1] + ["labelled"]
-    groups = list(m.groupby(["dataset", "mask"]).groups)
-    fig, ax = plt.subplots(figsize=(max(8, 0.9 * len(groups)), 3.6))
-    w = 0.8 / len(order)
-    for j, arm in enumerate(order):
-        vals = [m[(m.dataset == ds) & (m["mask"] == mk) & (m.arm == arm)]["mean_px"]
-                for ds, mk in groups]
-        lab, col, _ = STYLE.get(arm, (arm, None, None))
-        ax.bar(np.arange(len(groups)) + (j - (len(order) - 1) / 2) * w,
-               [v.mean() for v in vals], w, yerr=[v.std() if len(v) > 1 else 0 for v in vals],
-               label=lab, color=col, capsize=2)
-    ax.set_xticks(range(len(groups)))
-    ax.set_xticklabels([f"{ds}\n{mk.replace('_', ' ')[:28]}" for ds, mk in groups], fontsize=7)
-    ax.set_yscale("log")
-    ax.set_ylabel("pixel error on the hidden keypoints")
-    ax.set_title(f"masked-label protocol (N = {grid.masked['n_frames'][0]}): "
-                 "transfer of a keypoint the lab never labelled")
-    ax.legend(fontsize=8, ncol=4, frameon=False)
-    ax.grid(alpha=0.3, axis="y", which="both")
-    fig.tight_layout()
-    save(fig, out / f"masked{suffix}", png)
+    order = ["zero-shot"] + list(grid.masked["arms"])[::-1] + ["labelled"]
+    ns = sorted({x for x in m.n if x != "0"},
+                key=lambda x: (x == ALL, int(x) if x.isdigit() else 0))
+    for n in ns:
+        mn = m[(m.n == n) | (m.arm == "zero-shot")]
+        groups = list(mn[mn.n == n].groupby(["dataset", "mask"]).groups)
+        if not groups:
+            continue
+        fig, ax = plt.subplots(figsize=(max(6, 0.95 * len(groups) + 2), 3.8))
+        w = 0.8 / len(order)
+        for j, arm in enumerate(order):
+            vals = [mn[(mn.dataset == ds) & (mn["mask"] == mk) & (mn.arm == arm)]["mean_px"]
+                    for ds, mk in groups]
+            lab, col, _ = STYLE.get(arm, (arm, None, None))
+            ax.bar(np.arange(len(groups)) + (j - (len(order) - 1) / 2) * w,
+                   [v.mean() if len(v) else np.nan for v in vals], w,
+                   yerr=[v.std() if len(v) > 1 else 0 for v in vals],
+                   label=lab, color=col, capsize=2)
+        ax.set_xticks(range(len(groups)))
+        ax.set_xticklabels([f"{ds}\n{short_mask(mk)}" for ds, mk in groups], fontsize=8)
+        ax.set_yscale("log")
+        ax.set_ylabel("pixel error on the hidden keypoints")
+        ax.set_title(f"masked-label protocol (N = {n}): a keypoint the lab annotates, withheld "
+                     "during adaptation")
+        ax.legend(fontsize=8, ncol=5, frameon=False, loc="upper center",
+                  bbox_to_anchor=(0.5, -0.2))
+        ax.grid(alpha=0.3, axis="y", which="both")
+        fig.tight_layout()
+        save(fig, out / f"masked{suffix}_N{n}", png)
 
 
 def main() -> None:
