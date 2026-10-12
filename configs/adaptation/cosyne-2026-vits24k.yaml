@@ -1,0 +1,29 @@
+# Foundation-model comparison (user 2026-10-12, main question): ViT-S trunks trained 24k steps (instead of 12k) with
+# the shared nonlinear head, leave-that-dataset-out, for ibl / kaufman / cheese (cheese-2d + cheese-3d share one);
+# MM + anchored LoRA at N = 10, 25 on the same frames and draws as cosyne-2026 (ViT-S 12k) and
+# cosyne-2026-vitb-pilot (ViT-B 24k). Zero-shot comes from the trunks' own eval.
+
+name: cosyne-2026-vits24k
+out_subdir: adaptation
+keep_checkpoints: false
+eval_last: true
+
+n_frames: [10, 25]
+draws: [0, 1, 2]
+steps: {few: 2000, all: 6000}
+val_every: 250
+
+arms:
+  mm-anchored-lora: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                     anchor_weight: 1.0, anchor_conf_power: 1}
+curve_arms: [mm-anchored-lora]
+
+datasets:
+  ibl:       {trunk: experiments/VS24-LOO-ibl-headmlp256/face+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  kaufman:   {trunk: experiments/VS24-LOO-kaufman-headmlp256/face+ibl+cheese+caz+kondo+hmv+c3d_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  cheese-2d: {trunk: experiments/VS24-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  cheese-3d: {trunk: experiments/VS24-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+
+dedicated:
+  linear:    dedicated/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
+  nonlinear: dedicated-headmlp256/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
