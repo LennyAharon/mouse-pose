@@ -1,0 +1,32 @@
+# ViT-B pilot (user, 2026-10-12): does a bigger backbone widen Mighty Mouse's head start over DINOv3 from
+# scratch? Leave-that-dataset-out ViT-B trunks (recipe of record at ViT-B: configs/ablations/
+# model_zoominout_24k.yaml, 24k steps, shared nonlinear head) for ibl (large ViT-S gain) and kaufman and
+# cheese (about no ViT-S gain; the cheese trunk serves cheese-2d and cheese-3d), vs DINOv3 ViT-B from
+# scratch with the same head, on the same frames and draws as cosyne-2026. Dedicated lines are ViT-S.
+
+name: cosyne-2026-vitb-pilot
+out_subdir: adaptation
+keep_checkpoints: false
+eval_last: true
+
+n_frames: [10, 25]
+draws: [0, 1, 2]
+steps: {few: 2000, all: 6000}
+val_every: 250
+
+arms:
+  mm-anchored-lora:    {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                        anchor_weight: 1.0, anchor_conf_power: 1}
+  dino-nonlinear-vitb: {init: dinov3, backbone: vitb_dinov3, head: nonlinear, head_hidden_channels: 256,
+                        lr: 5.0e-5, skip_all: true}
+curve_arms: [mm-anchored-lora, dino-nonlinear-vitb]
+
+datasets:
+  ibl:       {trunk: experiments/VB-LOO-ibl-headmlp256/face+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vitb_dinov3/seed0}
+  kaufman:   {trunk: experiments/VB-LOO-kaufman-headmlp256/face+ibl+cheese+caz+kondo+hmv+c3d_train/supervised/sampling-T2/tf1/vitb_dinov3/seed0}
+  cheese-2d: {trunk: experiments/VB-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vitb_dinov3/seed0}
+  cheese-3d: {trunk: experiments/VB-LOO-cheese-headmlp256/face+ibl+caz+kondo+hmv+kauf_train/supervised/sampling-T2/tf1/vitb_dinov3/seed0}
+
+dedicated:
+  linear:    dedicated/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
+  nonlinear: dedicated-headmlp256/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0

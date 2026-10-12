@@ -1,0 +1,30 @@
+# Experts-head pilot (user, 2026-10-12): MM + anchored LoRA from the leave-that-dataset-out trunks with the
+# keypoint-group expert head (G1: 4 x 64 hidden channels, eye / snout / ear / paw, + fan-in gain; LP branch
+# exp/head-groups-fanin), on the same frames as cosyne-2026 (same draws), to compare with its shared-head
+# anchored-LoRA and DINOv3-from-scratch cells. Only the four targets whose G1 + fan-in trunk exists.
+# Runs need PYTHONPATH=<lightning-pose-wt-head-groups-fanin> (run_cell.py aborts without it).
+
+name: cosyne-2026-experts
+out_subdir: adaptation
+keep_checkpoints: false
+eval_last: true
+
+n_frames: [10, 25, 50]
+draws: [0, 1, 2]
+steps: {few: 2000, all: 6000}
+val_every: 250
+
+arms:
+  mm-anchored-lora: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                     anchor_weight: 1.0, anchor_conf_power: 1}
+curve_arms: [mm-anchored-lora]
+
+datasets:
+  facemap: {trunk: experiments/E11-LOO-facemap-headgrp-G1fan/ibl+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  ibl:     {trunk: experiments/E9b-headgrp-G1fan-LOO-ibl/face+cheese+caz+kondo+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  kondo:   {trunk: experiments/E10-LOO-kondo-headgrp-G1fan/face+ibl+cheese+caz+hmv+c3d+kauf_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+  kaufman: {trunk: experiments/E9d-headgrp-G1fan-LOO-kaufman/face+ibl+cheese+caz+kondo+hmv+c3d_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+
+dedicated:
+  linear:    dedicated/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
+  nonlinear: dedicated-headmlp256/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
