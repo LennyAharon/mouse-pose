@@ -66,10 +66,11 @@ on the merged test set as a whole, so there is no balance argument for discardin
 
 ## Commands
 
-`build_dataset.py` has no `--data_dir` override (unlike `convert_dataset.py`) — it always writes to
+`build_dataset.py` takes a `--data_dir` override (like `convert_dataset.py`); without it, it writes to
 whatever `data_dir` in `paths.yaml` points at. The convention is to leave `paths.yaml` on the
 unversioned working path (`data/head-fixed`), run the full pipeline there, then rename the directory
-once everything succeeds (see the main README's dataset-versioning section).
+once everything succeeds (see the main README's dataset-versioning section). Pass `--data_dir` to build
+the next version into its own directory while models keep training from the current one.
 
 ```bash
 # 1. Convert each raw dataset (slow — copies images). Run once each, or whenever a
@@ -123,6 +124,6 @@ leave-one-out, since they now omit two datasets rather than one. In practice: re
 `ibl-paw` (wrist-only) is deprecated as of this rebuild — `ibl` is a strict superset
 (wrist + pupil_center + nose_tip + tongue_end, and as of July 2026 fully human-reviewed
 rather than pseudo-labeled) and should always be used instead of `ibl-paw` going forward.
-`_raw/ibl-paw` still exists on disk only because it's the input for regenerating `ibl`'s
-face-keypoint pseudo-labels (see `scripts/preprocessing/ibl/README.md`) — don't
+`ibl-paw` still exists on disk (at `_raw/_dlc/ibl-paw`, not `_raw/`) only because it's the
+input for regenerating `ibl`'s face-keypoint pseudo-labels (see `scripts/preprocessing/ibl/README.md`) — don't
 convert/build with it directly.

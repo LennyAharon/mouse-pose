@@ -163,12 +163,17 @@ as labels are added, so check the CSVs directly rather than recording them here.
 
 | Dataset       | Notes |
 |---------------|-------|
-| facemap       | left-view; bilateral kps lateralized via `{side}` |
-| ibl           | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw` |
-| cheese-2d     | four views (L/R/BC/TC) |
+| aind-vbn-body | left-view body camera (256x256 crop); eyes, pad, ears, nose, tongue tip, both wrists; mostly pseudo-labeled |
+| aind-vbn-face | front-view face camera (256x256 crop around the nose); eyes, pad, nose, tongue tip, wrists for both sides; mostly pseudo-labeled; nose excluded in the config |
+| cavelli       | left- and right-camera side views (merged); pupil, nose tip/bottom, both wrists; subject-level train/test split |
 | cazettes-side | left-view; bilateral kps lateralized via `{side}` |
-| kondo         | right-view face (incl. ears) + both wrists |
+| cheese-2d     | four views (L/R/BC/TC) |
+| cheese-3d     | six views (L/R/TL/TR/BC/TC); pseudo-labeled from `cheese-2d` via multi-view triangulation |
+| facemap       | left-view; bilateral kps lateralized via `{side}` |
+| hantman-mv    | side- and front-view reaching task (views concatenated); fingertips and wrists for both paws, eyes, nose, ears (pellet excluded); subject-level train/test split |
+| ibl           | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw` |
 | kaufman       | right-forepaw digit tips + face (eyes, ears, whisker pad, nose; MW version 1); subject-level train/test split |
+| kondo         | right-view face (incl. ears) + both wrists |
 
 ---
 
@@ -251,11 +256,15 @@ mighty-mouse/
 
   scripts/
     convert_dataset.py          per-dataset conversion (run once)
-    build_dataset.py            subsampling + merging (run freely)
-    train_sweep.py              LP training sweep + evaluation, local/sequential
-    train_sweep_lightning.py    same sweep, Lightning AI/parallel (see mighty_mouse/train.py)
-    bump_version.py             snapshot a raw dataset's label CSVs as a new version
-    transfer_pseudo_labels.py   write model predictions into one raw dataset's label CSVs (pseudo-labeling)
+    build_dataset.py            subsampling + merging (run freely) (see docs/build_dataset.md)
+    train_sweep.py              LP training sweep + evaluation, local/sequential (see docs/train_sweep.md)
+    train_sweep_lightning.py    same sweep, Lightning AI/parallel (see docs/train_sweep.md, mighty_mouse/train.py)
+    bump_version.py             snapshot a raw dataset's label CSVs as a new version (see skills/bump-dataset-version)
+    corpus_summary.py           per-dataset frame/keypoint summary -> assets/corpus.{csv,md}; run automatically by bump_version.py
+    add_keypoints.py            add empty keypoint columns to a raw dataset (see skills/add-keypoints-to-raw-dataset)
+    transfer_pseudo_labels.py   write model predictions into one raw dataset's label CSVs (see skills/transfer-pseudo-labels)
+    ensemble_pseudo_labels.py   overwrite a raw dataset's labels with a confidence-thresholded mean of several models (see skills/transfer-pseudo-labels)
+    active_labeling.py          label new keypoints by iterating hand-labeling and ensemble-disagreement frame selection (see skills/active-pseudo-labeling)
     preprocessing/
       <dataset>/                per-dataset CHANGELOG.md, plus a converter + README if one was needed
       extract_clips.py          cut short high-motion clips from raw videos for review
@@ -267,12 +276,16 @@ mighty-mouse/
     labels.py                   LP label-CSV conventions (reader, scorer, session/frame names)
     convert.py                  per-dataset conversion logic + POST_PROCESS hooks
                                  (CLI: scripts/convert_dataset.py)
+    build.py                    per-dataset subsampling + merging (CLI: scripts/build_dataset.py)
     datasets.py                 ALL_DATASETS (datasets in the combined corpus)
     subject_split.py            shared subject-level train/test split
     videos.py                   video snippet + motion-energy helpers
     train.py                    sweep combo/naming/command logic shared by both
                                  train_sweep*.py scripts; also a standalone CLI
                                  (`python -m mighty_mouse.train`) for evaluation only
+    labeling/
+      ensemble.py               run an ensemble of LP models on a label CSV's images; confidence-thresholded mean
+      active_labeling.py        ensemble-disagreement frame selection, stats, merge-back (CLI: scripts/active_labeling.py)
     plots/
       plot_keypoints.py         keypoint overlay visualization
 
@@ -366,6 +379,10 @@ to or read from directly. The convention is:
 2. Run the full convert → build (→ train) pipeline there
 3. Once it succeeds, rename the directory to freeze it: `data/head-fixed` → `data/head-fixed_vN`,
    `results/head-fixed` → `results/head-fixed_vN`
+
+If models are training from the unversioned path, don't repoint `paths.yaml` under them: both
+`convert_dataset.py` and `build_dataset.py` take `--data_dir`, so the next version can be built
+straight into its own directory instead.
 
 **Keep `data/head-fixed_vN` and `results/head-fixed_vN` numbering in lockstep** — results trained
 against `data/head-fixed_v1` belong in `results/head-fixed_v1`, not `results/head-fixed_v2`. A

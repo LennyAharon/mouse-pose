@@ -1,24 +1,25 @@
 ---
 name: transfer-pseudo-labels
-description: Use when the user wants to write model predictions into one raw dataset's (_raw/<dataset>/) label CSVs — filling empty cells from another dataset's model ("transfer the cheese-3d model's predictions onto cheese-2d", "pseudo-label the missing whisker pad keypoints"), from a collaborator's precomputed predictions CSVs, or iteratively bootstrapping from the dataset's own hand-corrected rows ("train on the first N rows, then overwrite the rest"). Edits that dataset's CollectedData CSVs in place; never bumps the version.
+description: Use when the user wants to write model predictions into one raw dataset's (_raw/<dataset>/) label CSVs — filling empty cells from another dataset's model ("transfer the cheese-3d model's predictions onto cheese-2d", "pseudo-label the missing whisker pad keypoints"), from a collaborator's precomputed predictions CSVs, or overwriting labels with a confidence-thresholded mean of an ensemble of models. Edits that dataset's CollectedData CSVs in place; never bumps the version.
 ---
 
 # Transferring pseudo-labels into a raw dataset's label CSVs
 
 Once a standalone Lightning Pose model exists (see `skills/train-lightning-pose-model/`),
-its predictions can be written into a `_raw/<dataset>/`'s already-labeled images. Three
-variants have come up so far:
+its predictions can be written into a `_raw/<dataset>/`'s already-labeled images. Variants:
 
 - **Cross-dataset gap filling** — a model trained on one dataset fills *empty* cells in
   another, where it's confident (e.g. cheese-3d → cheese-2d).
 - **Precomputed predictions** — someone else already ran inference (e.g. a
   collaborator's model you don't have locally) and handed over predictions CSVs.
-- **Self-bootstrapping** — the user hand-corrects the leading rows of a dataset, a model
-  is trained on just those rows, and its predictions *overwrite* the remaining rows'
-  labels/pseudo-labels; repeat with more corrected rows each round (see
-  [below](#iterative-self-bootstrapping-loop)).
+- **Ensemble overwrite** — several models (e.g. seeds of one config) are run on the target's
+  images and combined by a confidence-thresholded mean; see
+  [below](#ensemble-overwrite-ensemble_pseudo_labelspy).
 
-All three are separate from — and upstream of — the combined-corpus pipeline
+Labeling *new* keypoints by iterating hand-labeling and retraining on the dataset's own
+rows is a separate workflow: `skills/active-pseudo-labeling/`.
+
+All of these are separate from — and upstream of — the combined-corpus pipeline
 (`preprocess-new-dataset`, `convert_dataset.py`): they edit a dataset's own
 `_raw/<dataset>/CollectedData.csv`/`CollectedData_test.csv` directly, in place.
 
@@ -89,51 +90,36 @@ dir, or absolute) shields every target row whose image path appears in that labe
 in every `--csvs` file. The inventory reports how many filled cells overwrote an
 existing label.
 
-## Iterative self-bootstrapping loop
+## Ensemble overwrite (`ensemble_pseudo_labels.py`)
 
-The workflow used for `kaufman` (2026-09-27/28 — see its `CHANGELOG.md` version 1
-entry), when cross-dataset pseudo-labels were too rough to be worth correcting by hand.
-Each round:
+Used for cheese-3d (2026-10-01, version 2): three `cheese-2d` models (same config, different
+`rng_seed_data_pt`) pseudo-label `cheese-3d`. Unlike `transfer_pseudo_labels.py`, which takes
+one model and only keeps cells that clear the threshold, this one **always replaces** the
+requested columns: per cell, members with likelihood >= the threshold (0.9 there) survive,
+the new label is their mean (x, y), and it's **blank if none survive** — so it can erase
+existing labels. Columns not in `--keypoints` are never touched.
 
-1. **User names the last hand-corrected row** (an image path). Look it up exactly in
-   `CollectedData.csv` before cutting — pasted names have arrived with typos (`cam-2`
-   for `cam2`) or URL-encoded (`%2F` for `/`). If there's no exact match, say which
-   path you're using instead or ask. Mention if the cut falls mid-session.
-2. **Write `_raw/<dataset>/CollectedData_tmp.csv`** = all rows up to and including that
-   image, **all** keypoint columns (LP requires the CSV columns to match
-   `keypoint_names`). Read it back and check it's value-identical to those live rows.
-   Overwriting the previous round's tmp is fine — LP copies the training CSV into each
-   model dir, so check that copy matches before overwriting.
-3. **Config**: `poseinterface/configs/<dataset>.yaml` with `csv_file:
-   CollectedData_tmp.csv` (otherwise per `train-lightning-pose-model`). Log each round
-   in the config's header comment (row count, cutoff image, resulting model dir) — it's
-   the only record of which model came from which rows. Give the user the `litpose
-   train` command; they train.
-4. **When the model is back**, before anything else: confirm `<model_dir>/<csv_file>` is
-   byte-identical to the current tmp (the model trained on what you think it did), and
-   that the leading rows of the live CSV still match the tmp (the user hasn't edited
-   them since). Copy both live CSVs to a scratch backup.
-5. **Dry run** with `--overwrite --protect_rows_from CollectedData_tmp.csv`. Expected
-   counts: (total train rows − protected rows) + all test rows per keypoint, minus a
-   handful below threshold. Show it, then write.
-6. **Verify against the backup**, cell by cell: protected rows and non-target columns
-   unchanged; every changed cell equals a prediction with likelihood >= threshold;
-   every below-threshold cell equals its backup value. Also report the median pixel
-   shift per keypoint vs. the previous round — it shrinks as the loop converges, and a
-   keypoint that moves much more than the rest is worth pointing the user at.
-7. **Final round**: once the whole train CSV is hand-corrected, the user trains on the
-   full `CollectedData.csv` and only the test CSV is updated — pass `--csvs
-   CollectedData_test.csv` (no protection needed) and verify the train CSV is
-   byte-identical to the backup. The user then corrects the test CSV and asks for the
-   version bump; the tmp CSV can be deleted.
+```
+python scripts/ensemble_pseudo_labels.py \
+    --model_dirs <run0> <run1> <run2> --target_dataset <name> \
+    --out_dir results/<name>/ensemble-pseudo-labels \
+    --keypoints "pred_name=target_name" ... --dry_run
+```
 
-Don't let the user edit the live CSVs between steps 4 and 6 — say so when handing over
-the training command.
-
-Expect the confidence threshold to filter almost nothing here: likelihoods sat around
-0.999 for kaufman, even on test sessions the model never trained on (frames there vary
-little between sessions and animals). That's expected, not a bug — accuracy is judged
-by the user's manual pass, not by the threshold.
+- `--keypoints` is `pred_name=target_name` per entry because the models' names (canonical
+  `_left`/`_right`) usually differ from the target's raw column names. Build the list from
+  `configs/datasets/<target>.yaml` (target raw name -> canonical name), minus any columns that
+  should be left alone (cheese-3d: the pupils).
+- A keypoint the models predict but the target lacks (cheese-3d: wrists) has to exist as a
+  column first — `skills/add-keypoints-to-raw-dataset`.
+- `--out_dir` caches each member's predictions (reused on re-run, so the dry run's inference
+  isn't repeated for the real write) and gets `label_change_report.csv`: per keypoint and CSV,
+  cells that lost / gained a label and how many members (0-3) cleared the threshold. Share it;
+  the changelog entry should summarize it.
+- Checklist items 1-5 above still apply (keypoint overlap, threshold, scope), plus: confirm that
+  blanking below-threshold cells is intended. Back up the live CSVs first and verify cell by
+  cell afterwards (non-edited columns unchanged; edited cells equal the recomputed mean).
+- Same as the single-model script: never bumps the version.
 
 ## What the script guarantees
 

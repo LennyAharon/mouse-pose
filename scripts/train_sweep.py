@@ -98,7 +98,7 @@ def main():
     train_frames = parse_semicolon_list(args.train_frames)
     seeds        = parse_semicolon_list(args.seeds)
     backbones    = parse_semicolon_list(args.backbones)
-    losses       = [l for l in args.losses_to_use.split(",") if l]
+    losses       = [x for x in args.losses_to_use.split(",") if x]
     temperatures = [t for t in args.sampling_temperatures.split(";") if t]
     head_modes   = [h for h in args.head_modes.split(";") if h]
 

@@ -26,9 +26,11 @@ you'll hit often have their own docs under `skills/<name>/SKILL.md` (plain markd
 short `name`/`description` frontmatter — readable by any agent, not just Claude):
 
 - **Onboarding a new raw dataset** → [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)
+- **Adding new (empty) keypoints to an existing raw dataset for labeling** → [`skills/add-keypoints-to-raw-dataset/SKILL.md`](skills/add-keypoints-to-raw-dataset/SKILL.md)
 - **Versioning a dataset's label CSVs** → [`skills/bump-dataset-version/SKILL.md`](skills/bump-dataset-version/SKILL.md)
 - **Training a standalone LP model on one raw dataset** → [`skills/train-lightning-pose-model/SKILL.md`](skills/train-lightning-pose-model/SKILL.md)
-- **Pseudo-labeling a raw dataset (from another dataset's model, precomputed predictions, or its own hand-corrected rows)** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
+- **Pseudo-labeling a raw dataset (from another dataset's model, an ensemble of models, precomputed predictions, or its own hand-corrected rows)** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
+- **Labeling new keypoints by iterating label → train ensemble → add highest-disagreement frames** → [`skills/active-pseudo-labeling/SKILL.md`](skills/active-pseudo-labeling/SKILL.md)
 - **Zero-shot / few-shot adaptation curves and masked-label bars (local queue or SLURM / ACCESS)** → [`skills/adaptation-curves/SKILL.md`](skills/adaptation-curves/SKILL.md)
 - **Any overlay video or figure of predictions / labels** → [`skills/pose-video/SKILL.md`](skills/pose-video/SKILL.md) (its *House style* section is mandatory: group palette, banner, SD crosses + strip, file naming)
 
@@ -84,6 +86,7 @@ public functions. Ruff (`pyproject.toml`) is the source of truth for anything it
   function that needs it, as `mighty_mouse/train.py` does), and any package they import
   directly must be listed in `pyproject.toml` rather than arriving via lightning-pose.
 
-**Scripts that write to real data.** `scripts/build_dataset.py` has no `--data_dir`
-override and always writes into `data_dir` from `paths.yaml` — don't run it as a smoke
-test. `scripts/transfer_pseudo_labels.py` edits raw label CSVs in place.
+**Scripts that write to real data.** `scripts/convert_dataset.py` and
+`scripts/build_dataset.py` write into `data_dir` from `paths.yaml` unless given
+`--data_dir` — always pass a scratch `--data_dir` when smoke-testing them.
+`scripts/transfer_pseudo_labels.py` and `scripts/ensemble_pseudo_labels.py` edit raw label CSVs in place.
