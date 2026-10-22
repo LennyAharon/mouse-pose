@@ -121,9 +121,9 @@ def main() -> None:
         if not (run / "eval").is_dir():
             continue
         zs = list((run / "zeroshot").glob("*_train_predictions.csv"))
-        if zs:
+        if len(zs) == 1:   # leave-ONE-out; trunks leaving out several datasets are not this table
             loo[zs[0].name[: -len("_train_predictions.csv")]] = run
-        elif tag_dir.name.count("+") == len(datasets) - 1:
+        elif not zs and tag_dir.name.count("+") == len(datasets) - 1:
             all_run = run
 
     rows, untrained = [], {}

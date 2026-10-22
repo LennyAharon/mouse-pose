@@ -3,8 +3,15 @@
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 
-from mighty_mouse.comparison import target_scores, trained_keypoints
+from mighty_mouse.comparison import (
+    ALWAYS_EXCLUDED,
+    target_scores,
+    trained_keypoints,
+    visible_errors,
+)
+from mighty_mouse.configs import repo_root
 
 
 @pytest.fixture
@@ -50,3 +57,39 @@ class TestTargetScores:
         assert result["ear"] is None
         assert result["missing"] is None
         assert np.isnan(result["pooled"][0])
+
+
+class TestVisibleErrors:
+    """Test the function visible_errors."""
+
+    @staticmethod
+    def frame(values: dict[str, list[float]]) -> pd.DataFrame:
+        cols = pd.MultiIndex.from_tuples(
+            [("s", k, c) for k in values for c in ("x", "y", "visible")]
+        )
+        rows = [sum(([v, v, 2.0] for v in row), []) for row in zip(*values.values(), strict=True)]
+        return pd.DataFrame(rows, index=["a.png", "b.png"], columns=cols)
+
+    def test_visible_errors_masks_tongue_and_lips(self):
+        labels = self.frame({"nose": [0.0, 0.0], "tongue_tip": [0.0, 0.0],
+                             "lowerlip": [0.0, 0.0]})
+        preds = self.frame({"nose": [3.0, 4.0], "tongue_tip": [30.0, 40.0],
+                            "lowerlip": [5.0, 6.0]})
+        err = visible_errors(labels, preds)
+        np.testing.assert_allclose(err["nose"], [3 * np.sqrt(2), 4 * np.sqrt(2)])
+        assert err["tongue_tip"].isna().all()
+        assert err["lowerlip"].isna().all()
+
+    def test_visible_errors_excludes_every_tongue_and_lip_keypoint_of_the_vocabulary(self):
+        path = repo_root() / "configs" / "keypoints.yaml"
+        vocab = yaml.safe_load(path.read_text())["keypoints"]
+        for part in ("tongue", "lip"):
+            names = {k for k in vocab if part in k}
+            assert names, f"no {part} keypoints found in configs/keypoints.yaml"
+            assert names <= ALWAYS_EXCLUDED
+
+    def test_visible_errors_rejects_mismatched_frames(self):
+        labels = self.frame({"nose": [0.0, 0.0]})
+        preds = self.frame({"nose": [0.0, 0.0]}).rename(index={"b.png": "c.png"})
+        with pytest.raises(ValueError, match="differ"):
+            visible_errors(labels, preds)

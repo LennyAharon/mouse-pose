@@ -4,10 +4,14 @@ import numpy as np
 import pandas as pd
 
 LIP_KEYPOINTS = frozenset({"upperlip_left", "upperlip_right", "lowerlip"})
-# pupil_center_right used to be excluded here because no dataset labeled it (hflip-only channel).
-# Since corpus v5 (2026-09-23) facemap and cheese-3d label it directly; scoring only visible == 2
-# cells already skips it wherever it is unlabeled, so nothing is excluded by name any more.
-ALWAYS_EXCLUDED: frozenset[str] = frozenset()
+TONGUE_KEYPOINTS = frozenset({"tongue_tip", "tongue_center", "tongue_end_left",
+                              "tongue_end_right"})
+# Keypoints left out of every pixel-error comparison (their errors are NaN in every table, file
+# and pooled number): the tongue and lip channels of configs/keypoints.yaml (user, 2026-10-22).
+# Only pixel-error scoring drops them: they are still trained, predicted and shown in videos. The
+# "no_lips" view of comparison_summary now equals "all". pupil_center_right is scored where
+# labeled (visible == 2) since corpus v5.
+ALWAYS_EXCLUDED: frozenset[str] = TONGUE_KEYPOINTS | LIP_KEYPOINTS
 
 
 def visible_errors(labels: pd.DataFrame, predictions: pd.DataFrame) -> pd.DataFrame:

@@ -24,10 +24,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from mighty_mouse.comparison import ALWAYS_EXCLUDED
 from mighty_mouse.paths import load_paths
 from mighty_mouse.registry import load_registry
 
-EXCLUDE: set[str] = set()   # pupil_center_right is scored where labeled (visible == 2) since corpus v5
+EXCLUDE: set[str] = set(ALWAYS_EXCLUDED)   # also drops them from older pixel_error.csv files
 LEAF = "supervised/sampling-T2/tf1/vits_dinov3"
 TAGS_SRC = Path(__file__).with_name("train_plan.sh")  # TAG map: dataset -> short tag name
 
