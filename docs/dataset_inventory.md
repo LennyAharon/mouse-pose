@@ -11,25 +11,31 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 | `facemap` | 2,400 | 53 | 100 | 4 | 14 | 14 | 9 |
 | `ibl` | 5,962 | 102 | 1,446 | 19 | 6 | 7 | 6 |
 | `cheese-2d` | 665 | 59 | 291 | 30 | 29 | 29 | 29 |
-| `cazettes-side` | 830 | 41 | 217 | 11 | 8 | 9 | 8 |
+| `cazettes-side` | 830 | 41 | 217 | 11 | 12 | 17 | 12 |
 | `kondo` | 439 | 5 | 120 | 1 | 12 | 17 | 12 |
-| `hantman-mv` | 192 | 50 | 30 | 4 | 11 | 20 | 11 |
-| `cheese-3d` | 1,692 | 42 | 486 | 12 | 29 | 29 | 29 |
+| `hantman-mv` | 192 | 50 | 30 | 4 | 17 | 21 | 17 |
+| `cheese-3d` | 1,692 | 42 | 486 | 12 | 31 | 31 | 31 |
 | `kaufman` | 1,808 | 70 | 732 | 34 | 16 | 30 | 16 |
-| **total** | **13,988** | | **3,422** | | | | |
+| `aind-vbn-body` | 489 | 14 | 74 | 2 | 16 | 26 | 16 |
+| `aind-vbn-face` | 490 | 14 | 74 | 2 | 15 | 15 | 15 |
+| `cavelli` | 218 | 52 | 47 | 14 | 6 | 6 | 6 |
+| **total** | **15,185** | | **3,617** | | | | |
 
 ## Pairwise direct-keypoint overlap
 
-| | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` | `cheese-3d` | `kaufman` |
-|---|---|---|---|---|---|---|---|---|
-| `facemap` | 14 | 2 | 11 | 3 | 5 | 5 | 13 | 5 |
-| `ibl` | 2 | 6 | 3 | 4 | 3 | 2 | 2 | 1 |
-| `cheese-2d` | 11 | 3 | 29 | 5 | 11 | 7 | 27 | 12 |
-| `cazettes-side` | 3 | 4 | 5 | 8 | 6 | 3 | 4 | 2 |
-| `kondo` | 5 | 3 | 11 | 6 | 12 | 5 | 9 | 7 |
-| `hantman-mv` | 5 | 2 | 7 | 3 | 5 | 11 | 6 | 10 |
-| `cheese-3d` | 13 | 2 | 27 | 4 | 9 | 6 | 29 | 12 |
-| `kaufman` | 5 | 1 | 12 | 2 | 7 | 10 | 12 | 16 |
+| | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` | `cheese-3d` | `kaufman` | `aind-vbn-body` | `aind-vbn-face` | `cavelli` |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `facemap` | 14 | 2 | 11 | 3 | 5 | 6 | 13 | 5 | 6 | 8 | 3 |
+| `ibl` | 2 | 6 | 3 | 4 | 3 | 3 | 4 | 1 | 3 | 2 | 4 |
+| `cheese-2d` | 11 | 3 | 29 | 5 | 11 | 9 | 29 | 12 | 15 | 14 | 4 |
+| `cazettes-side` | 3 | 4 | 5 | 12 | 6 | 8 | 6 | 2 | 5 | 3 | 5 |
+| `kondo` | 5 | 3 | 11 | 6 | 12 | 7 | 11 | 7 | 6 | 5 | 4 |
+| `hantman-mv` | 6 | 3 | 9 | 8 | 7 | 17 | 9 | 10 | 5 | 6 | 4 |
+| `cheese-3d` | 13 | 4 | 29 | 6 | 11 | 9 | 31 | 12 | 15 | 14 | 6 |
+| `kaufman` | 5 | 1 | 12 | 2 | 7 | 10 | 12 | 16 | 2 | 6 | 2 |
+| `aind-vbn-body` | 6 | 3 | 15 | 5 | 6 | 5 | 15 | 2 | 16 | 9 | 4 |
+| `aind-vbn-face` | 8 | 2 | 14 | 3 | 5 | 6 | 14 | 6 | 9 | 15 | 2 |
+| `cavelli` | 3 | 4 | 4 | 5 | 4 | 4 | 6 | 2 | 4 | 2 | 6 |
 
 ## `facemap`
 
@@ -54,8 +60,8 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 
 - **Views:** 52 sessions left-view
 - **Excluded source keypoints:** backTongue
-- **Direct (8):** lowerlip, nose_bottom, nose_tip, pupil_center_left, tongue_center, tongue_tip, wrist_left, wrist_right
-- **Hflip-only trainable:** pupil_center_right
+- **Direct (12):** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left, lowerlip, nose_bottom, nose_tip, pupil_center_left, tongue_center, tongue_tip, wrist_left, wrist_right
+- **Hflip-only trainable:** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right, pupil_center_right
 
 ## `kondo`
 
@@ -69,14 +75,13 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 
 - **Views:** 54 sessions right-view
 - **Excluded source keypoints:** d1_middle, d1_base, d2_middle, d2_base, d3_middle, d3_base, d4_middle, d4_base, hand_middle, hand_lateral, hand_medial, wrist, pellet
-- **Direct (11):** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right, eye_back_right, eye_bottom_right, eye_front_right, eye_top_right, nose_bottom, nose_tip, wrist_right
-- **Hflip-only trainable:** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left, eye_back_left, eye_bottom_left, eye_front_left, eye_top_left, wrist_left
+- **Direct (17):** d1_tip_left, d1_tip_right, d2_tip_left, d2_tip_right, d3_tip_left, d3_tip_right, d4_tip_left, d4_tip_right, eye_back_right, eye_bottom_right, eye_front_right, eye_top_right, nose_bottom, nose_tip, nose_top, wrist_left, wrist_right
+- **Hflip-only trainable:** eye_back_left, eye_bottom_left, eye_front_left, eye_top_left
 
 ## `cheese-3d`
 
 - **Views:** 18 sessions left-view, 18 sessions right-view
-- **Direct (29):** ear_base_left, ear_base_right, ear_bottom_left, ear_bottom_right, ear_tip_left, ear_tip_right, ear_top_left, ear_top_right, eye_back_left, eye_back_right, eye_bottom_left, eye_bottom_right, eye_front_left, eye_front_right, eye_top_left, eye_top_right, lowerlip, nose_bottom, nose_tip, nose_top, pad_center, pad_side_left, pad_side_right, pad_top_left, pad_top_right, pupil_center_left, pupil_center_right, upperlip_left, upperlip_right
-- **⚠ Unreferenced raw labeled-data dirs (deliberately not converted):** 20231031_B31_chew_bl_000_10-11-06_BC, 20231031_B31_chew_bl_000_10-11-06_L, 20231031_B31_chew_bl_000_10-11-06_R, 20231031_B31_chew_bl_000_10-11-06_TC, 20231031_B31_chew_bl_000_10-11-06_TL, 20231031_B31_chew_bl_000_10-11-06_TR, 20231031_B31_chew_temperature_000_10-20-52_BC, 20231031_B31_chew_temperature_000_10-20-52_L, 20231031_B31_chew_temperature_000_10-20-52_R, 20231031_B31_chew_temperature_000_10-20-52_TC, 20231031_B31_chew_temperature_000_10-20-52_TL, 20231031_B31_chew_temperature_000_10-20-52_TR, 20231031_B32_chew_temperature_000_10-52-09_BC, 20231031_B32_chew_temperature_000_10-52-09_L, 20231031_B32_chew_temperature_000_10-52-09_R, 20231031_B32_chew_temperature_000_10-52-09_TC, 20231031_B32_chew_temperature_000_10-52-09_TL, 20231031_B32_chew_temperature_000_10-52-09_TR, 20231031_B33_chew_temperature_000_11-19-21_BC, 20231031_B33_chew_temperature_000_11-19-21_L, 20231031_B33_chew_temperature_000_11-19-21_R, 20231031_B33_chew_temperature_000_11-19-21_TC, 20231031_B33_chew_temperature_000_11-19-21_TL, 20231031_B33_chew_temperature_000_11-19-21_TR, 20231031_B6_chew_bl_000_11-35-08_BC, 20231031_B6_chew_bl_000_11-35-08_L, 20231031_B6_chew_bl_000_11-35-08_R, 20231031_B6_chew_bl_000_11-35-08_TC, 20231031_B6_chew_bl_000_11-35-08_TL, 20231031_B6_chew_bl_000_11-35-08_TR, 20231031_B6_chew_temperature_000_11-46-47_BC, 20231031_B6_chew_temperature_000_11-46-47_L, 20231031_B6_chew_temperature_000_11-46-47_R, 20231031_B6_chew_temperature_000_11-46-47_TC, 20231031_B6_chew_temperature_000_11-46-47_TL, 20231031_B6_chew_temperature_000_11-46-47_TR
+- **Direct (31):** ear_base_left, ear_base_right, ear_bottom_left, ear_bottom_right, ear_tip_left, ear_tip_right, ear_top_left, ear_top_right, eye_back_left, eye_back_right, eye_bottom_left, eye_bottom_right, eye_front_left, eye_front_right, eye_top_left, eye_top_right, lowerlip, nose_bottom, nose_tip, nose_top, pad_center, pad_side_left, pad_side_right, pad_top_left, pad_top_right, pupil_center_left, pupil_center_right, upperlip_left, upperlip_right, wrist_left, wrist_right
 
 ## `kaufman`
 
@@ -84,3 +89,21 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 - **Excluded source keypoints:** RFPk1, RFPk2, RFPk3, RFPk4, RFPp1, RFPp2, RFPp3, RFPp4, RFPp5, RFLe1, RFLs1, RHPm, RHPl, RHPp, LFPm, LFPl, LFPp, spoutB, spoutT, nose_top
 - **Direct (16):** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right, ear_base_right, ear_bottom_right, ear_tip_right, ear_top_right, eye_back_right, eye_bottom_right, eye_front_right, eye_top_right, nose_bottom, nose_tip, pad_side_right, pad_top_right
 - **Hflip-only trainable:** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left, ear_base_left, ear_bottom_left, ear_tip_left, ear_top_left, eye_back_left, eye_bottom_left, eye_front_left, eye_top_left, pad_side_left, pad_top_left
+
+## `aind-vbn-body`
+
+- **Views:** 16 sessions left-view
+- **Excluded source keypoints:** jaw, tongue_base_l, tongue_base_r, paw_forward_l, paw_forward_r, pinky_l, pinky_r, ring_finger_l, ring_finger_r, middle_finger_l, middle_finger_r, pointer_finger_l, pointer_finger_r
+- **Direct (16):** ear_base_left, ear_bottom_left, ear_tip_left, ear_top_left, eye_back_left, eye_bottom_left, eye_front_left, eye_top_left, nose_bottom, nose_tip, nose_top, pad_side_left, pad_top_left, tongue_tip, wrist_left, wrist_right
+- **Hflip-only trainable:** ear_base_right, ear_bottom_right, ear_tip_right, ear_top_right, eye_back_right, eye_bottom_right, eye_front_right, eye_top_right, pad_side_right, pad_top_right
+
+## `aind-vbn-face`
+
+- **Views:** 16 sessions left-view
+- **Excluded source keypoints:** nose_top, nose_tip
+- **Direct (15):** eye_back_left, eye_back_right, eye_bottom_left, eye_bottom_right, eye_front_left, eye_front_right, eye_top_left, eye_top_right, pad_side_left, pad_side_right, pad_top_left, pad_top_right, tongue_tip, wrist_left, wrist_right
+
+## `cavelli`
+
+- **Views:** 33 sessions left-view, 33 sessions right-view
+- **Direct (6):** nose_bottom, nose_tip, pupil_center_left, pupil_center_right, wrist_left, wrist_right

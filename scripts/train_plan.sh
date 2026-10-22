@@ -17,6 +17,8 @@
 #   scripts/train_plan.sh dry all                   # print the train_sweep commands only
 #   scripts/train_plan.sh show loo                  # print the script `run` would launch, launch nothing
 #   scripts/train_plan.sh status                    # tail the running plan's log
+#   scripts/train_plan.sh submit all loo --arch S   # NCSA Delta: one SLURM job per run (scripts/delta/train_plan_job.sbatch)
+#   scripts/train_plan.sh submit loo --arch S --sbatch "-p gpuA100x4 -t 02:00:00"   # extra sbatch options
 # Logs: <results_dir>/_logs/train_plan_<stamp>_<stages>.log, one per `run`; kept as the record of what was
 # launched when (small text files), never needed by any script; delete freely once the run is done.
 #
@@ -30,12 +32,14 @@ cd "$(dirname "$0")/.."
 RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
 DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['data_dir'])")
 mapfile -t DATASETS < <(python -c "from mighty_mouse.registry import load_registry; print('\n'.join(load_registry()))")
-declare -A TAG=([facemap]=face [ibl]=ibl [cheese-2d]=cheese [cazettes-side]=caz [kondo]=kondo [hantman-mv]=hmv [cheese-3d]=c3d [kaufman]=kauf)
+declare -A TAG=([facemap]=face [ibl]=ibl [cheese-2d]=cheese [cazettes-side]=caz [kondo]=kondo [hantman-mv]=hmv [cheese-3d]=c3d [kaufman]=kauf
+                [aind-vbn-body]=vbnb [aind-vbn-face]=vbnf [cavelli]=cav)
 SEEDS="0"; ARCHS="S B"
 cmd="${1:-plan}"; shift || true
 while [ $# -gt 0 ]; do case "$1" in
   --seeds) SEEDS="$2"; shift 2;;
   --arch)  ARCHS="$(echo "$2" | sed 's/./& /g')"; shift 2;;
+  --sbatch) SBATCH_OPTS="$2"; shift 2;;
   *) STAGES="${STAGES:-} $1"; shift;; esac; done
 STAGES="${STAGES:-all dedicated loo}"
 
@@ -101,6 +105,22 @@ case "$cmd" in
       n=$(ps -eo args | grep -c "^[^ ]*python[0-9.]* scripts/train_sweep.py"); [ "$n" -ge 2 ] && echo "NOTE: 2 runs already training; the plan waits for a free slot"; [ "$n" -eq 1 ] && echo "NOTE: 1 run already training; the plan fills the second slot now"
       setsid nohup bash "$script" > "$LOG" 2>&1 < /dev/null & echo "$!" > "$RESULTS/_train_plan.pid"
       echo "launched pid $(cat "$RESULTS/_train_plan.pid"); log $LOG"; fi ;;
+  submit)
+    # NCSA Delta: one SLURM job per missing run; done/PARTIAL runs are skipped (delete a PARTIAL dir to rerun)
+    [ -e "$DATA/videos" ] || { mkdir -p "$DATA/videos"; echo "created empty $DATA/videos"; }
+    mkdir -p "$RESULTS/_logs/slurm"
+    while read -r stage area tag out; do for a in $ARCHS; do for s in ${SEEDS//;/ }; do
+      [ -f "$DATA/CollectedData_${tag}_train.csv" ] || { echo "skip $stage $tag: NO CSV (build the tag first)"; continue; }
+      root="$RESULTS/$area$(suffix_of "$a")"; dir=$(out_dir "$area" "$tag" "$s" "$a"); st=$(status_of "$dir")
+      [ "$st" = missing ] || { echo "skip $a $stage $tag seed$s: $st"; continue; }
+      label=$out; [ "$out" = - ] && { [ "$stage" = dedicated ] && label=$tag || label=all; }
+      name="mm-$a-$stage-$label-s$s"
+      sbatch --parsable --job-name="$name" -o "$RESULTS/_logs/slurm/%x_%j.out" ${SBATCH_OPTS:-} \
+        scripts/delta/train_plan_job.sbatch "$dir" "$out" \
+        --config_file "$(cfg_of "$a")" --csv_files "CollectedData_${tag}_train.csv" --train_frames 1 --seeds "$s" \
+        --backbones "$(backbone_of "$a")" --sampling_temperatures 2 --head_modes shared --keep_checkpoints \
+        --skip_existing --output_root "$root" | sed "s|^|submitted $name: job |"
+    done; done; done < <(rows) ;;
   status) tail -n 15 "$(ls -t "$RESULTS"/_logs/train_plan_*.log 2>/dev/null | head -1)" 2>/dev/null || echo "no plan log";;
-  *) echo "usage: $0 plan|dry|show|run|status [stages...] [--seeds \"0;1;2\"] [--arch S|B|SB]"; exit 2;;
+  *) echo "usage: $0 plan|dry|show|run|submit|status [stages...] [--seeds \"0;1;2\"] [--arch S|B|SB]"; exit 2;;
 esac
