@@ -16,6 +16,13 @@ SD, and on labelled cells the median error of the ensemble median and Spearman c
         [--modes mixture] [--include ear_] [--conf 0]
 --modes keeps only the named rows (default all three); --include keeps only keypoints matching any regex; --conf 0
 disables confidence masking (every included keypoint is drawn on every frame, solid).
+
+Raw-dataset models (e.g. the active pseudo-labeling ensembles, whose predictions `active_labeling.py score` caches in
+results/<dataset>/active/round_XX/) pass the prediction CSVs and the image root directly, and map the raw keypoint names
+to canonical ones for the house colours (labels in the strip keep the raw names):
+
+    python scripts/qualitative/ensemble_variance_rows.py --preds <csv> <csv> <csv> --image_dir <_raw/ibl> --no_gt \
+        --keypoint_map <map.yaml> --subset "pool frames (not trained on)" --out <delivery dir>/<name>.mp4
 """
 
 import argparse
@@ -25,6 +32,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pandas as pd
+import yaml
 
 from mighty_mouse.paths import load_paths
 from mighty_mouse.plots.house_style import (
@@ -47,9 +55,17 @@ MODES = [("ensemble var", "Var(x)"), ("inv-conf-weighted", "Var(x) / mean(c)"), 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1], epilog=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--models",    required=True, nargs="+")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--models",   nargs="+", help="corpus run dirs (reads eval/<target>/predictions.csv)")
+    src.add_argument("--preds",    nargs="+", help="prediction CSVs, one per model, image paths relative to --image_dir")
     ap.add_argument("--target",    default="ibl")
     ap.add_argument("--data_dir",  default=None, help="corpus data dir (default: paths.yaml data_dir)")
+    ap.add_argument("--image_dir", default=None, help="root the frame paths are relative to (default: --data_dir)")
+    ap.add_argument("--gt_csv",    default=None, help="ground-truth CSV (default: <data_dir>/CollectedData_<target>_test.csv)")
+    ap.add_argument("--subset",    default="held-out test frames", help="what the frames are, for the banner")
+    ap.add_argument("--keypoint_map", default=None,
+                    help="YAML {raw name: canonical name}, or a configs/datasets/<name>.yaml (its `keypoints:`), "
+                         "used only to pick the house colour of raw keypoint names")
     ap.add_argument("--title",     default="")
     ap.add_argument("--conf",      type=float, default=0.7)
     ap.add_argument("--bar_scale", type=float, default=1.0)
@@ -65,8 +81,15 @@ def main() -> None:
     ap.add_argument("--out",       required=True, help="<delivery dir>/<name>.mp4 (written into videos/)")
     args = ap.parse_args()
 
-    D = Path(args.data_dir or load_paths()["data_dir"])
-    preds = [pd.read_csv(Path(m) / "eval" / args.target / "predictions.csv", header=[0, 1, 2], index_col=0) for m in args.models]
+    D = Path(args.data_dir) if args.data_dir else (None if args.image_dir else Path(load_paths()["data_dir"]))
+    img_root = Path(args.image_dir) if args.image_dir else D
+    pred_csvs = args.preds or [Path(m) / "eval" / args.target / "predictions.csv" for m in args.models]
+    preds = [pd.read_csv(f, header=[0, 1, 2], index_col=0) for f in pred_csvs]
+    kmap = {}
+    if args.keypoint_map:
+        kmap = yaml.safe_load(Path(args.keypoint_map).read_text())
+        kmap = kmap.get("keypoints", kmap)
+    kcolor = lambda k: color(kmap.get(k, k))  # noqa: E731
     sp = preds[0].columns[0][0]
     kps = [k for k in dict.fromkeys(preds[0].columns.get_level_values(1)) if (sp, k, "likelihood") in preds[0].columns]
     if args.exclude:
@@ -94,9 +117,13 @@ def main() -> None:
         keep = [i for i, (name, _) in enumerate(MODES) if name in want]
         assert keep, f"--modes {want} matches none of {[m for m, _ in MODES]}"
         modes, sd = [MODES[i] for i in keep], [sd[i] for i in keep]
-    gt = pd.read_csv(D / f"CollectedData_{args.target}_test.csv", header=[0, 1, 2], index_col=0).loc[idx]
-    sg = gt.columns[0][0]
-    labelled = [k for k in kps if (sg, k, "visible") in gt.columns]
+    if args.no_gt and not args.gt_csv:
+        gt, sg, labelled = None, None, []
+    else:
+        gt_csv = Path(args.gt_csv) if args.gt_csv else D / f"CollectedData_{args.target}_test.csv"
+        gt = pd.read_csv(gt_csv, header=[0, 1, 2], index_col=0).loc[idx]
+        sg = gt.columns[0][0]
+        labelled = [k for k in kps if (sg, k, "visible") in gt.columns]
     OUT = video_path(args.out)
     CSV = csv_dir(OUT)
     rows, summ = [], []
@@ -122,7 +149,9 @@ def main() -> None:
 
     views = {}
     for i, f in enumerate(idx):
-        views.setdefault("left" if f.split("/")[2].endswith("_left") else "right (flipped)", []).append(i)
+        sess = Path(f).parent.name  # <uuid>_left / _right_flipped, or the legacy ibl <...>_leftCamera.<...>
+        left = sess.endswith("_left") or ("leftCamera" in sess and "right" not in sess)
+        views.setdefault("left" if left else "right (flipped)", []).append(i)
     views = {v: [ii[int(t)] for t in np.linspace(0, len(ii) - 1, min(args.frames, len(ii)))] for v, ii in sorted(views.items())}
     n = max(len(v) for v in views.values())
     P, Sw, bh = args.panel, args.strip, BANNER_H
@@ -130,23 +159,23 @@ def main() -> None:
     vw = Writer(OUT, args.fps, (W, H + bh))
     for step in range(n):
         canvas = np.full((H + bh, W, 3), 14, np.uint8)
-        legend_row(canvas, kps, fs=0.42)
+        legend_row(canvas, [kmap.get(k, k) for k in kps], fs=0.42)
         shown_rule = ("no confidence masking: every keypoint drawn on every frame" if args.conf <= 0 else
                       f"shown if any model conf >= {args.conf}; ring = mean conf < {args.conf}")
         cross = ("rows differ ONLY in the +-1 SD cross" if len(modes) > 1 else "cross = +-1 SD")
         scale = "" if args.bar_scale == 1 else f" x{args.bar_scale:g}"
-        line = (f"{args.title} | {args.target} held-out test frames | dot = median of all {len(preds)} models; "
+        line = (f"{args.title} | {args.target} {args.subset} | dot = median of all {len(preds)} models; "
                 f"{shown_rule} | {cross} (true length{scale}) | "
                 + ("no ground truth drawn" if args.no_gt else "x = ground truth"))
         put(canvas, (8, 48), line, fit(line, W - 16), (205, 205, 205))
         for col_i, (v, frames) in enumerate(views.items()):
             i = frames[step % len(frames)]; f = idx[i]
-            base, ox, oy, s = square(cv2.imread(str(D / f)), P)
+            base, ox, oy, s = square(cv2.imread(str(img_root / f)), P)
             if not args.no_gt:
                 for k in labelled:
                     if pd.to_numeric(pd.Series([gt.loc[f, (sg, k, "visible")]]), errors="coerce").iloc[0] == 2:
                         q = (int((float(gt.loc[f, (sg, k, "x")]) + ox) * s), int((float(gt.loc[f, (sg, k, "y")]) + oy) * s))
-                        cv2.drawMarker(base, q, color(k), cv2.MARKER_TILTED_CROSS, 11, 2, cv2.LINE_AA)
+                        cv2.drawMarker(base, q, kcolor(k), cv2.MARKER_TILTED_CROSS, 11, 2, cv2.LINE_AA)
             for r_i, ((mname, formula), (sx, sy)) in enumerate(zip(modes, sd)):
                 p = base.copy()
                 strip = np.full((P, Sw, 3), 24, np.uint8)
@@ -155,7 +184,7 @@ def main() -> None:
                 for j, k in enumerate(kps):
                     if not shown[i, j]:
                         continue
-                    q = (int((xm[i, j] + ox) * s), int((ym[i, j] + oy) * s)); cc = color(k); nd += 1
+                    q = (int((xm[i, j] + ox) * s), int((ym[i, j] + oy) * s)); cc = kcolor(k); nd += 1
                     ex, ey = sx[i, j] * s * args.bar_scale, sy[i, j] * s * args.bar_scale
                     th = 2 if mconf[i, j] >= args.conf else 1
                     cv2.line(p, (int(q[0] - ex), q[1]), (int(q[0] + ex), q[1]), cc, th, cv2.LINE_AA)
@@ -167,7 +196,7 @@ def main() -> None:
                         put(strip, (20, ln), f"{k[:16]:16s} {sx[i, j]:.1f}/{sy[i, j]:.1f}  c{mconf[i, j]:.2f}", 0.34,
                             (215, 215, 215)); ln += 13
                 header(p, f"{mname}: {formula} | {v} | {nd} kps | mean SD {np.mean(sds) if sds else 0:.2f} px")
-                footer(p, f"{step % len(frames) + 1}/{len(frames)} {f.split('/')[2][:24]}/{Path(f).name}")
+                footer(p, f"{step % len(frames) + 1}/{len(frames)} {Path(f).parent.name[:24]}/{Path(f).name}")
                 x0 = col_i * (P + Sw); y0 = bh + r_i * P
                 canvas[y0:y0 + P, x0:x0 + P] = p
                 canvas[y0:y0 + P, x0 + P:x0 + P + Sw] = strip

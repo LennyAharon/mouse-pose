@@ -118,6 +118,19 @@ def select_frames(scores: pd.Series, m: int | None) -> pd.Index:
     return ranked.dropna().index[:m]
 
 
+def read_frame_ids(text: str) -> pd.Index:
+    """Image paths from a frame-id list: one `labeled-data/<session>/<frame>.png` per line,
+    blank lines and `#` comments ignored."""
+    lines = (line.strip() for line in text.splitlines())
+    return pd.Index(dict.fromkeys(line for line in lines if line and not line.startswith("#")))
+
+
+def exclude_frames(scores: pd.Series, excluded: pd.Index) -> pd.Series:
+    """Drop `excluded` frames (e.g. reserved for another labeler) from the pool `scores`,
+    so `select` can never pick them. Ids not in the pool are ignored."""
+    return scores.drop(scores.index.intersection(excluded))
+
+
 def order_by_session(chosen: pd.Index, originals_index: pd.Index) -> pd.Index:
     """Reorder `chosen` so each session's frames are contiguous, in frame order.
 

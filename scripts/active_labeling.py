@@ -21,6 +21,10 @@ Subcommands, in the order they are used:
   select     append the --m highest-disagreement unlabeled frames (or `all`), prefilled
              with the ensemble mean, to CollectedData_tolabel.csv
   finalize   copy the new keypoints from tolabel into CollectedData.csv / CollectedData_test.csv
+  frame-ids  (re)write the per-round lists of tolabel images to _raw/<dataset>/frame_ids_active/
+
+`select --exclude <list.txt>` reserves frames (e.g. for another labeler): the list is recorded in
+state.yaml and re-read by every later `select`, so those frames can never be drawn into tolabel.
 """
 
 import argparse
@@ -36,12 +40,14 @@ from mighty_mouse.labeling.active_labeling import (
     combine_originals,
     compare_training_csv,
     ensemble_spread,
+    exclude_frames,
     frame_scores,
     init_tolabel,
     make_manifest,
     merge_back,
     order_by_session,
     prefill_rows,
+    read_frame_ids,
     round_stats,
     sample_per_session,
     select_frames,
@@ -52,6 +58,7 @@ from mighty_mouse.paths import load_paths
 
 TRAIN_CSV, TEST_CSV = "CollectedData.csv", "CollectedData_test.csv"
 TOLABEL_CSV, TMP_CSV = "CollectedData_tolabel.csv", "CollectedData_tmp.csv"
+FRAME_IDS_DIR = "frame_ids_active"  # per-round tolabel image lists, next to the dataset's CSVs
 
 
 class Ctx:
@@ -267,6 +274,35 @@ def cmd_score(args) -> None:
           f"labeled-frame mean {frame_scores(labeled).mean():.2f}")
 
 
+def excluded_frames(ctx: Ctx, state: dict) -> pd.Index:
+    """Every image reserved by the exclude lists recorded in state.yaml (re-read each time,
+    so a list that grows keeps excluding its new frames)."""
+    ids = pd.Index([])
+    for f in state.get("exclude_files", []):
+        path = Path(f) if Path(f).is_absolute() else ctx.raw / f
+        if not path.exists():
+            sys.exit(f"exclude list {path} (recorded in {ctx.state_path}) is missing -- "
+                     "refusing to select")
+        ids = ids.append(read_frame_ids(path.read_text()))
+    return ids.unique()
+
+
+def write_frame_ids(ctx: Ctx, manifest: pd.DataFrame) -> None:
+    """tolabel_round<R>.txt per round plus tolabel_all.txt, from the manifest."""
+    out = ctx.raw / FRAME_IDS_DIR
+    out.mkdir(exist_ok=True)
+    for r, group in manifest.groupby("round"):
+        (out / f"tolabel_round{int(r):02d}.txt").write_text("\n".join(group.index) + "\n")
+    (out / "tolabel_all.txt").write_text("\n".join(manifest.index) + "\n")
+    print(f"frame lists: {out}/tolabel_round*.txt, tolabel_all.txt ({len(manifest)} images)")
+
+
+def cmd_frame_ids(args) -> None:
+    ctx = Ctx(args.dataset)
+    _, manifest = ctx.load_tolabel()
+    write_frame_ids(ctx, manifest)
+
+
 def cmd_select(args) -> None:
     ctx = Ctx(args.dataset)
     state = ctx.load_state()
@@ -277,7 +313,24 @@ def cmd_select(args) -> None:
     originals, source = ctx.load_originals()
     preds, labeled, pool = spreads(ctx, state, originals, tolabel.index)
     m = None if args.m == "all" else int(args.m)
+    for f in args.exclude or []:
+        path = Path(f).resolve()
+        if not path.exists():
+            sys.exit(f"--exclude {f}: no such file")
+        raw = ctx.raw.resolve()
+        rel = str(path.relative_to(raw)) if path.is_relative_to(raw) else str(path)
+        if rel not in state.setdefault("exclude_files", []):
+            state["exclude_files"].append(rel)
+    excluded = excluded_frames(ctx, state)
+    if len(excluded.intersection(tolabel.index)):
+        n = len(excluded.intersection(tolabel.index))
+        print(f"WARNING: {n} reserved frames are already in {TOLABEL_CSV}")
     scores = frame_scores(pool)
+    n_pool = len(scores)
+    scores = exclude_frames(scores, excluded)
+    if state.get("exclude_files"):
+        print(f"excluding {n_pool - len(scores)} pool frames reserved by {state['exclude_files']} "
+              f"({len(excluded)} listed)")
     chosen = order_by_session(select_frames(scores, m), originals.index)
     pool_sessions = len({session_name(i) for i in pool.index})
     rows = prefill_rows(
@@ -287,7 +340,7 @@ def cmd_select(args) -> None:
 
     sc = scores.loc[chosen]
     per_session = pd.Series([session_name(i) for i in chosen]).value_counts()
-    print(f"Selecting {len(chosen)} of {len(pool)} pool frames for round {r + 1} "
+    print(f"Selecting {len(chosen)} of {len(scores)} eligible pool frames for round {r + 1} "
           f"({sc.isna().sum()} with no eligible keypoint); "
           f"{new_manifest['source'].value_counts().to_dict()}")
     print(f"from {len(per_session)} of {pool_sessions} pool sessions "
@@ -305,6 +358,8 @@ def cmd_select(args) -> None:
     ctx.backup(ctx.manifest_path, f"before_round{r + 1}")
     pd.concat([tolabel, rows]).to_csv(ctx.raw / TOLABEL_CSV)
     pd.concat([manifest, new_manifest]).to_csv(ctx.manifest_path)
+    ctx.save_state(state)  # records any new --exclude list
+    write_frame_ids(ctx, pd.concat([manifest, new_manifest]))
     first = new_manifest.index[0]
     print(f"Appended to {ctx.raw / TOLABEL_CSV} -- review the new rows in the LP app.")
     print(f"First new row (data row {len(tolabel) + 1} of {len(tolabel) + len(rows)}): {first}")
@@ -375,10 +430,15 @@ def main() -> None:
     p.add_argument("--m", required=True, help="number of frames to add, or `all`")
     p.add_argument("--prefill_threshold", type=float, default=0.9)
     p.add_argument("--prefill_agg", choices=["mean", "median"], default="mean")
+    p.add_argument("--exclude", nargs="+", metavar="LIST",
+                   help="frame-id lists (one image path per line) never to select; recorded in "
+                        "state.yaml and applied to every later select")
     p.add_argument("--dry_run", action="store_true")
 
     p = add("finalize", cmd_finalize)
     p.add_argument("--dry_run", action="store_true")
+
+    add("frame-ids", cmd_frame_ids)
 
     args = parser.parse_args()
     args.fn(args)

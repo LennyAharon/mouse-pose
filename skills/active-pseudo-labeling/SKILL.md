@@ -86,6 +86,10 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
    - pool frames are binned by spread / baseline (`x0-1`, `x1-2`, `x2-4`, `x4+`), which move
      whenever the baseline does; the `n>3px` / `n>10px` / `n>20px` counts don't. `pool_ineligible`
      frames (no confident member) are never candidates.
+   - To *see* the round (house style, from the cached predictions, no model re-run):
+     `python scripts/qualitative/active_round_video.py <dataset> --frames pool` (frames not trained
+     on, spread over sessions) or `--frames top` (the highest-disagreement frames `select` would
+     add). Raw keypoint names get their house colours from `--keypoint_map` (raw -> canonical).
 4. **Is the loop converging?** Compare rounds with the *full-pool* frame-score quantiles
    (median / 90th / 99th, printed by `score`), which are comparable across rounds. Don't compare
    counts on "the same remaining pool frames": last round's selection removed that pool's top
@@ -103,6 +107,13 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
    - The batch is **organized by session, not by variance rank**: a session's frames are
      contiguous and in frame order, because labeling is more consistent when a video's frames
      come back to back. The variance ranking only decides *which* frames.
+   - **Reserved frames** (e.g. another labeler is labeling them and they'll be added to tolabel
+     later): `select ... --exclude _raw/<dataset>/frame_ids_active/<list>.txt` (one image path
+     per line). The list is recorded in `state.yaml` (`exclude_files`) and re-read by every later
+     `select`, `--m all` included, so it never needs repeating; `select` refuses if a recorded list
+     goes missing. Report how many pool frames it excluded.
+   - `select` also writes `_raw/<dataset>/frame_ids_active/tolabel_round<R>.txt` (images added
+     in each round) and `tolabel_all.txt`; `frame-ids <dataset>` rewrites them from the manifest.
    - Then back to step 2 (`train-csv` after the user reviews the batch).
 6. **`reorder <dataset>`** (optional, `--dry_run` first): re-sorts *all* rounds' rows by session
    so the user can check consistency across rounds. Safe to run any time the user is back at the app's home screen;

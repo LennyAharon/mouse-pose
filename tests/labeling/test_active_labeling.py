@@ -8,12 +8,14 @@ from mighty_mouse.labeling.active_labeling import (
     combine_originals,
     compare_training_csv,
     ensemble_spread,
+    exclude_frames,
     frame_scores,
     init_tolabel,
     make_manifest,
     merge_back,
     order_by_session,
     prefill_rows,
+    read_frame_ids,
     round_stats,
     sample_per_session,
     select_frames,
@@ -157,6 +159,36 @@ class TestSelectFrames:
         scores = pd.Series([1.0, np.nan, 5.0], index=list("abc"))
 
         assert list(select_frames(scores, None)) == ["c", "a", "b"]
+
+
+class TestReadFrameIds:
+    """Test the function read_frame_ids."""
+
+    def test_read_frame_ids_skips_blanks_comments_duplicates(self):
+        a, b = "labeled-data/s1/img1.png", "labeled-data/s1/img2.png"
+        text = f"# reserved\n{a}\n\n  {b}  \n{a}\n"
+
+        assert list(read_frame_ids(text)) == [a, b]
+
+    def test_read_frame_ids_empty(self):
+        assert len(read_frame_ids("")) == 0
+
+
+class TestExcludeFrames:
+    """Test the function exclude_frames."""
+
+    def test_exclude_frames_drops_listed(self):
+        scores = pd.Series([1.0, 5.0, 3.0], index=list("abc"))
+
+        result = exclude_frames(scores, pd.Index(["b", "z"]))
+
+        assert list(result.index) == ["a", "c"]
+        assert list(select_frames(result, 1)) == ["c"]
+
+    def test_exclude_frames_nothing_listed(self):
+        scores = pd.Series([1.0, np.nan], index=list("ab"))
+
+        pd.testing.assert_series_equal(exclude_frames(scores, pd.Index([])), scores)
 
 
 class TestOrderBySession:
