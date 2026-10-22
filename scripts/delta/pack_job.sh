@@ -7,7 +7,9 @@
 #
 #   sbatch -p <part> --gpus-per-node=N --cpus-per-task=$((16*N)) ... scripts/delta/pack_job.sh <spec file>
 #
-# Spec file: one run per line, `<name>|<run dir>|<left out>|<train_sweep args>` (train_plan.sh args).
+# Spec file: one run per line, `<name>|<run dir>|<left out>|<train_sweep args>[|<mouse-pose dir>:<lightning-pose dir>]`
+# (train_plan.sh args / exp_specs.py). With the optional 5th field the run uses that code: the job script of
+# that mouse-pose checkout, run from it, with both checkouts first on PYTHONPATH (experiment worktrees).
 set -u
 set -f   # no globbing: train_sweep args can hold Hydra lists like milestone_steps=[8000,10000,11000]
 SPEC="$1"
@@ -19,11 +21,16 @@ per=$(( ${SLURM_CPUS_PER_TASK:-16} / ${#LINES[@]} ))
 echo "host=$(hostname) partition=${SLURM_JOB_PARTITION:-?} gpus=$n_gpu runs=${#LINES[@]} cpus/run=$per"
 pids=(); names=()
 for i in "${!LINES[@]}"; do
-    IFS='|' read -r name dir out args <<< "${LINES[$i]}"
+    IFS='|' read -r name dir out args code <<< "${LINES[$i]}"
     log="$LOGDIR/slurm/${name}_${SLURM_JOB_ID:-local}.out"
+    job=scripts/delta/train_plan_job.sbatch; extra_env=()
+    if [ -n "${code:-}" ]; then   # experiment worktrees: their job script, their code first on the path
+        job="${code%%:*}/scripts/delta/train_plan_job.sbatch"
+        extra_env=(MM_REPO="${code%%:*}" PYTHONPATH="${code#*:}:${code%%:*}")
+    fi
     # shellcheck disable=SC2086  # args is a list of train_sweep options
-    CUDA_VISIBLE_DEVICES=$(( i % n_gpu )) SLURM_CPUS_PER_TASK=$per \
-        bash scripts/delta/train_plan_job.sbatch "$dir" "$out" $args > "$log" 2>&1 &
+    env "${extra_env[@]}" CUDA_VISIBLE_DEVICES=$(( i % n_gpu )) SLURM_CPUS_PER_TASK=$per \
+        bash "$job" "$dir" "$out" $args > "$log" 2>&1 &
     pids+=($!); names+=("$name")
     echo "$name -> GPU $(( i % n_gpu )), log $log"
 done

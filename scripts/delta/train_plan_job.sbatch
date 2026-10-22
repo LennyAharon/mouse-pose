@@ -17,7 +17,7 @@
 # (train_sweep --skip_existing would otherwise skip it), so preemptible partitions are safe too.
 #SBATCH --job-name=mm-train
 #SBATCH --account=beez-delta-gpu
-#SBATCH --partition=gpuA100x4,gpuA100x8,gpuH200x8,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt
+#SBATCH --partition=gpuA100x4,gpuA100x8,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt
 #SBATCH --requeue
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

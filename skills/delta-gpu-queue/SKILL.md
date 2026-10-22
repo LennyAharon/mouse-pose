@@ -27,11 +27,15 @@ maximum: interactive partitions cap at 1 h, and short accurate limits backfill s
 ## 2. Pick the route (fastest first)
 
 1. **Interactive partitions** (`gpuA100x4-interactive`, `gpuA40x4-interactive`,
-   `gpuA100x8-interactive`, `gpuH200x8-interactive`): priority factor **10000** vs 100 regular / 30
-   preempt, so the job goes to the front of the queue. Limits: **1 h max**, **1 job per user per
-   partition** (separate QOS each, so up to 4 at once). Use them whenever the job fits in ~55 min. A
-   job can hold several GPUs of one node (more runs at once) but then waits for that many free GPUs.
-   A run killed at 1 h is lost (training does not resume): only if the measured time fits.
+   `gpuA100x8-interactive`): priority factor **10000** vs 100 regular / 30 preempt, so the job goes
+   to the front of the queue. Limits: **1 h max**, **1 SUBMITTED job per user per partition**
+   (`QOSMaxSubmitJobPerUser`: a pending job holds the slot too, so a second job cannot even queue
+   behind it). Use them whenever the job fits in ~55 min. A job can hold several GPUs of one node
+   (more runs at once) but then waits for that many free GPUs. A run killed at 1 h is lost
+   (training does not resume): only if the measured time fits. **No H200** (user, 2026-10-22: not
+   needed, and its few nodes are never the fast queue); A40 / A100 are what we use.
+   To give a slot the feeder holds to another job (e.g. an analysis job), stop the feeder, submit
+   when the slot frees, restart the feeder: it skips a partition that has any job of mine.
 2. **Pack small runs onto one GPU**: e.g. a 3-seed ensemble as ONE job
    (`scripts/delta/train_lp.sbatch` with `SEEDS="0 1 2"`); one job waits instead of three.
 3. **List every acceptable partition in one job** (`-p a,b,c`): SLURM takes the first that frees.
@@ -72,7 +76,10 @@ Then the job ids and `squeue -u $USER -o "%.10i %.30j %.3t %.20S %R"` (`%S` = es
   not a description. The user can run `watch -n 60 scripts/delta/train_progress.sh` themselves.
 - Many runs: `scripts/delta/interactive_feeder.sh` keeps every interactive partition busy with one
   multi-GPU job each (`scripts/delta/pack_job.sh`, one run per GPU); the same runs can stay queued
-  on regular/preempt partitions, `train_plan_job.sbatch` claims make duplicates exit.
+  on regular/preempt partitions, `train_plan_job.sbatch` claims make duplicates exit. Experiment
+  definitions: `--specs <configs/experiments/*.yaml>` on the feeder, and as backups
+  `python scripts/delta/exp_specs.py <definition> | scripts/delta/submit_specs.sh -p <parts> -t <time>`
+  (a definition's `code:` makes both run the experiment worktrees' code).
 
 ## Gotchas
 
@@ -93,4 +100,5 @@ Then the job ids and `squeue -u $USER -o "%.10i %.30j %.3t %.20S %R"` (`%S` = es
 | same, linear head, 1500-step timing | A100 40GB | ~6 it/s | CPU-bound (same speed frozen / unfrozen backbone) |
 | same, nonlinear head 256, 4 runs packed on one A40 node (16 CPU each) | A40 | 4.1-4.9 it/s, ~43-48 min train | 2026-10-22; + eval |
 | same, nonlinear head 256, 4 packed on A100x8 node / 1 on A100 | A100 | 5.1-5.7 it/s, ~37-40 min train | 2026-10-22; + eval |
-| dedicated model (small dataset), nonlinear head | H200 | 11.8-12.6 it/s, ~17 min train | 2026-10-22 |
+| dedicated model (small dataset), nonlinear head | H200 | 11.8-12.6 it/s, ~17 min train | 2026-10-22 (H200 no longer used) |
+| zero-shot along training: 11 leave-out trunks x 6 checkpoints, test + train frames | A40 | 14 min | 2026-10-22, interactive, 16 CPU |

@@ -37,6 +37,9 @@ def main() -> None:
     datasets = load_registry()
     short = dict(re.findall(r"\[([\w-]+)\]=(\w+)", (REPO / "scripts" / "train_plan.sh").read_text()))
     head_ov = list(spec.get("head_overrides", []))
+    # optional experiment code (worktrees): appended as a 5th field that scripts/delta/pack_job.sh honors
+    code = spec.get("code")
+    code_field = f"|{code['mouse_pose']}:{code['lightning_pose']}" if code else ""
     for exp_id, exp in spec["experiments"].items():
         root = (results / "trunks-headmlp256" if exp.get("area") == "baseline"
                 else results / "experiments" / exp_id)
@@ -54,7 +57,7 @@ def main() -> None:
                          f"--train_frames 1 --seeds {seed} --backbones {spec['backbone']} "
                          f"--sampling_temperatures 2 --head_modes shared --keep_checkpoints --skip_existing "
                          f"--output_root {root} --extra_overrides {overrides}")
-                print(f"mm-{exp_id}-{target}-s{seed}|{run_dir}|{','.join(left_out)}|{sweep}")
+                print(f"mm-{exp_id}-{target}-s{seed}|{run_dir}|{','.join(left_out)}|{sweep}{code_field}")
 
 
 if __name__ == "__main__":
