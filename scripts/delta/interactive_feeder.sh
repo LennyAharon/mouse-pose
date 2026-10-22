@@ -14,6 +14,9 @@
 # Stages as in train_plan.sh (all, loo, dedicated, loo:<ds>, dedicated:<ds>); arch S, seed 0.
 # GPUs per job: chosen each time from the scheduler's own estimates (sbatch --test-only for 1, 2, 4 GPUs,
 # up to MAX_GPUS of the partition): the size that finishes the most runs per hour, G / (wait + RUN_MIN).
+# Rebalancing: when a partition's slot is free but every unstarted run already sits in a PENDING job of
+# mine elsewhere whose estimated start is > REBALANCE_MIN later than this partition's, that pending job
+# is cancelled (never a running one) so its runs move here on the next pass.
 # Stops when no run is missing and none of my interactive jobs is left; kill it to stop early.
 set -u
 cd "$(dirname "$0")/../.."
@@ -21,6 +24,13 @@ export PATH=/work/nvme/beez/laharon/.conda/envs/mighty-mouse/bin:$PATH
 declare -A MAX_GPUS=([gpuA40x4-interactive]=4 [gpuA100x4-interactive]=4
                      [gpuA100x8-interactive]=4 [gpuH200x8-interactive]=2)
 RUN_MIN=50   # one run incl. evaluation, minutes (measured ~45-50, 2026-10-22)
+REBALANCE_MIN=30
+est_start() {  # partition, gpus -> estimated start (epoch s) of a new job, or empty
+  local e
+  e=$(sbatch --test-only -A beez-delta-gpu -p "$1" --gpus-per-node="$2" --cpus-per-task=$((16 * $2)) \
+      --mem=$((60 * $2))G -t 00:59:00 --wrap true 2>&1 | grep -oE "start at [0-9T:-]+" | cut -d' ' -f3)
+  [ -n "$e" ] && date -d "$e" +%s
+}
 best_gpus() {  # partition, runs available -> GPU count with the best runs/hour by the scheduler's estimate
   local p=$1 avail=$2 best=1 best_score=-1 g est wait score
   for g in 1 2 4; do
@@ -51,7 +61,19 @@ while true; do
   for p in $PARTS; do
     squeue -u "$USER" -h -p "$p" 2>/dev/null | grep -q . && continue   # 1 job per user per partition
     avail=0; for line in "${MISSING[@]}"; do grep -qx "${line%%|*}" <<< "$targeted" || avail=$((avail + 1)); done
-    [ "$avail" -eq 0 ] && continue
+    if [ "$avail" -eq 0 ]; then
+      # nothing unassigned: steal from a pending job elsewhere that would start much later
+      here=$(est_start "$p" 1); [ -z "$here" ] && continue
+      while read -r jid jpart jstart; do
+        [ "$jpart" = "$p" ] && continue
+        [ "$jstart" = N/A ] && js=$((here + 86400)) || js=$(date -d "$jstart" +%s)
+        if [ "$js" -gt $((here + REBALANCE_MIN * 60)) ]; then
+          scancel "$jid" && echo "[$(date +%T)] rebalance: cancelled pending $jid ($jpart, est ${jstart}); $p starts ~$(date -d @"$here" +%H:%M)"
+          break
+        fi
+      done < <(squeue -u "$USER" -h -t PD -p "$(echo $PARTS | tr ' ' ,)" -o "%i %P %S" 2>/dev/null | sort -k3 -r)
+      continue
+    fi
     G=$(best_gpus "$p" "$avail")
     pick=()
     for line in "${MISSING[@]}"; do

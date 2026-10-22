@@ -46,6 +46,6 @@ squeue -u "$USER" -h -t R -o "%i|%j|%e|%P" | while IFS='|' read -r job name end 
   done
 done
 echo
-echo "queued: $(squeue -u "$USER" -h -t PD | wc -l) jobs   finished runs: $(ls -d "$RESULTS"/{trunks,dedicated}/*/supervised/*/*/*/seed*/eval 2>/dev/null | wc -l) / 23"
+echo "queued: $(squeue -u "$USER" -h -t PD | wc -l) jobs   finished runs: $(ls -d "$RESULTS"/{trunks,dedicated}*/*/supervised/*/*/*/seed*/eval 2>/dev/null | wc -l) / 23"
 feeder=$(ls -t "$RESULTS"/_logs/interactive_feeder_*.log 2>/dev/null | head -1)
 [ -n "$feeder" ] && echo "feeder ($(pgrep -u "$USER" -f interactive_feeder.sh >/dev/null && echo running || echo STOPPED)): $(tail -1 "$feeder")"
