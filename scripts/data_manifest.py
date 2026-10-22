@@ -48,6 +48,13 @@ def raw_folder_for(dataset: str, repo: Path) -> str:
     return (c or {}).get("raw_folder") or dataset
 
 
+def label_csvs(raw: Path) -> list[Path]:
+    """A raw dataset's label CSVs: the train and test CollectedData files only. Other CollectedData_*.csv
+    in the folder are working files (e.g. active pseudo-labeling's _tolabel / _tmp), not labels, and must
+    not change the dataset's version hash; every registered version so far hashed exactly these two."""
+    return [p for p in (raw / "CollectedData.csv", raw / "CollectedData_test.csv") if p.exists()]
+
+
 def registry_path(raw_dir: Path) -> Path:
     return raw_dir.parent / "DATASET_VERSIONS.json"
 
@@ -84,7 +91,7 @@ def register(dataset: str, raw_dir: Path, repo: Path, note: str, mw_version: int
     """
     reg = load_registry(raw_dir)
     raw_name = raw_folder_for(dataset, repo); raw = raw_dir / raw_name
-    csvs = sorted(raw.glob("CollectedData*.csv"))
+    csvs = label_csvs(raw)
     if not csvs:
         raise SystemExit(f"no CollectedData*.csv under {raw}")
     h = sha256_files(csvs); versions = reg.setdefault(dataset, [])
@@ -120,7 +127,7 @@ def build_manifest(data_dir: Path, raw_dir: Path, repo: Path) -> dict:
     for name, d in inv["datasets"].items():
         raw_name = raw_folder_for(name, repo)
         raw = raw_dir / raw_name
-        csvs = sorted(raw.glob("CollectedData*.csv")) if raw.exists() else []
+        csvs = label_csvs(raw) if raw.exists() else []
         cfg = repo / "configs" / "datasets" / f"{name}.yaml"
         datasets[name] = {
             "train_frames": d["train_frames"], "test_frames": d["test_frames"],

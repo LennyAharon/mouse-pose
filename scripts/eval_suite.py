@@ -2,7 +2,7 @@
 """
 Standard evaluation tables for the recipe-of-record models of a corpus version.
 
-Discovers the finished runs under <results_dir>/trunks and <results_dir>/dedicated (or takes
+Discovers the finished runs under <results_dir>/trunks* and <results_dir>/dedicated* (or takes
 explicit --run name=path pairs) and, from the pixel_error.csv that evaluate_model writes for every
 dataset's test set, produces:
 
@@ -17,6 +17,7 @@ dataset's test set, produces:
 """
 
 import argparse
+import re
 from datetime import date
 from pathlib import Path
 
@@ -28,16 +29,36 @@ from mighty_mouse.registry import load_registry
 
 EXCLUDE: set[str] = set()   # pupil_center_right is scored where labeled (visible == 2) since corpus v5
 LEAF = "supervised/sampling-T2/tf1/vits_dinov3"
+TAGS_SRC = Path(__file__).with_name("train_plan.sh")  # TAG map: dataset -> short tag name
 
 
-def discover(results_dir: Path) -> dict[str, Path]:
+def run_label(area: str, tag: str, datasets: list[str]) -> str:
+    """Readable column name: all / LOO-<ds> / dedicated:<ds>, plus the area's variant suffix
+    (e.g. trunks-headmlp256 -> "@headmlp256"); a tag that is neither keeps its raw name."""
+    variant = area.split("-", 1)[1] if "-" in area else ""
+    suffix = f"@{variant}" if variant else ""
+    if area.startswith("dedicated"):
+        return f"dedicated:{tag}{suffix}"
+    n = tag.count("+") + 1
+    if n == len(datasets):
+        return f"all{suffix}"
+    if n == len(datasets) - 1:
+        short = dict(re.findall(r"\[([\w-]+)\]=(\w+)", TAGS_SRC.read_text()))
+        missing = [d for d in datasets if short.get(d) and short[d] not in tag.split("+")]
+        if len(missing) == 1:
+            return f"LOO-{missing[0]}{suffix}"
+    return tag + suffix
+
+
+def discover(results_dir: Path, datasets: list[str]) -> dict[str, Path]:
+    """Every evaluated run under results_dir/trunks*/ and dedicated*/ (all head / size variants)."""
     runs = {}
-    for area, prefix in (("trunks", ""), ("dedicated", "dedicated:")):
-        for tag_dir in sorted((results_dir / area).glob("*_train")):
+    for area_dir in sorted([*results_dir.glob("trunks*"), *results_dir.glob("dedicated*")]):
+        for tag_dir in sorted(area_dir.glob("*_train")):
             for seed_dir in sorted(tag_dir.glob(f"{LEAF}/seed*")):
                 if (seed_dir / "eval").is_dir():
-                    name = prefix + tag_dir.name[: -len("_train")] + (f"@{seed_dir.name}" if seed_dir.name != "seed0" else "")
-                    runs[name] = seed_dir
+                    name = run_label(area_dir.name, tag_dir.name[: -len("_train")], datasets)
+                    runs[name + (f"#{seed_dir.name}" if seed_dir.name != "seed0" else "")] = seed_dir
     return runs
 
 
@@ -66,11 +87,11 @@ def main() -> None:
     ap.add_argument("--out", type=Path, help="output folder (default: <results_dir>/qualitative/eval-suite-<MM-DD>)")
     args = ap.parse_args()
 
-    runs = discover(args.results_dir)
+    runs = discover(args.results_dir, load_registry())
     for spec in args.run:
         name, path = spec.split("=", 1); runs[name] = Path(path)
     if not runs:
-        raise SystemExit(f"no evaluated runs under {args.results_dir}/trunks or /dedicated")
+        raise SystemExit(f"no evaluated runs under {args.results_dir}/trunks* or /dedicated*")
     datasets = load_registry()
     out = args.out or args.results_dir / "qualitative" / f"eval-suite-{date.today():%m-%d}"
     out.mkdir(parents=True, exist_ok=True)
@@ -93,6 +114,28 @@ def main() -> None:
     S.round(3).to_csv(out / "summary.csv", index=False); K.round(3).to_csv(out / "per_keypoint.csv", index=False)
 
     piv = S.pivot(index="dataset", columns="run", values="median_px").reindex(datasets)
+    # per dataset, per keypoint: all-data trunk vs that dataset's dedicated model (any head variant), mean / median
+    kp_sections = []
+    for ds in datasets:
+        alls = [r for r in runs if r.split("#")[0].split("@")[0] == "all"]
+        deds = [r for r in runs if r.split("#")[0].split("@")[0] == f"dedicated:{ds}"]
+        cols = alls + deds
+        sub = K[(K.dataset == ds) & K.run.isin(cols)] if len(K) else K
+        if sub.empty:
+            continue
+        rows_md = [f"| keypoint | " + " | ".join(cols) + " |", "|---|" + "---|" * len(cols)]
+        for k in dict.fromkeys(sub.keypoint):
+            cells = []
+            for c in cols:
+                r = sub[(sub.run == c) & (sub.keypoint == k)]
+                cells.append(f"{r.mean_px.iloc[0]:.1f} / {r.median_px.iloc[0]:.1f}" if len(r) else "")
+            rows_md.append(f"| {k} | " + " | ".join(cells) + " |")
+        pooled = []
+        for c in cols:
+            r = S[(S.run == c) & (S.dataset == ds)]
+            pooled.append(f"**{r.mean_px.iloc[0]:.1f} / {r.median_px.iloc[0]:.1f}**" if len(r) else "")
+        rows_md.append("| **pooled** | " + " | ".join(pooled) + " |")
+        kp_sections += [f"### {ds}", "", *rows_md, ""]
     lines = [f"---", f"title: Evaluation suite {date.today()}", f"date: {date.today()}",
              f"data_version: {Path(load_paths()['data_dir']).name}",
              "question: How do the recipe-of-record models score on every dataset's test set?",
@@ -101,6 +144,8 @@ def main() -> None:
              "# Evaluation suite", "", "Median pixel error over labeled keypoints (visible == 2),",
              "each run scored on every dataset's test set. A dedicated model scored on another dataset only",
              "measures whatever keypoints the two share.", "", md_table(piv.round(2)), "",
+             "## Per keypoint: all-data trunk vs dedicated (test set, mean / median px)", "",
+             "Zero-shot (leave-one-out) per-keypoint tables: `scripts/zeroshot_score.py`.", "", *kp_sections,
              "Per-keypoint numbers: `per_keypoint.csv`. Runs:", ""]
     lines += [f"- `{n}`: `{p.relative_to(args.results_dir) if p.is_relative_to(args.results_dir) else p}`" for n, p in runs.items()]
     (out / "README.md").write_text("\n".join(lines) + "\n")
