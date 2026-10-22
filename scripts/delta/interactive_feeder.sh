@@ -1,0 +1,75 @@
+#!/bin/bash
+# Keep Delta's interactive GPU partitions busy with recipe-of-record runs (skills/delta-gpu-queue).
+# Interactive partitions have priority factor 10000 (regular 100) but allow 1 job per user per
+# partition and 1 h. The limit is per JOB, not per GPU: every minute, each interactive partition
+# without a job of mine gets ONE job holding up to N GPUs with the next N unfinished runs side by side
+# (scripts/delta/pack_job.sh, -t 00:59:00, 16 CPUs per run). A run takes ~45 min on one A100/A40
+# (CPU-bound, measured 2026-10-22). Runs may also be queued on the regular/preempt partitions:
+# scripts/delta/train_plan_job.sbatch lets the first job to start a run claim it, duplicates exit.
+#
+#   setsid nohup scripts/delta/interactive_feeder.sh all loo dedicated > <log> 2>&1 &
+#   scripts/delta/interactive_feeder.sh --once all loo     # one pass, then exit
+#   scripts/delta/interactive_feeder.sh --head 256 all loo dedicated   # nonlinear head (train_plan.sh --head)
+#
+# Stages as in train_plan.sh (all, loo, dedicated, loo:<ds>, dedicated:<ds>); arch S, seed 0.
+# GPUs per job: chosen each time from the scheduler's own estimates (sbatch --test-only for 1, 2, 4 GPUs,
+# up to MAX_GPUS of the partition): the size that finishes the most runs per hour, G / (wait + RUN_MIN).
+# Stops when no run is missing and none of my interactive jobs is left; kill it to stop early.
+set -u
+cd "$(dirname "$0")/../.."
+export PATH=/work/nvme/beez/laharon/.conda/envs/mighty-mouse/bin:$PATH
+declare -A MAX_GPUS=([gpuA40x4-interactive]=4 [gpuA100x4-interactive]=4
+                     [gpuA100x8-interactive]=4 [gpuH200x8-interactive]=2)
+RUN_MIN=50   # one run incl. evaluation, minutes (measured ~45-50, 2026-10-22)
+best_gpus() {  # partition, runs available -> GPU count with the best runs/hour by the scheduler's estimate
+  local p=$1 avail=$2 best=1 best_score=-1 g est wait score
+  for g in 1 2 4; do
+    [ "$g" -gt "${MAX_GPUS[$p]}" ] || [ "$g" -gt "$avail" ] && continue
+    est=$(sbatch --test-only -A beez-delta-gpu -p "$p" --gpus-per-node="$g" --cpus-per-task=$((16 * g)) \
+          --mem=$((60 * g))G -t 00:59:00 --wrap true 2>&1 | grep -oE "start at [0-9T:-]+" | cut -d' ' -f3)
+    [ -z "$est" ] && continue
+    wait=$(( ($(date -d "$est" +%s) - $(date +%s)) / 60 )); [ "$wait" -lt 0 ] && wait=0
+    score=$(( 1000 * g / (wait + RUN_MIN) ))
+    [ "$score" -gt "$best_score" ] && { best=$g; best_score=$score; }
+  done
+  echo "$best"
+}
+PARTS="gpuA40x4-interactive gpuA100x4-interactive gpuA100x8-interactive gpuH200x8-interactive"
+ONCE=0; HEADOPT=""
+while [ $# -gt 0 ]; do case "$1" in --once) ONCE=1; shift;; --head) HEADOPT="--head $2"; shift 2;; *) break;; esac; done
+STAGES="${*:-all loo dedicated}"
+RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
+SPECS="$RESULTS/_logs/packs"; mkdir -p "$SPECS" "$RESULTS/_logs/slurm"
+
+while true; do
+  # runs not started anywhere (train_plan.sh args lists only `missing` ones), in stage order
+  mapfile -t MISSING < <(bash scripts/train_plan.sh args $STAGES --arch S $HEADOPT 2>/dev/null)
+  # runs already waiting in an interactive queue (pack jobs carry their run names in --comment)
+  targeted=$(squeue -u "$USER" -h -p "$(echo $PARTS | tr ' ' ,)" -o "%k" 2>/dev/null | tr ',' '\n')
+  mine=$(squeue -u "$USER" -h -p "$(echo $PARTS | tr ' ' ,)" 2>/dev/null | wc -l)
+  [ "${#MISSING[@]}" -eq 0 ] && [ "$mine" -eq 0 ] && { echo "[$(date +%T)] nothing left to start"; exit 0; }
+  for p in $PARTS; do
+    squeue -u "$USER" -h -p "$p" 2>/dev/null | grep -q . && continue   # 1 job per user per partition
+    avail=0; for line in "${MISSING[@]}"; do grep -qx "${line%%|*}" <<< "$targeted" || avail=$((avail + 1)); done
+    [ "$avail" -eq 0 ] && continue
+    G=$(best_gpus "$p" "$avail")
+    pick=()
+    for line in "${MISSING[@]}"; do
+      name=${line%%|*}
+      grep -qx "$name" <<< "$targeted" && continue
+      pick+=("$line"); targeted+=$'\n'"$name"
+      [ "${#pick[@]}" -ge "$G" ] && break
+    done
+    [ "${#pick[@]}" -eq 0 ] && continue
+    n=${#pick[@]}; spec="$SPECS/$(date +%Y%m%d-%H%M%S)_${p}.txt"
+    printf '%s\n' "${pick[@]}" > "$spec"
+    names=$(printf '%s\n' "${pick[@]}" | cut -d'|' -f1 | paste -sd,)
+    job=$(sbatch --parsable -A beez-delta-gpu -p "$p" -t 00:59:00 -J "mm-pack${n}" --comment "$names" \
+          --nodes=1 --ntasks=1 --gpus-per-node="$n" --cpus-per-task=$((16 * n)) --mem=$((60 * n))G \
+          -o "$RESULTS/_logs/slurm/%x_%j.out" scripts/delta/pack_job.sh "$spec" 2>&1)
+    echo "[$(date +%T)] $p <- $n GPU job $job: $names"
+  done
+  echo "[$(date +%T)] runs not yet started: ${#MISSING[@]}"
+  [ $ONCE = 1 ] && exit 0
+  sleep 60
+done

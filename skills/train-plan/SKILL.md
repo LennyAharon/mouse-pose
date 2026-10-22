@@ -9,12 +9,20 @@ description: Run after a corpus version is built (or when the user asks what to 
 runs by default. `run` starts GPU jobs and is only allowed when the user has named, in this
 conversation, the stages (and seeds) to run; if in doubt, show the table and ask.
 
-`scripts/train_plan.sh` knows the recipe of record (shared head, T=2, per-dataset zoom-in/out) in
+`scripts/train_plan.sh` knows the recipe of record (shared **nonlinear** head, T=2, per-dataset zoom-in/out) in
 the two sizes the user trains (2026-09-29): **S** = ViT-S DINOv3 12k steps
 (`configs/model_zoominout.yaml`, results under `trunks/`, `dedicated/`) and **B** = ViT-B DINOv3
 24k steps (`configs/ablations/model_zoominout_24k.yaml`, under `trunks_24k/`, `dedicated_24k/`);
 `--arch S|B|SB` (default both). It never retrains something that exists (`--skip_existing`), so it
 can be re-run at any time.
+
+**Head (user, 2026-10-22): nonlinear is the default and the go-to.** Every stage adds
+`+model.head_hidden_channels=256` and `+training.ckpt_every_n_steps=2000` (the adaptation-curves trunk
+recipe) and writes to `trunks-headmlp256/`, `dedicated-headmlp256/` (`trunks_24k-headmlp256/` ... for B).
+`--head linear` gives the old stock linear head (`trunks/`, `dedicated/`) and only when the user asks.
+Check the first run's log for lightning-pose's `nonlinear head: ConvT -> 256 -> ...` line.
+On NCSA Delta, launch with `submit` (one SLURM job per run) and/or `scripts/delta/interactive_feeder.sh`
+(see `skills/delta-gpu-queue`), not `run`.
 
 1. `bash scripts/train_plan.sh plan` and show the table to the user. Rows are `all` (the
    Mighty Mouse all-data trunk), `dedicated` (one per dataset), `loo` (one leave-one-out per

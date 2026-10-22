@@ -32,6 +32,7 @@ short `name`/`description` frontmatter — readable by any agent, not just Claud
 - **Pseudo-labeling a raw dataset (from another dataset's model, an ensemble of models, precomputed predictions, or its own hand-corrected rows)** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
 - **Labeling new keypoints by iterating label → train ensemble → add highest-disagreement frames** → [`skills/active-pseudo-labeling/SKILL.md`](skills/active-pseudo-labeling/SKILL.md)
 - **Zero-shot / few-shot adaptation curves and masked-label bars (local queue or SLURM / ACCESS)** → [`skills/adaptation-curves/SKILL.md`](skills/adaptation-curves/SKILL.md)
+- **Any GPU job on NCSA Delta (before submitting, and on start / finish): report the expected wait and pick the fastest route** → [`skills/delta-gpu-queue/SKILL.md`](skills/delta-gpu-queue/SKILL.md)
 - **Any overlay video or figure of predictions / labels** → [`skills/pose-video/SKILL.md`](skills/pose-video/SKILL.md) (its *House style* section is mandatory: group palette, banner, SD crosses + strip, file naming)
 
 Read the relevant one before starting the task — they have hard-won detail (what

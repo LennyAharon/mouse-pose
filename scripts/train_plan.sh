@@ -1,6 +1,6 @@
 #!/bin/bash
 # Training plan for the current corpus version: which models exist, which are missing, run the
-# missing ones with the recipe of record (shared head, T=2, per-dataset zoom-in/out) in two sizes:
+# missing ones with the recipe of record (shared NONLINEAR head, T=2, per-dataset zoom-in/out) in two sizes:
 #   S = ViT-S DINOv3, 12k steps (configs/model_zoominout.yaml)               -> trunks/, dedicated/
 #   B = ViT-B DINOv3, 24k steps (configs/ablations/model_zoominout_24k.yaml) -> trunks_24k/, dedicated_24k/
 # Keeps up to 2 training runs on the GPU: before each job it waits until fewer than 2 are running,
@@ -19,6 +19,11 @@
 #   scripts/train_plan.sh status                    # tail the running plan's log
 #   scripts/train_plan.sh submit all loo --arch S   # NCSA Delta: one SLURM job per run (scripts/delta/train_plan_job.sbatch)
 #   scripts/train_plan.sh submit loo --arch S --sbatch "-p gpuA100x4 -t 02:00:00"   # extra sbatch options
+#
+# HEAD: the shared head is NONLINEAR by default (user, 2026-10-22: the go-to recipe): +model.head_hidden_channels=256
+# (ConvT -> 256 -> LayerNorm -> ReLU -> Conv1x1) plus +training.ckpt_every_n_steps=2000, as the adaptation-curves
+# trunks; results in trunks-headmlp256/, dedicated-headmlp256/ (trunks_24k-headmlp256/ ... for B). `--head <N>` sets
+# another width; `--head linear` is the stock linear head (old layout: trunks/, dedicated/).
 # Logs: <results_dir>/_logs/train_plan_<stamp>_<stages>.log, one per `run`; kept as the record of what was
 # launched when (small text files), never needed by any script; delete freely once the run is done.
 #
@@ -40,9 +45,12 @@ while [ $# -gt 0 ]; do case "$1" in
   --seeds) SEEDS="$2"; shift 2;;
   --arch)  ARCHS="$(echo "$2" | sed 's/./& /g')"; shift 2;;
   --sbatch) SBATCH_OPTS="$2"; shift 2;;
+  --head)  HEAD="$2"; shift 2;;
   *) STAGES="${STAGES:-} $1"; shift;; esac; done
 STAGES="${STAGES:-all dedicated loo}"
 
+HEAD="${HEAD:-256}"; [ "$HEAD" = linear ] && HEAD=""; HEADSUF="${HEAD:+-headmlp$HEAD}"
+HEAD_OV="${HEAD:++model.head_hidden_channels=$HEAD;+training.ckpt_every_n_steps=2000}"
 cfg_of()      { [ "$1" = S ] && echo configs/model_zoominout.yaml || echo configs/ablations/model_zoominout_24k.yaml; }
 backbone_of() { [ "$1" = S ] && echo vits_dinov3 || echo vitb_dinov3; }
 suffix_of()   { [ "$1" = S ] && echo "" || echo "_24k"; }
@@ -50,7 +58,7 @@ tag_of() { local t=""; for d in "$@"; do t="${t:+$t+}${TAG[$d]:?no short name fo
 all_tag=$(tag_of "${DATASETS[@]}")
 loo_tag() { local out=$1 keep=(); for d in "${DATASETS[@]}"; do [ "$d" != "$out" ] && keep+=("$d"); done; tag_of "${keep[@]}"; }
 # train_sweep layout; args: area tag seed arch
-out_dir() { echo "$RESULTS/$1$(suffix_of "$4")/${2}_train/supervised/sampling-T2/tf1/$(backbone_of "$4")/seed$3"; }
+out_dir() { echo "$RESULTS/$1$(suffix_of "$4")$HEADSUF/${2}_train/supervised/sampling-T2/tf1/$(backbone_of "$4")/seed$3"; }
 status_of() { local d=$1; if ls "$d"/eval/*/predictions.csv >/dev/null 2>&1; then echo done; elif [ -d "$d" ]; then echo PARTIAL; else echo missing; fi; }
 
 # rows: stage area tag left_out ("-" unless loo)
@@ -89,8 +97,8 @@ case "$cmd" in
       echo "}"
     } > "$script"
     while read -r stage area tag out; do for a in $ARCHS; do for s in ${SEEDS//;/ }; do
-      root="$RESULTS/$area$(suffix_of "$a")"; dir=$(out_dir "$area" "$tag" "$s" "$a")
-      sweep="python scripts/train_sweep.py --config_file $(cfg_of "$a") --csv_files CollectedData_${tag}_train.csv --train_frames 1 --seeds $s --backbones $(backbone_of "$a") --sampling_temperatures 2 --head_modes shared --keep_checkpoints --skip_existing --output_root $root"
+      root="$RESULTS/$area$(suffix_of "$a")$HEADSUF"; dir=$(out_dir "$area" "$tag" "$s" "$a")
+      sweep="python scripts/train_sweep.py --config_file $(cfg_of "$a") --csv_files CollectedData_${tag}_train.csv --train_frames 1 --seeds $s --backbones $(backbone_of "$a") --sampling_temperatures 2 --head_modes shared --keep_checkpoints --skip_existing --output_root $root${HEAD_OV:+ --extra_overrides '$HEAD_OV'}"
       if [ "$cmd" = dry ]; then
         echo "$sweep --dry_run" >> "$script"
       else
@@ -105,22 +113,32 @@ case "$cmd" in
       n=$(ps -eo args | grep -c "^[^ ]*python[0-9.]* scripts/train_sweep.py"); [ "$n" -ge 2 ] && echo "NOTE: 2 runs already training; the plan waits for a free slot"; [ "$n" -eq 1 ] && echo "NOTE: 1 run already training; the plan fills the second slot now"
       setsid nohup bash "$script" > "$LOG" 2>&1 < /dev/null & echo "$!" > "$RESULTS/_train_plan.pid"
       echo "launched pid $(cat "$RESULTS/_train_plan.pid"); log $LOG"; fi ;;
+  args)
+    # one line per missing run: <job name>|<run dir>|<left out>|<train_sweep args>  (used by
+    # scripts/delta/interactive_feeder.sh to pack several runs into one multi-GPU job)
+    while read -r stage area tag out; do for a in $ARCHS; do for s in ${SEEDS//;/ }; do
+      [ -f "$DATA/CollectedData_${tag}_train.csv" ] || continue
+      root="$RESULTS/$area$(suffix_of "$a")$HEADSUF"; dir=$(out_dir "$area" "$tag" "$s" "$a")
+      [ "$(status_of "$dir")" = missing ] || continue
+      label=$out; [ "$out" = - ] && { [ "$stage" = dedicated ] && label=$tag || label=all; }
+      echo "mm-$a$HEAD-$stage-$label-s$s|$dir|$out|--config_file $(cfg_of "$a") --csv_files CollectedData_${tag}_train.csv --train_frames 1 --seeds $s --backbones $(backbone_of "$a") --sampling_temperatures 2 --head_modes shared --keep_checkpoints --skip_existing --output_root $root${HEAD_OV:+ --extra_overrides $HEAD_OV}"
+    done; done; done < <(rows) ;;
   submit)
     # NCSA Delta: one SLURM job per missing run; done/PARTIAL runs are skipped (delete a PARTIAL dir to rerun)
     [ -e "$DATA/videos" ] || { mkdir -p "$DATA/videos"; echo "created empty $DATA/videos"; }
     mkdir -p "$RESULTS/_logs/slurm"
     while read -r stage area tag out; do for a in $ARCHS; do for s in ${SEEDS//;/ }; do
       [ -f "$DATA/CollectedData_${tag}_train.csv" ] || { echo "skip $stage $tag: NO CSV (build the tag first)"; continue; }
-      root="$RESULTS/$area$(suffix_of "$a")"; dir=$(out_dir "$area" "$tag" "$s" "$a"); st=$(status_of "$dir")
+      root="$RESULTS/$area$(suffix_of "$a")$HEADSUF"; dir=$(out_dir "$area" "$tag" "$s" "$a"); st=$(status_of "$dir")
       [ "$st" = missing ] || { echo "skip $a $stage $tag seed$s: $st"; continue; }
       label=$out; [ "$out" = - ] && { [ "$stage" = dedicated ] && label=$tag || label=all; }
-      name="mm-$a-$stage-$label-s$s"
+      name="mm-$a$HEAD-$stage-$label-s$s"
       sbatch --parsable --job-name="$name" -o "$RESULTS/_logs/slurm/%x_%j.out" ${SBATCH_OPTS:-} \
         scripts/delta/train_plan_job.sbatch "$dir" "$out" \
         --config_file "$(cfg_of "$a")" --csv_files "CollectedData_${tag}_train.csv" --train_frames 1 --seeds "$s" \
         --backbones "$(backbone_of "$a")" --sampling_temperatures 2 --head_modes shared --keep_checkpoints \
-        --skip_existing --output_root "$root" | sed "s|^|submitted $name: job |"
+        --skip_existing --output_root "$root" ${HEAD_OV:+--extra_overrides "$HEAD_OV"} | sed "s|^|submitted $name: job |"
     done; done; done < <(rows) ;;
   status) tail -n 15 "$(ls -t "$RESULTS"/_logs/train_plan_*.log 2>/dev/null | head -1)" 2>/dev/null || echo "no plan log";;
-  *) echo "usage: $0 plan|dry|show|run|submit|status [stages...] [--seeds \"0;1;2\"] [--arch S|B|SB]"; exit 2;;
+  *) echo "usage: $0 plan|dry|show|run|submit|args|status [stages...] [--seeds \"0;1;2\"] [--arch S|B|SB]"; exit 2;;
 esac

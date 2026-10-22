@@ -7,9 +7,15 @@
 #   sbatch [-p ...] [-t ...] scripts/delta/train_plan_job.sbatch <run_dir> <left_out|-> <train_sweep.py args...>
 #
 # Reads paths.yaml (data_dir, results_dir) when the job STARTS: don't repoint it while jobs are queued.
+# The same run may be queued on several routes at once (regular/preempt AND interactive, see
+# scripts/delta/interactive_feeder.sh): the first job to start claims it (atomic mkdir <run_dir>.claim
+# holding its job id); a duplicate whose run is done, or claimed by a live job, exits at once. A claim
+# left by a dead job (time limit, crash, preemption) is taken over and the unfinished run dir deleted
+# (train_sweep --skip_existing would otherwise skip it), so preemptible partitions are safe too.
 #SBATCH --job-name=mm-train
 #SBATCH --account=beez-delta-gpu
-#SBATCH --partition=gpuA100x4,gpuA100x8,gpuH200x8,gpuA40x4
+#SBATCH --partition=gpuA100x4,gpuA100x8,gpuH200x8,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt
+#SBATCH --requeue
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus-per-node=1
@@ -28,6 +34,27 @@ cd /work/nvme/beez/laharon/MM_project/mouse-pose
 echo "host=$(hostname) partition=$SLURM_JOB_PARTITION gpu=$(nvidia-smi --query-gpu=name --format=csv,noheader)"
 echo "mouse-pose $(git rev-parse --abbrev-ref HEAD)@$(git rev-parse --short HEAD)" \
      "lightning-pose $(git -C ../lightning-pose rev-parse --abbrev-ref HEAD)@$(git -C ../lightning-pose rev-parse --short HEAD)"
+done_run() {  # evaluated, and for a leave-one-out trunk the zero-shot train predictions exist
+    ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1 &&
+    { [ "$LEFT_OUT" = - ] || [ -f "$RUN_DIR/zeroshot/${LEFT_OUT}_train_predictions.csv" ]; }
+}
+done_run && { echo "already done: $RUN_DIR"; exit 0; }
+CLAIM="$RUN_DIR.claim"; mkdir -p "$(dirname "$RUN_DIR")"
+if mkdir "$CLAIM" 2>/dev/null; then
+    echo "$SLURM_JOB_ID" > "$CLAIM/job"
+else
+    owner=$(cat "$CLAIM/job" 2>/dev/null)
+    if [ "$owner" != "$SLURM_JOB_ID" ]; then
+        state=$(sacct -j "$owner" -X -n -o State 2>/dev/null | awk 'NF{print $1; exit}')
+        case "$state" in RUNNING|PENDING|REQUEUED|CONFIGURING|COMPLETING|"")
+            echo "claimed by job $owner ($state): exiting"; exit 0;; esac
+        echo "taking over from job $owner ($state)"; echo "$SLURM_JOB_ID" > "$CLAIM/job"
+    fi
+    # an earlier attempt (ours after a requeue, or a dead owner's) left an unfinished run dir
+    if [ -d "$RUN_DIR" ] && ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1; then
+        echo "removing unfinished $RUN_DIR"; rm -rf "$RUN_DIR"
+    fi
+fi
 echo "[$(date -u +%H:%M)] start $RUN_DIR"
 
 python scripts/train_sweep.py "$@"
