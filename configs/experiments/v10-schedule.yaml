@@ -17,7 +17,7 @@
 
 config: configs/model_zoominout.yaml
 backbone: vits_dinov3
-head_overrides: ["+model.head_hidden_channels=256", "+training.ckpt_every_n_steps=2000"]
+head_overrides: ["+model.head_hidden_channels=256"]    # only the best checkpoint is kept (no periodic ones)
 
 targets:                               # leave-out set per target; the trunk trains on all other datasets
   ibl: [ibl]

@@ -21,7 +21,7 @@
 #   scripts/train_plan.sh submit loo --arch S --sbatch "-p gpuA100x4 -t 02:00:00"   # extra sbatch options
 #
 # HEAD: the shared head is NONLINEAR by default (user, 2026-10-22: the go-to recipe): +model.head_hidden_channels=256
-# (ConvT -> 256 -> LayerNorm -> ReLU -> Conv1x1) plus +training.ckpt_every_n_steps=2000, as the adaptation-curves
+# (ConvT -> 256 -> LayerNorm -> ReLU -> Conv1x1), as the adaptation-curves
 # trunks; results in trunks-headmlp256/, dedicated-headmlp256/ (trunks_24k-headmlp256/ ... for B). `--head <N>` sets
 # another width; `--head linear` is the stock linear head (old layout: trunks/, dedicated/).
 # Logs: <results_dir>/_logs/train_plan_<stamp>_<stages>.log, one per `run`; kept as the record of what was
@@ -50,7 +50,8 @@ while [ $# -gt 0 ]; do case "$1" in
 STAGES="${STAGES:-all dedicated loo}"
 
 HEAD="${HEAD:-256}"; [ "$HEAD" = linear ] && HEAD=""; HEADSUF="${HEAD:+-headmlp$HEAD}"
-HEAD_OV="${HEAD:++model.head_hidden_channels=$HEAD;+training.ckpt_every_n_steps=2000}"
+# only the best checkpoint is kept (no periodic ones: ~260 MB each; user, 2026-10-22)
+HEAD_OV="${HEAD:++model.head_hidden_channels=$HEAD}"
 cfg_of()      { [ "$1" = S ] && echo configs/model_zoominout.yaml || echo configs/ablations/model_zoominout_24k.yaml; }
 backbone_of() { [ "$1" = S ] && echo vits_dinov3 || echo vitb_dinov3; }
 suffix_of()   { [ "$1" = S ] && echo "" || echo "_24k"; }

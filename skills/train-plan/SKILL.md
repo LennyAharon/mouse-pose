@@ -17,7 +17,7 @@ the two sizes the user trains (2026-09-29): **S** = ViT-S DINOv3 12k steps
 can be re-run at any time.
 
 **Head (user, 2026-10-22): nonlinear is the default and the go-to.** Every stage adds
-`+model.head_hidden_channels=256` and `+training.ckpt_every_n_steps=2000` (the adaptation-curves trunk
+`+model.head_hidden_channels=256` (the adaptation-curves trunk
 recipe) and writes to `trunks-headmlp256/`, `dedicated-headmlp256/` (`trunks_24k-headmlp256/` ... for B).
 `--head linear` gives the old stock linear head (`trunks/`, `dedicated/`) and only when the user asks.
 Check the first run's log for lightning-pose's `nonlinear head: ConvT -> 256 -> ...` line.
