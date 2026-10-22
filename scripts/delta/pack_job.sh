@@ -9,6 +9,7 @@
 #
 # Spec file: one run per line, `<name>|<run dir>|<left out>|<train_sweep args>` (train_plan.sh args).
 set -u
+set -f   # no globbing: train_sweep args can hold Hydra lists like milestone_steps=[8000,10000,11000]
 SPEC="$1"
 cd /work/nvme/beez/laharon/MM_project/mouse-pose
 LOGDIR=$(dirname "$SPEC")/..

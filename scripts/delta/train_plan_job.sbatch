@@ -6,6 +6,9 @@
 #
 #   sbatch [-p ...] [-t ...] scripts/delta/train_plan_job.sbatch <run_dir> <left_out|-> <train_sweep.py args...>
 #
+# <left_out> may list several datasets (comma-separated, e.g. cheese-2d,cheese-3d for a trunk that leaves
+# out both): zero-shot train-frame predictions are then written for each.
+#
 # Reads paths.yaml (data_dir, results_dir) when the job STARTS: don't repoint it while jobs are queued.
 # The same run may be queued on several routes at once (regular/preempt AND interactive, see
 # scripts/delta/interactive_feeder.sh): the first job to start claims it (atomic mkdir <run_dir>.claim
@@ -34,9 +37,10 @@ cd /work/nvme/beez/laharon/MM_project/mouse-pose
 echo "host=$(hostname) partition=$SLURM_JOB_PARTITION gpu=$(nvidia-smi --query-gpu=name --format=csv,noheader)"
 echo "mouse-pose $(git rev-parse --abbrev-ref HEAD)@$(git rev-parse --short HEAD)" \
      "lightning-pose $(git -C ../lightning-pose rev-parse --abbrev-ref HEAD)@$(git -C ../lightning-pose rev-parse --short HEAD)"
-done_run() {  # evaluated, and for a leave-one-out trunk the zero-shot train predictions exist
-    ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1 &&
-    { [ "$LEFT_OUT" = - ] || [ -f "$RUN_DIR/zeroshot/${LEFT_OUT}_train_predictions.csv" ]; }
+done_run() {  # evaluated, and for a leave-out trunk the zero-shot train predictions of each left-out set exist
+    ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1 || return 1
+    [ "$LEFT_OUT" = - ] && return 0
+    local ds; for ds in ${LEFT_OUT//,/ }; do [ -f "$RUN_DIR/zeroshot/${ds}_train_predictions.csv" ] || return 1; done
 }
 done_run && { echo "already done: $RUN_DIR"; exit 0; }
 CLAIM="$RUN_DIR.claim"; mkdir -p "$(dirname "$RUN_DIR")"
@@ -59,8 +63,11 @@ echo "[$(date -u +%H:%M)] start $RUN_DIR"
 
 python scripts/train_sweep.py "$@"
 
-if [ "$LEFT_OUT" != - ] && [ ! -f "$RUN_DIR/zeroshot/${LEFT_OUT}_train_predictions.csv" ]; then
+if [ "$LEFT_OUT" != - ]; then
     mkdir -p "$RUN_DIR/zeroshot"
-    python scripts/zeroshot_predict.py --run "$RUN_DIR" --dataset "$LEFT_OUT"
+    for ds in ${LEFT_OUT//,/ }; do
+        [ -f "$RUN_DIR/zeroshot/${ds}_train_predictions.csv" ] ||
+            python scripts/zeroshot_predict.py --run "$RUN_DIR" --dataset "$ds"
+    done
 fi
 echo "[$(date -u +%H:%M)] end $RUN_DIR"

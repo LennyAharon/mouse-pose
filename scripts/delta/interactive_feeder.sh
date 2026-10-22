@@ -10,6 +10,8 @@
 #   setsid nohup scripts/delta/interactive_feeder.sh all loo dedicated > <log> 2>&1 &
 #   scripts/delta/interactive_feeder.sh --once all loo     # one pass, then exit
 #   scripts/delta/interactive_feeder.sh --head 256 all loo dedicated   # nonlinear head (train_plan.sh --head)
+#   scripts/delta/interactive_feeder.sh --specs configs/experiments/v10-schedule.yaml dedicated
+#       also feed an experiment definition's unstarted runs (scripts/delta/exp_specs.py), after the stages
 #
 # Stages as in train_plan.sh (all, loo, dedicated, loo:<ds>, dedicated:<ds>); arch S, seed 0.
 # GPUs per job: chosen each time from the scheduler's own estimates (sbatch --test-only for 1, 2, 4 GPUs,
@@ -45,15 +47,18 @@ best_gpus() {  # partition, runs available -> GPU count with the best runs/hour 
   echo "$best"
 }
 PARTS="gpuA40x4-interactive gpuA100x4-interactive gpuA100x8-interactive gpuH200x8-interactive"
-ONCE=0; HEADOPT=""
-while [ $# -gt 0 ]; do case "$1" in --once) ONCE=1; shift;; --head) HEADOPT="--head $2"; shift 2;; *) break;; esac; done
+ONCE=0; HEADOPT=""; SPECDEFS=()
+while [ $# -gt 0 ]; do case "$1" in
+  --once) ONCE=1; shift;; --head) HEADOPT="--head $2"; shift 2;; --specs) SPECDEFS+=("$2"); shift 2;;
+  *) break;; esac; done
 STAGES="${*:-all loo dedicated}"
 RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
 SPECS="$RESULTS/_logs/packs"; mkdir -p "$SPECS" "$RESULTS/_logs/slurm"
 
 while true; do
   # runs not started anywhere (train_plan.sh args lists only `missing` ones), in stage order
-  mapfile -t MISSING < <(bash scripts/train_plan.sh args $STAGES --arch S $HEADOPT 2>/dev/null)
+  mapfile -t MISSING < <(bash scripts/train_plan.sh args $STAGES --arch S $HEADOPT 2>/dev/null
+                         for d in "${SPECDEFS[@]}"; do python scripts/delta/exp_specs.py "$d"; done)
   # runs already waiting in an interactive queue (pack jobs carry their run names in --comment)
   targeted=$(squeue -u "$USER" -h -p "$(echo $PARTS | tr ' ' ,)" -o "%k" 2>/dev/null | tr ',' '\n')
   mine=$(squeue -u "$USER" -h -p "$(echo $PARTS | tr ' ' ,)" 2>/dev/null | wc -l)
@@ -62,17 +67,24 @@ while true; do
     squeue -u "$USER" -h -p "$p" 2>/dev/null | grep -q . && continue   # 1 job per user per partition
     avail=0; for line in "${MISSING[@]}"; do grep -qx "${line%%|*}" <<< "$targeted" || avail=$((avail + 1)); done
     if [ "$avail" -eq 0 ]; then
-      # nothing unassigned: steal from a pending job elsewhere that would start much later
+      # nothing unassigned: take over a pending job elsewhere that would start much later. Only jobs
+      # with a real estimate that have waited >= 10 min (a fresh job's estimate is N/A, which once
+      # made this cancel brand-new jobs every pass), and the freed runs go to THIS partition in the
+      # same pass so they cannot drift back.
       here=$(est_start "$p" 1); [ -z "$here" ] && continue
-      while read -r jid jpart jstart; do
-        [ "$jpart" = "$p" ] && continue
-        [ "$jstart" = N/A ] && js=$((here + 86400)) || js=$(date -d "$jstart" +%s)
-        if [ "$js" -gt $((here + REBALANCE_MIN * 60)) ]; then
-          scancel "$jid" && echo "[$(date +%T)] rebalance: cancelled pending $jid ($jpart, est ${jstart}); $p starts ~$(date -d @"$here" +%H:%M)"
+      stolen=""
+      while read -r jid jpart jstart jsubmit jcomment; do
+        [ "$jpart" = "$p" ] || [ "$jstart" = N/A ] && continue
+        [ $(( $(date +%s) - $(date -d "$jsubmit" +%s) )) -lt 600 ] && continue
+        if [ "$(date -d "$jstart" +%s)" -gt $((here + REBALANCE_MIN * 60)) ]; then
+          scancel "$jid" && { stolen=$jcomment
+            echo "[$(date +%T)] rebalance: took over pending $jid ($jpart, est $jstart) -> $p (~$(date -d @"$here" +%H:%M))"; }
           break
         fi
-      done < <(squeue -u "$USER" -h -t PD -p "$(echo $PARTS | tr ' ' ,)" -o "%i %P %S" 2>/dev/null | sort -k3 -r)
-      continue
+      done < <(squeue -u "$USER" -h -t PD -p "$(echo $PARTS | tr ' ' ,)" -o "%i %P %S %V %k" 2>/dev/null | sort -k3 -r)
+      [ -z "$stolen" ] && continue
+      targeted=$(grep -vxF -f <(tr ',' '\n' <<< "$stolen") <<< "$targeted")
+      avail=$(tr ',' '\n' <<< "$stolen" | grep -c .)
     fi
     G=$(best_gpus "$p" "$avail")
     pick=()
