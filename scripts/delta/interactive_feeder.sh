@@ -25,8 +25,10 @@
 set -u
 cd "$(dirname "$0")/../.."
 export PATH=/work/nvme/beez/laharon/.conda/envs/mighty-mouse/bin:$PATH
-# no H200: only a handful of H200 nodes exist, so its queue is never the fast one (user, 2026-10-22)
-declare -A MAX_GPUS=([gpuA40x4-interactive]=4 [gpuA100x4-interactive]=4 [gpuA100x8-interactive]=4)
+# H200 interactive is a fourth slot (user, 2026-10-23: use it when it fits; its nodes train our runs
+# 2-3x faster, so long runs such as 384 px fit in one hour there). 96 CPUs per 8 GPUs: 4 x 16 fits.
+declare -A MAX_GPUS=([gpuA40x4-interactive]=4 [gpuA100x4-interactive]=4 [gpuA100x8-interactive]=4
+                     [gpuH200x8-interactive]=4)
 RUN_MIN=50   # one run incl. evaluation, minutes (measured ~45-50, 2026-10-22)
 REBALANCE_MIN=30
 est_start() {  # partition, gpus -> estimated start (epoch s) of a new job, or empty
@@ -48,7 +50,7 @@ best_gpus() {  # partition, runs available -> GPU count with the best runs/hour 
   done
   echo "$best"
 }
-PARTS="gpuA40x4-interactive gpuA100x4-interactive gpuA100x8-interactive"
+PARTS="gpuA40x4-interactive gpuA100x4-interactive gpuA100x8-interactive gpuH200x8-interactive"
 allowed_on() {  # run line, partition -> true if the line's 7th field is empty or lists the partition
   local parts
   parts=$(cut -d'|' -f7 <<< "$1")
