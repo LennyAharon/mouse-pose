@@ -55,8 +55,13 @@ else
         echo "taking over from job $owner ($state)"; echo "$SLURM_JOB_ID" > "$CLAIM/job"
     fi
     # an earlier attempt (ours after a requeue, or a dead owner's) left an unfinished run dir
+    # (a run with a rolling checkpoint, training.resume_every_n_steps, is kept and continues instead)
     if [ -d "$RUN_DIR" ] && ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1; then
-        echo "removing unfinished $RUN_DIR"; rm -rf "$RUN_DIR"
+        if [ -f "$RUN_DIR/resume/resume.ckpt" ]; then
+            echo "resuming $RUN_DIR from its rolling checkpoint"
+        else
+            echo "removing unfinished $RUN_DIR"; rm -rf "$RUN_DIR"
+        fi
     fi
 fi
 echo "[$(date -u +%H:%M)] start $RUN_DIR"

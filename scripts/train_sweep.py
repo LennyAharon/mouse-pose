@@ -113,9 +113,11 @@ def main():
         return args.output_root / output.relative_to(RESULTS_DIR) if args.output_root else output
 
     if args.skip_existing and not args.eval_only:
+        # a run with a rolling checkpoint (training.resume_every_n_steps) is not skipped:
+        # it continues
         combos = [
             c for c in combos
-            if not output_for(c).exists()
+            if not output_for(c).exists() or (output_for(c) / "resume" / "resume.ckpt").exists()
         ]
         print(f"After skipping existing: {len(combos)} remaining")
 

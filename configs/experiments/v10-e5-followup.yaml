@@ -1,0 +1,23 @@
+# E5 recipe follow-up (user, 2026-10-23): unfreeze at 3000, 14k steps, LR halvings 6k / 8k / 10k.
+# - E5 second seed on cheese / kaufman / facemap (is E5's zero-shot gain beyond seed noise?)
+# (The E5 all-data trunk, the conv-head reference for stage 2 of the query head, is in
+#  v10-unfreeze-long.yaml.)
+# 14k steps: ~49 min on A100, ~60 on A40 -> A100 only (feeder honors `partitions`).
+# Results join E5's folder: <results_dir>/experiments/E5-unfreeze3000-14k/<tag>/seed<k>/.
+config: configs/model_zoominout.yaml
+backbone: vits_dinov3
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500"]   # rolling checkpoint: resumable (2026-10-23)
+# (A100-only restriction lifted 2026-10-23: runs are resumable, so a 14k-step run cut off by an A40
+#  1-hour slot continues in the next slot)
+
+targets:
+  cheese: [cheese-2d, cheese-3d]
+  kaufman: [kaufman]
+  facemap: [facemap]
+
+experiments:
+  E5-unfreeze3000-14k:
+    seeds: [1]
+    overrides: ["training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]"]

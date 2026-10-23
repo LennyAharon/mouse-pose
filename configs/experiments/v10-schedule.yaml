@@ -23,23 +23,23 @@ targets:                               # leave-out set per target; the trunk tra
   ibl: [ibl]
   cheese: [cheese-2d, cheese-3d]       # same rig and mice: leave both out for a clean zero-shot number
   kaufman: [kaufman]
+  kondo: [kondo]                       # added 2026-10-22 for E1 only: on v9, unfreeze at 3k helped ibl / kaufman /
+  facemap: [facemap]                   # cheese but hurt kondo (+18 %) and facemap (+7 %); a 3-lab screen misled
 
 experiments:
   B:                                   # baseline recipe, seed 0 (only leave-both-cheese-out is new)
     area: baseline
     seeds: [0]
+    targets: [ibl, cheese, kaufman]    # leave-kondo/facemap-out baselines exist (train_plan.sh loo)
     overrides: []
   B-seed1:                             # baseline recipe, seed 1: how much zero-shot moves with the seed alone
     area: baseline
     seeds: [1]
+    targets: [ibl, cheese, kaufman]
     overrides: []
   E1-unfreeze3000:                     # longer head-only phase (linear-probe-then-finetune style)
     seeds: [0]
     overrides: ["training.unfreezing_step=3000"]
-  E2-lr-late:                          # keep the LR high longer: halve at 8k / 10k / 11k instead of 4k / 6k / 8k
-    seeds: [0]
-    overrides: ["training.lr_scheduler_params.multisteplr.milestone_steps=[8000,10000,11000]"]
-  E3-unfreeze3000-lr-late:             # both
-    seeds: [0]
-    overrides: ["training.unfreezing_step=3000",
-                "training.lr_scheduler_params.multisteplr.milestone_steps=[8000,10000,11000]"]
+  # E2-lr-late (milestones [8000,10000,11000]) and E3-unfreeze3000-lr-late were DROPPED 2026-10-22 (user): later
+  # decay already hurt transfer on v9 (leave-kaufman-out 40.4 -> 51.7 px, cheese 48.1/57.8 -> 49.5/63.1). The one E2
+  # run already started (leave-ibl-out) is kept and scored.

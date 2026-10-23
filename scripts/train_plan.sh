@@ -52,6 +52,9 @@ STAGES="${STAGES:-all dedicated loo}"
 HEAD="${HEAD:-256}"; [ "$HEAD" = linear ] && HEAD=""; HEADSUF="${HEAD:+-headmlp$HEAD}"
 # only the best checkpoint is kept (no periodic ones: ~260 MB each; user, 2026-10-22)
 HEAD_OV="${HEAD:++model.head_hidden_channels=$HEAD}"
+# every run keeps a rolling checkpoint (lightning-pose training.resume_every_n_steps, 2026-10-23): a run
+# cut off by a job's time limit or by preemption continues in the next job instead of starting over
+HEAD_OV="${HEAD_OV:+$HEAD_OV;}+training.resume_every_n_steps=500"
 cfg_of()      { [ "$1" = S ] && echo configs/model_zoominout.yaml || echo configs/ablations/model_zoominout_24k.yaml; }
 backbone_of() { [ "$1" = S ] && echo vits_dinov3 || echo vitb_dinov3; }
 suffix_of()   { [ "$1" = S ] && echo "" || echo "_24k"; }
@@ -60,7 +63,14 @@ all_tag=$(tag_of "${DATASETS[@]}")
 loo_tag() { local out=$1 keep=(); for d in "${DATASETS[@]}"; do [ "$d" != "$out" ] && keep+=("$d"); done; tag_of "${keep[@]}"; }
 # train_sweep layout; args: area tag seed arch
 out_dir() { echo "$RESULTS/$1$(suffix_of "$4")$HEADSUF/${2}_train/supervised/sampling-T2/tf1/$(backbone_of "$4")/seed$3"; }
-status_of() { local d=$1; if ls "$d"/eval/*/predictions.csv >/dev/null 2>&1; then echo done; elif [ -d "$d" ]; then echo PARTIAL; else echo missing; fi; }
+# claim_alive: a live SLURM job holds the run's claim (an unknown answer counts as alive: never double-run)
+claim_alive() { local j; j=$(cat "$1.claim/job" 2>/dev/null) || return 1
+  case "$(sacct -j "$j" -X -n -o State 2>/dev/null | awk 'NF{print $1; exit}')" in
+    COMPLETED|FAILED|CANCELLED*|TIMEOUT|PREEMPTED|NODE_FAIL|OUT_OF_MEMORY|BOOT_FAIL|DEADLINE) return 1;; esac; }
+# resumable = a rolling checkpoint (training.resume_every_n_steps) and no live job: a new job continues it
+status_of() { local d=$1; if ls "$d"/eval/*/predictions.csv >/dev/null 2>&1; then echo done
+  elif [ -f "$d/resume/resume.ckpt" ] && ! claim_alive "$d"; then echo resumable
+  elif [ -d "$d" ]; then echo PARTIAL; else echo missing; fi; }
 
 # rows: stage area tag left_out ("-" unless loo)
 rows() {
@@ -120,7 +130,7 @@ case "$cmd" in
     while read -r stage area tag out; do for a in $ARCHS; do for s in ${SEEDS//;/ }; do
       [ -f "$DATA/CollectedData_${tag}_train.csv" ] || continue
       root="$RESULTS/$area$(suffix_of "$a")$HEADSUF"; dir=$(out_dir "$area" "$tag" "$s" "$a")
-      [ "$(status_of "$dir")" = missing ] || continue
+      case "$(status_of "$dir")" in missing|resumable) ;; *) continue;; esac
       label=$out; [ "$out" = - ] && { [ "$stage" = dedicated ] && label=$tag || label=all; }
       echo "mm-$a$HEAD-$stage-$label-s$s|$dir|$out|--config_file $(cfg_of "$a") --csv_files CollectedData_${tag}_train.csv --train_frames 1 --seeds $s --backbones $(backbone_of "$a") --sampling_temperatures 2 --head_modes shared --keep_checkpoints --skip_existing --output_root $root${HEAD_OV:+ --extra_overrides $HEAD_OV}"
     done; done; done < <(rows) ;;
@@ -131,7 +141,7 @@ case "$cmd" in
     while read -r stage area tag out; do for a in $ARCHS; do for s in ${SEEDS//;/ }; do
       [ -f "$DATA/CollectedData_${tag}_train.csv" ] || { echo "skip $stage $tag: NO CSV (build the tag first)"; continue; }
       root="$RESULTS/$area$(suffix_of "$a")$HEADSUF"; dir=$(out_dir "$area" "$tag" "$s" "$a"); st=$(status_of "$dir")
-      [ "$st" = missing ] || { echo "skip $a $stage $tag seed$s: $st"; continue; }
+      case "$st" in missing|resumable) ;; *) echo "skip $a $stage $tag seed$s: $st"; continue;; esac
       label=$out; [ "$out" = - ] && { [ "$stage" = dedicated ] && label=$tag || label=all; }
       name="mm-$a$HEAD-$stage-$label-s$s"
       sbatch --parsable --job-name="$name" -o "$RESULTS/_logs/slurm/%x_%j.out" ${SBATCH_OPTS:-} \

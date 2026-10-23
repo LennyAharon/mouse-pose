@@ -19,6 +19,8 @@
 # Rebalancing: when a partition's slot is free but every unstarted run already sits in a PENDING job of
 # mine elsewhere whose estimated start is > REBALANCE_MIN later than this partition's, that pending job
 # is cancelled (never a running one) so its runs move here on the next pass.
+# A run line's optional 7th field (exp_specs.py, from a definition's `partitions:`) restricts it to those
+# partitions, e.g. A100 only for runs too long for the A40 1-hour slots.
 # Stops when no run is missing and none of my interactive jobs is left; kill it to stop early.
 set -u
 cd "$(dirname "$0")/../.."
@@ -47,6 +49,11 @@ best_gpus() {  # partition, runs available -> GPU count with the best runs/hour 
   echo "$best"
 }
 PARTS="gpuA40x4-interactive gpuA100x4-interactive gpuA100x8-interactive"
+allowed_on() {  # run line, partition -> true if the line's 7th field is empty or lists the partition
+  local parts
+  parts=$(cut -d'|' -f7 <<< "$1")
+  [ -z "$parts" ] || [[ ",$parts," == *",$2,"* ]]
+}
 ONCE=0; HEADOPT=""; SPECDEFS=()
 while [ $# -gt 0 ]; do case "$1" in
   --once) ONCE=1; shift;; --head) HEADOPT="--head $2"; shift 2;; --specs) SPECDEFS+=("$2"); shift 2;;
@@ -65,17 +72,25 @@ while true; do
   [ "${#MISSING[@]}" -eq 0 ] && [ "$mine" -eq 0 ] && { echo "[$(date +%T)] nothing left to start"; exit 0; }
   for p in $PARTS; do
     squeue -u "$USER" -h -p "$p" 2>/dev/null | grep -q . && continue   # 1 job per user per partition
-    avail=0; for line in "${MISSING[@]}"; do grep -qx "${line%%|*}" <<< "$targeted" || avail=$((avail + 1)); done
+    avail=0
+    for line in "${MISSING[@]}"; do
+      allowed_on "$line" "$p" || continue
+      grep -qx "${line%%|*}" <<< "$targeted" || avail=$((avail + 1))
+    done
     if [ "$avail" -eq 0 ]; then
       # nothing unassigned: take over a pending job elsewhere that would start much later. Only jobs
       # with a real estimate that have waited >= 10 min (a fresh job's estimate is N/A, which once
       # made this cancel brand-new jobs every pass), and the freed runs go to THIS partition in the
       # same pass so they cannot drift back.
       here=$(est_start "$p" 1); [ -z "$here" ] && continue
+      # runs this partition may take (a definition's `partitions:` can exclude it)
+      allowed_here=$(for line in "${MISSING[@]}"; do allowed_on "$line" "$p" && echo "${line%%|*}"; done)
       stolen=""
       while read -r jid jpart jstart jsubmit jcomment; do
         [ "$jpart" = "$p" ] || [ "$jstart" = N/A ] && continue
         [ $(( $(date +%s) - $(date -d "$jsubmit" +%s) )) -lt 600 ] && continue
+        # only a job whose runs may all move here
+        tr ',' '\n' <<< "$jcomment" | grep -vxF -f <(printf '%s\n' "$allowed_here") | grep -q . && continue
         if [ "$(date -d "$jstart" +%s)" -gt $((here + REBALANCE_MIN * 60)) ]; then
           scancel "$jid" && { stolen=$jcomment
             echo "[$(date +%T)] rebalance: took over pending $jid ($jpart, est $jstart) -> $p (~$(date -d @"$here" +%H:%M))"; }
@@ -90,6 +105,7 @@ while true; do
     pick=()
     for line in "${MISSING[@]}"; do
       name=${line%%|*}
+      allowed_on "$line" "$p" || continue
       grep -qx "$name" <<< "$targeted" && continue
       pick+=("$line"); targeted+=$'\n'"$name"
       [ "${#pick[@]}" -ge "$G" ] && break

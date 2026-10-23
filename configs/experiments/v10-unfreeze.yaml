@@ -1,0 +1,26 @@
+# Follow-up to E1 (unfreeze at 3000; configs/experiments/v10-schedule.yaml), corpus head-fixed-v10, 2026-10-22.
+# E1 by median: zero-shot better on cheese-2d (-7 %) and facemap (-8 %), neutral on ibl / cheese-3d / kaufman /
+# kondo, but in-distribution ~6 % worse on every seen lab (48 of 49 trunk x dataset pairs). User: try a middle
+# point first, plus "unfreeze at 3000 but train 14k" (configs/experiments/v10-unfreeze-long.yaml, A100 only:
+# too long for the 1-hour A40 slots), then decide.
+# Baseline code (config-only overrides); results: <results_dir>/experiments/<id>/ (B-seed1 in trunks-headmlp256/).
+config: configs/model_zoominout.yaml
+backbone: vits_dinov3
+head_overrides: ["+model.head_hidden_channels=256"]
+
+targets:
+  ibl: [ibl]
+  cheese: [cheese-2d, cheese-3d]
+  kaufman: [kaufman]
+  kondo: [kondo]
+  facemap: [facemap]
+
+experiments:
+  E4-unfreeze2000:                     # middle point: backbone unfrozen at 2000 (baseline 1000, E1 3000)
+    seeds: [0]
+    overrides: ["training.unfreezing_step=2000"]
+  B-seed1:                             # noise floor for kondo and facemap (ibl / cheese / kaufman already have it)
+    area: baseline
+    seeds: [1]
+    targets: [kondo, facemap]
+    overrides: []

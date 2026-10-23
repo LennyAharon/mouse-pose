@@ -13,7 +13,7 @@ cd "$(dirname "$0")/../.."
 export PATH=/work/nvme/beez/laharon/.conda/envs/mighty-mouse/bin:$PATH
 RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
 mkdir -p "$RESULTS/_logs/slurm"
-while IFS='|' read -r name dir out args code; do
+while IFS='|' read -r name dir out args code _; do   # 6th / 7th fields (cpus, partitions) unused here
     [ -n "$name" ] || continue
     job=scripts/delta/train_plan_job.sbatch; export_env=ALL
     if [ -n "${code:-}" ]; then   # experiment worktrees: their job script, their code first on the path

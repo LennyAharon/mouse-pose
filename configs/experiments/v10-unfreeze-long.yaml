@@ -1,0 +1,30 @@
+# E5: unfreeze at 3000 AND train 14k steps (corpus head-fixed-v10, 2026-10-22; see v10-unfreeze.yaml).
+# LR halvings shifted by the same 2000 steps (6k / 8k / 10k instead of 4k / 6k / 8k), so the backbone gets
+# exactly the baseline's fine-tuning (11k steps, same decay timing after unfreezing) plus 2k extra head-only
+# steps first: tests whether E1's in-distribution cost is just fewer backbone steps.
+# ~17 % longer than a 12k run: A100 only (~50 min); NOT for the interactive feeder (A40 slots would hit 59 min).
+config: configs/model_zoominout.yaml
+backbone: vits_dinov3
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500"]   # rolling checkpoint: resumable (2026-10-23)
+# (A100-only restriction lifted 2026-10-23: runs are resumable, so a 14k-step run cut off by an A40
+#  1-hour slot continues in the next slot)
+
+targets:
+  all: []                              # E5 all-data trunk (2026-10-23): reference for query-head stage 2
+  ibl: [ibl]
+  cheese: [cheese-2d, cheese-3d]
+  kaufman: [kaufman]
+  kondo: [kondo]
+  facemap: [facemap]
+
+experiments:
+  E5-unfreeze3000-14k:
+    seeds: [0]
+    overrides: ["training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]"]
+  E6-unfreeze1000-14k:                 # control for E5 (user, 2026-10-22): same 14k steps and LR halvings
+    targets: [ibl, cheese, kaufman, kondo, facemap]
+    seeds: [0]                         # (6k/8k/10k) as E5, baseline unfreezing at 1000. E6 vs E5 = effect
+    overrides: ["training.min_steps=14000", "training.max_steps=14000",   # of unfreezing late at equal
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]"]   # length
