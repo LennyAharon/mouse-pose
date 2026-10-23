@@ -114,6 +114,9 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
      goes missing. Report how many pool frames it excluded.
    - `select` also writes `_raw/<dataset>/frame_ids_active/tolabel_round<R>.txt` (images added
      in each round) and `tolabel_all.txt`; `frame-ids <dataset>` rewrites them from the manifest.
+   - **More frames for the batch already selected** (no retraining since, e.g. the user wants 300
+     instead of 150): `select <dataset> --m M --extend` uses the same scores, skips the frames already
+     in tolabel, tags the new rows with the current round and backs up as `before_round<R>_extend`.
    - Then back to step 2 (`train-csv` after the user reviews the batch).
 6. **`reorder <dataset>`** (optional, `--dry_run` first): re-sorts *all* rounds' rows by session
    so the user can check consistency across rounds. Safe to run any time the user is back at the app's home screen;

@@ -308,7 +308,15 @@ def cmd_select(args) -> None:
     state = ctx.load_state()
     tolabel, manifest = ctx.load_tolabel()
     r = current_round(manifest)
-    if state["scored_round"] != r:
+    target = r + 1
+    if args.extend:
+        # more frames for the round already selected, from the same (previous round's) scores:
+        # nothing was trained since, and the frames already in tolabel are not in the pool
+        if r < 1 or state["scored_round"] != r - 1:
+            sys.exit(f"--extend adds frames to round {r}, which needs the scores of round {r - 1} "
+                     f"(scored_round={state['scored_round']})")
+        target = r
+    elif state["scored_round"] != r:
         sys.exit(f"Round {r} hasn't been scored (scored_round={state['scored_round']})")
     originals, source = ctx.load_originals()
     preds, labeled, pool = spreads(ctx, state, originals, tolabel.index)
@@ -336,11 +344,11 @@ def cmd_select(args) -> None:
     rows = prefill_rows(
         originals.loc[chosen], preds, state["keypoints"], args.prefill_threshold, args.prefill_agg
     )
-    new_manifest = make_manifest(chosen, source, r + 1, True)
+    new_manifest = make_manifest(chosen, source, target, True)
 
     sc = scores.loc[chosen]
     per_session = pd.Series([session_name(i) for i in chosen]).value_counts()
-    print(f"Selecting {len(chosen)} of {len(scores)} eligible pool frames for round {r + 1} "
+    print(f"Selecting {len(chosen)} of {len(scores)} eligible pool frames for round {target} "
           f"({sc.isna().sum()} with no eligible keypoint); "
           f"{new_manifest['source'].value_counts().to_dict()}")
     print(f"from {len(per_session)} of {pool_sessions} pool sessions "
@@ -354,8 +362,9 @@ def cmd_select(args) -> None:
     if args.dry_run:
         print("(dry run -- nothing written)")
         return
-    ctx.backup(ctx.raw / TOLABEL_CSV, f"before_round{r + 1}")
-    ctx.backup(ctx.manifest_path, f"before_round{r + 1}")
+    tag = f"before_round{target}" + ("_extend" if args.extend else "")
+    ctx.backup(ctx.raw / TOLABEL_CSV, tag)
+    ctx.backup(ctx.manifest_path, tag)
     pd.concat([tolabel, rows]).to_csv(ctx.raw / TOLABEL_CSV)
     pd.concat([manifest, new_manifest]).to_csv(ctx.manifest_path)
     ctx.save_state(state)  # records any new --exclude list
@@ -433,6 +442,9 @@ def main() -> None:
     p.add_argument("--exclude", nargs="+", metavar="LIST",
                    help="frame-id lists (one image path per line) never to select; recorded in "
                         "state.yaml and applied to every later select")
+    p.add_argument("--extend", action="store_true",
+                   help="add the frames to the round already selected (same scores, nothing "
+                        "trained since) instead of starting the next round")
     p.add_argument("--dry_run", action="store_true")
 
     p = add("finalize", cmd_finalize)
