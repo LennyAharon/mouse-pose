@@ -29,8 +29,14 @@ LEAF = "supervised/sampling-T2/tf1"
 
 
 def resumable(run_dir: Path) -> bool:
-    """A started run that can continue: rolling checkpoint, no evaluation, no live job holding it."""
-    if not (run_dir / "resume" / "resume.ckpt").exists() or any(run_dir.glob("eval/*/predictions.csv")):
+    """A started run that can continue, or only needs its evaluation: a rolling checkpoint (or finished
+    training with a best checkpoint), no evaluation, and no live job holding it."""
+    status = run_dir / "train_status.json"
+    trained = (status.exists() and '"COMPLETED"' in status.read_text()
+               and any(run_dir.glob("tb_logs/*/version_*/checkpoints/*-best.ckpt")))
+    if not ((run_dir / "resume" / "resume.ckpt").exists() or trained):
+        return False
+    if any(run_dir.glob("eval/*/predictions.csv")):
         return False
     claim = run_dir.parent / f"{run_dir.name}.claim" / "job"
     if not claim.exists():

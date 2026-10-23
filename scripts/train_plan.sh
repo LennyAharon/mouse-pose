@@ -67,9 +67,13 @@ out_dir() { echo "$RESULTS/$1$(suffix_of "$4")$HEADSUF/${2}_train/supervised/sam
 claim_alive() { local j; j=$(cat "$1.claim/job" 2>/dev/null) || return 1
   case "$(sacct -j "$j" -X -n -o State 2>/dev/null | awk 'NF{print $1; exit}')" in
     COMPLETED|FAILED|CANCELLED*|TIMEOUT|PREEMPTED|NODE_FAIL|OUT_OF_MEMORY|BOOT_FAIL|DEADLINE) return 1;; esac; }
-# resumable = a rolling checkpoint (training.resume_every_n_steps) and no live job: a new job continues it
+# trained only = training finished (best checkpoint) but no evaluation (a job cut off while evaluating)
+trained_only_dir() { grep -q '"status": "COMPLETED"' "$1/train_status.json" 2>/dev/null &&
+  ls "$1"/tb_logs/*/version_*/checkpoints/*-best.ckpt >/dev/null 2>&1; }
+# resumable = a rolling checkpoint (training.resume_every_n_steps) or trained only, and no live job:
+# a new job continues it (or only evaluates it)
 status_of() { local d=$1; if ls "$d"/eval/*/predictions.csv >/dev/null 2>&1; then echo done
-  elif [ -f "$d/resume/resume.ckpt" ] && ! claim_alive "$d"; then echo resumable
+  elif { [ -f "$d/resume/resume.ckpt" ] || trained_only_dir "$d"; } && ! claim_alive "$d"; then echo resumable
   elif [ -d "$d" ]; then echo PARTIAL; else echo missing; fi; }
 
 # rows: stage area tag left_out ("-" unless loo)

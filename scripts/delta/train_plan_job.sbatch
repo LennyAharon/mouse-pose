@@ -43,6 +43,10 @@ done_run() {  # evaluated, and for a leave-out trunk the zero-shot train predict
     local ds; for ds in ${LEFT_OUT//,/ }; do [ -f "$RUN_DIR/zeroshot/${ds}_train_predictions.csv" ] || return 1; done
 }
 done_run && { echo "already done: $RUN_DIR"; exit 0; }
+trained_only() {  # training finished (best checkpoint kept) but the evaluation is missing
+    grep -q '"status": "COMPLETED"' "$RUN_DIR/train_status.json" 2>/dev/null &&
+        ls "$RUN_DIR"/tb_logs/*/version_*/checkpoints/*-best.ckpt >/dev/null 2>&1
+}
 CLAIM="$RUN_DIR.claim"; mkdir -p "$(dirname "$RUN_DIR")"
 if mkdir "$CLAIM" 2>/dev/null; then
     echo "$SLURM_JOB_ID" > "$CLAIM/job"
@@ -59,6 +63,8 @@ else
     if [ -d "$RUN_DIR" ] && ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1; then
         if [ -f "$RUN_DIR/resume/resume.ckpt" ]; then
             echo "resuming $RUN_DIR from its rolling checkpoint"
+        elif trained_only; then
+            echo "training of $RUN_DIR finished earlier: evaluating only"
         else
             echo "removing unfinished $RUN_DIR"; rm -rf "$RUN_DIR"
         fi
@@ -66,7 +72,9 @@ else
 fi
 echo "[$(date -u +%H:%M)] start $RUN_DIR"
 
-python scripts/train_sweep.py "$@"
+EVAL_ONLY=()   # a job cut off during evaluation must not retrain: evaluate only
+trained_only && ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1 && EVAL_ONLY=(--eval_only)
+python scripts/train_sweep.py "$@" "${EVAL_ONLY[@]}"
 
 if [ "$LEFT_OUT" != - ]; then
     mkdir -p "$RUN_DIR/zeroshot"
