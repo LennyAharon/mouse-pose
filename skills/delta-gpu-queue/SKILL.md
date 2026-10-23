@@ -31,8 +31,8 @@ maximum: interactive partitions cap at 1 h, and short accurate limits backfill s
    to the front of the queue. Limits: **1 h max**, **1 SUBMITTED job per user per partition**
    (`QOSMaxSubmitJobPerUser`: a pending job holds the slot too, so a second job cannot even queue
    behind it). Use them whenever the job fits in ~55 min. A job can hold several GPUs of one node
-   (more runs at once) but then waits for that many free GPUs. A run killed at 1 h is lost
-   (runs are resumable since 2026-10-23, so a cut-off run continues in its next job). H200
+   (more runs at once) but then waits for that many free GPUs. A run cut off at 1 h is not lost:
+   runs are resumable since 2026-10-23 and continue in their next job. H200
    interactive is used as a 4th slot when it fits (user, 2026-10-23); its nodes train our runs 2-3x
    faster. Long waits come from fair-share, not job size (shorter time limits don't help).
    To give a slot the feeder holds to another job (e.g. an analysis job), stop the feeder, submit
