@@ -96,6 +96,7 @@ Then the job ids and `squeue -u $USER -o "%.10i %.30j %.3t %.20S %R"` (`%S` = es
 | run | GPU | run time | notes |
 |---|---|---|---|
 | LP ViT-S DINOv3, 300 epochs on 441 frames, 3 seeds on 1 GPU | A100 40GB | 27.5 min | `lp-ibl-r0`, interactive, started at once |
+| LP ViT-S DINOv3, 300 epochs on 741 frames (13.2k steps), 3 seeds, one per GPU (`--gpus-per-node=3`, 16 CPU each) | 3 x A40 | 25.7 min | `lp-ibl-r1`, 2026-10-24, ~9 it/s per run; A40-interactive estimate said 15 min, waited 5 h 51 min overnight |
 | `active_labeling.py score`, 3 models x 9k frames | A100 40GB | 1.5 min | interactive |
 | recipe S trunk (ViT-S DINOv3, 12k steps, bs 32, zoom-in/out) | L4 (Studio) | ~1.5 h | from train-plan skill |
 | same, linear head, 1500-step timing | A100 40GB | ~6 it/s | CPU-bound (same speed frozen / unfrozen backbone) |

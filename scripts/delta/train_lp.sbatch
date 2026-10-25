@@ -19,6 +19,8 @@
 #
 #   sbatch --export=ALL,SEEDS="0 1 2" -o ... scripts/delta/train_lp.sbatch <config> <prefix>
 #
+# With --gpus-per-node=N (and N x the CPUs / memory) the seeds are spread over the N GPUs.
+#
 # -p overrides the partition list below; listing several lets SLURM use whichever frees up first.
 #
 # Lightning Pose is imported from whatever branch is checked out in MM_project/lightning-pose
@@ -53,9 +55,12 @@ if [ "${#seeds[@]}" -eq 1 ]; then
     exit
 fi
 
+read -ra gpus <<< "${CUDA_VISIBLE_DEVICES//,/ }"   # several GPUs (--gpus-per-node=N): one per seed
+[ "${#gpus[@]}" -gt 0 ] || gpus=(0)
 pids=()
-for s in "${seeds[@]}"; do
-    litpose train "$CONFIG" --output_dir "${PREFIX}_seed-$s" \
+for i in "${!seeds[@]}"; do
+    s=${seeds[$i]}
+    CUDA_VISIBLE_DEVICES=${gpus[$((i % ${#gpus[@]}))]} litpose train "$CONFIG" --output_dir "${PREFIX}_seed-$s" \
         --overrides "training.rng_seed_data_pt=$s" "$@" > "${PREFIX}_seed-$s.log" 2>&1 &
     pids+=($!)
     echo "seed $s: pid $! -> ${PREFIX}_seed-$s.log"
