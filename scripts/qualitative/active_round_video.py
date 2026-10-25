@@ -54,6 +54,9 @@ def main() -> None:
     ap.add_argument("--include", default="", help="comma regexes: keep only matching keypoints")
     ap.add_argument("--conf", type=float, default=0.7)
     ap.add_argument("--fps", type=int, default=3)
+    ap.add_argument("--per_view", type=int, default=None,
+                    help="test / train: at most this many frames per view, evenly spread through the split "
+                         "(default: every frame)")
     ap.add_argument("--median_panel", action="store_true",
                     help="add, under each panel, the frame minus its session's median frame (dim frames)")
     ap.add_argument("--keypoint_map", default=None,
@@ -83,8 +86,18 @@ def main() -> None:
     if args.frames in SPLIT_CSV:
         split = pd.read_csv(raw / SPLIT_CSV[args.frames], header=[0, 1, 2], index_col=0).index
         frames = preds[0].index[preds[0].index.isin(split)]
+        n_all = len(frames)
+        if args.per_view:
+            left = pd.Series([is_left(Path(f).parent.name) for f in frames], index=frames)
+            keep = pd.Index([])
+            for view in (left[left], left[~left]):
+                take = np.unique(np.linspace(0, len(view) - 1, min(args.per_view, len(view))).astype(int))
+                keep = keep.append(view.index[take] if len(view) else pd.Index([]))
+            frames = frames[frames.isin(keep)]
         n_seen = int(frames.isin(trained).sum())
-        subset = f"all {len(frames)} {args.frames}-split frames ({n_seen} were in this round's training rows)"
+        subset = (f"{len(frames)} of the {n_all} {args.frames}-split frames ({args.per_view} per view, evenly spread)"
+                  if args.per_view else f"all {n_all} {args.frames}-split frames")
+        subset += f" ({n_seen} were in this round's training rows)"
         n_frames = len(frames)
     elif args.frames == "selected":
         # the frames `select` added to tolabel from this round's scores (= the next round's labeling batch,
@@ -115,6 +128,7 @@ def main() -> None:
     cfg = yaml.safe_load((Path(model_dirs[0]) / "config.yaml").read_text())
     model_tok = f"active-r{r}-{cfg['model']['backbone'].replace('_', '-')}-ens{len(preds)}"
     what = f"{args.dataset}-{args.frames}" + (f"-{args.include.replace(',', '+')}" if args.include else "")
+    what += f"-{args.per_view}perview" if args.per_view and args.frames in SPLIT_CSV else ""
     what += "-medsub" if args.median_panel else ""
     name = f"{what}__{model_tok}_nogt"
     today = datetime.date.today()
@@ -154,8 +168,9 @@ def main() -> None:
             + "<br>".join(f"`{d}`" for d in model_dirs) + " |\n")
     commit = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "--short", "HEAD"],
                             capture_output=True, text=True).stdout.strip()
-    note = (" Lower panels: the same overlays on the frame minus its session's median frame (median of up to 100 "
-            "frames of that session folder; gray = unchanged, contrast stretched per frame)." if args.median_panel else "")
+    note = (" Lower panels: the same overlays on the frame minus its session's median frame (per-pixel median of "
+            "every frame in that session folder; gray = unchanged, contrast stretched per frame)."
+            if args.median_panel else "")
     with open(readme, "a") as fh:
         fh.write(f"\n## videos/{name}.mp4\n\n{subset}.{note}\n\nmouse-pose `{commit}`:\n\n```\n{' '.join(sys.argv)}\n```\n")
     print(f"README: {readme}")

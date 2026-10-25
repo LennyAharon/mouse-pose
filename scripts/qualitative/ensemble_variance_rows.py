@@ -16,9 +16,9 @@ SD, and on labelled cells the median error of the ensemble median and Spearman c
         [--modes mixture] [--include ear_] [--conf 0]
 --modes keeps only the named rows (default all three); --include keeps only keypoints matching any regex; --conf 0
 disables confidence masking (every included keypoint is drawn on every frame, solid).
---median_panel adds, under each panel, the same overlays on the frame minus its session's median frame (median of
-up to --median_frames frames of that session folder; gray = unchanged, contrast stretched per frame): shows the
-moving parts on dim frames.
+--median_panel adds, under each panel, the same overlays on the frame minus its session's median frame (per-pixel
+median of EVERY frame in that session folder, or of --median_frames evenly spaced ones; gray = unchanged, contrast
+stretched per frame): shows the moving parts on dim frames.
 
 Raw-dataset models (e.g. the active pseudo-labeling ensembles, whose predictions `active_labeling.py score` caches in
 results/<dataset>/active/round_XX/) pass the prediction CSVs and the image root directly, and map the raw keypoint names
@@ -57,10 +57,12 @@ IMAGE_EXT = (".png", ".jpg", ".jpeg")
 
 
 def session_median(folder: Path, n: int, cache: dict) -> tuple[np.ndarray, int]:
-    """Per-pixel median of up to n evenly spaced frames of one session folder (cached, a few sessions kept)."""
+    """Per-pixel median of every frame of one session folder, or of n evenly spaced ones if n > 0 (cached, a few
+    sessions kept)."""
     if folder not in cache:
         files = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXT)
-        take = np.unique(np.linspace(0, len(files) - 1, min(n, len(files))).round().astype(int))
+        k = len(files) if n <= 0 else min(n, len(files))
+        take = np.unique(np.linspace(0, len(files) - 1, k).round().astype(int))
         imgs = [cv2.imread(str(files[t])) for t in take]
         imgs = [im for im in imgs if im is not None]
         imgs = [im for im in imgs if im.shape == imgs[0].shape]
@@ -109,7 +111,8 @@ def main() -> None:
     ap.add_argument("--no_gt",     action="store_true")
     ap.add_argument("--median_panel", action="store_true",
                     help="under each panel, the same overlays on the frame minus its session's median frame")
-    ap.add_argument("--median_frames", type=int, default=100, help="frames per session for the median")
+    ap.add_argument("--median_frames", type=int, default=0,
+                    help="frames per session for the median (default 0 = every frame in the session folder)")
     ap.add_argument("--out",       required=True, help="<delivery dir>/<name>.mp4 (written into videos/)")
     args = ap.parse_args()
 
