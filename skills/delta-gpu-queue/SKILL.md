@@ -103,4 +103,5 @@ Then the job ids and `squeue -u $USER -o "%.10i %.30j %.3t %.20S %R"` (`%S` = es
 | same, nonlinear head 256, 4 runs packed on one A40 node (16 CPU each) | A40 | 4.1-4.9 it/s, ~43-48 min train | 2026-10-22; + eval |
 | same, nonlinear head 256, 4 packed on A100x8 node / 1 on A100 | A100 | 5.1-5.7 it/s, ~37-40 min train | 2026-10-22; + eval |
 | dedicated model (small dataset), nonlinear head | H200 | 11.8-12.6 it/s, ~17 min train | 2026-10-22 |
+| recipe E5 trunk (14k steps, unfreeze 3000), 4 packed per node, incl. eval on 13 datasets | H200 / A100 / A40 | ~29 / ~53-55 / >59 min (A40 resumed in a 2nd job) | v11, 2026-10-25: 19 runs in 1 h 55 min on the 4 interactive slots |
 | zero-shot along training: 11 leave-out trunks x 6 checkpoints, test + train frames | A40 | 14 min | 2026-10-22, interactive, 16 CPU |
