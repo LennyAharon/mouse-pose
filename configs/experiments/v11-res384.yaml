@@ -1,0 +1,35 @@
+# The v11 trunks of record (configs/experiments/v11-trunks.yaml: recipe E5) at 384 x 384 input (user, 2026-10-25),
+# after v10's R1-res384 (recipe S at 384 px) beat 256 px zero-shot on every target (-8 to -32 % median, beyond seed
+# noise; results/head-fixed-v10/experiments/R1-res384/RESULT.md). Only the input size differs from v11-trunks:
+# DINOv3 patch 16 -> 24 x 24 tokens, heatmaps 96 x 96. A run takes ~2x a 256-px run (~2.1 steps/s on an A40), so it
+# spans two 1-hour interactive jobs (resumable). Results: <results_dir>/experiments/R384-E5/.
+
+config: configs/model_zoominout.yaml
+backbone: vits_dinov3
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500"]   # rolling checkpoint: runs continue across jobs
+
+targets:                               # as v11-trunks.yaml
+  all: []
+  facemap: [facemap]
+  ibl: [ibl]
+  cheese-2d: [cheese-2d]
+  cazettes-side: [cazettes-side]
+  kondo: [kondo]
+  hantman-mv: [hantman-mv]
+  cheese-3d: [cheese-3d]
+  kaufman: [kaufman]
+  aind-vbn-body: [aind-vbn-body]
+  aind-vbn-face: [aind-vbn-face]
+  cavelli: [cavelli]
+  tyssowski: [tyssowski]
+  kaufman-water: [kaufman-water]
+  cheese: [cheese-2d, cheese-3d]
+  kaufman-both: [kaufman, kaufman-water]
+
+experiments:
+  R384-E5:
+    seeds: [0]
+    overrides: ["training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]",
+                "data.image_resize_dims.height=384", "data.image_resize_dims.width=384"]
