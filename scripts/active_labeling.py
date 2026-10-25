@@ -8,8 +8,9 @@ backups, per-round prediction caches and reports). The original CollectedData*.c
 only written by `finalize`. Never bumps the version.
 
 See ../skills/active-pseudo-labeling/SKILL.md for the workflow and what to ask first.
-Before any subcommand that writes (init, select, reorder, finalize) the user must leave the
-dataset's project in the LP app (back to the home screen listing all projects).
+Before any subcommand that writes a CSV the LP app edits (init, select, reorder, sync, finalize)
+the user must leave the dataset's project in the app (back to the home screen listing all
+projects).
 Must be run in the `pose` conda env for `score`.
 
 Subcommands, in the order they are used:
@@ -20,6 +21,9 @@ Subcommands, in the order they are used:
   reorder    reorder all tolabel rows by session, then frame (all rounds)
   select     append the --m highest-disagreement unlabeled frames (or `all`), prefilled
              with the ensemble mean, to CollectedData_tolabel.csv
+  sync       take every tolabel cell outside the keypoints being labeled from the dataset's
+             current CollectedData*.csv (after the dataset's labels change; `train-csv` refuses
+             while they differ, `select` syncs the existing rows itself)
   finalize   copy the new keypoints from tolabel into CollectedData.csv / CollectedData_test.csv
   frame-ids  (re)write the per-round lists of tolabel images to _raw/<dataset>/frame_ids_active/
 
@@ -28,6 +32,7 @@ state.yaml and re-read by every later `select`, so those frames can never be dra
 """
 
 import argparse
+import datetime
 import shutil
 import sys
 import tempfile
@@ -37,6 +42,7 @@ import pandas as pd
 import yaml
 
 from mighty_mouse.labeling.active_labeling import (
+    add_missing_keypoints,
     combine_originals,
     compare_training_csv,
     ensemble_spread,
@@ -51,6 +57,7 @@ from mighty_mouse.labeling.active_labeling import (
     round_stats,
     sample_per_session,
     select_frames,
+    sync_tolabel,
 )
 from mighty_mouse.labeling.ensemble import predict
 from mighty_mouse.labels import read_labels_csv, session_name
@@ -89,8 +96,11 @@ class Ctx:
             sys.exit(f"{TOLABEL_CSV} and the manifest list different images")
         return tolabel, manifest
 
-    def load_originals(self) -> tuple[pd.DataFrame, pd.Series]:
-        return combine_originals(read_exact(self.raw / TRAIN_CSV), read_exact(self.raw / TEST_CSV))
+    def load_originals(self, keypoints: list[str]) -> tuple[pd.DataFrame, pd.Series]:
+        """Train + test labels, with empty columns for the `keypoints` the dataset's CSVs lack."""
+        train, test = read_exact(self.raw / TRAIN_CSV), read_exact(self.raw / TEST_CSV)
+        both, source = combine_originals(train, test)
+        return add_missing_keypoints(both, keypoints), source
 
     def round_dir(self, r: int) -> Path:
         return self.active / f"round_{r:02d}"
@@ -147,7 +157,7 @@ def cmd_init(args) -> None:
     ctx = Ctx(args.dataset)
     if (ctx.raw / TOLABEL_CSV).exists() or ctx.state_path.exists():
         sys.exit(f"{TOLABEL_CSV} or state already exists -- refusing to overwrite")
-    originals, source = ctx.load_originals()
+    originals, source = ctx.load_originals(args.keypoints)
     sampled = sample_per_session(originals.index, args.n, args.seed)
     tolabel = init_tolabel(originals, sampled, args.keypoints, args.allow_existing)
     manifest = make_manifest(tolabel.index, source, 0, False)
@@ -176,6 +186,12 @@ def cmd_train_csv(args) -> None:
     r = current_round(manifest)
     if state["scored_round"] is not None and state["scored_round"] >= r and not args.force:
         sys.exit(f"Round {r} was already scored; `select` first (or pass --force)")
+    originals, _ = ctx.load_originals(state["keypoints"])
+    synced, changes = sync_tolabel(tolabel, originals, state["keypoints"])
+    if len(changes) or list(synced.columns) != list(tolabel.columns):
+        sys.exit(f"{TOLABEL_CSV} differs from the dataset's current labels in {len(changes)} "
+                 "cells outside the keypoints being labeled: run `sync` first (after the user "
+                 "leaves the project in the LP app)")
     shutil.copyfile(ctx.raw / TOLABEL_CSV, ctx.raw / TMP_CSV)
     print(f"Round {r}: wrote {ctx.raw / TMP_CSV} ({len(tolabel)} rows)")
     print(manifest.groupby("round").size().rename("rows").to_string())
@@ -187,9 +203,9 @@ def cmd_train_csv(args) -> None:
 def cmd_reorder(args) -> None:
     """Reorder every tolabel row by session (then frame), across all rounds."""
     ctx = Ctx(args.dataset)
-    ctx.load_state()
+    state = ctx.load_state()
     tolabel, manifest = ctx.load_tolabel()
-    originals, _ = ctx.load_originals()
+    originals, _ = ctx.load_originals(state["keypoints"])
     order = order_by_session(tolabel.index, originals.index)
     new_tol, new_man = tolabel.loc[order], manifest.loc[order]
     sessions = [session_name(i) for i in order]
@@ -232,7 +248,7 @@ def cmd_score(args) -> None:
     if diff["edited"]:
         print(f"WARNING: {diff['edited']} rows of {TOLABEL_CSV} were edited after `train-csv`")
 
-    originals, _ = ctx.load_originals()
+    originals, _ = ctx.load_originals(state["keypoints"])
     ctx.round_dir(r).mkdir(parents=True, exist_ok=True)
     from lightning_pose.api import Model  # slow import; `pose` env only
 
@@ -318,7 +334,7 @@ def cmd_select(args) -> None:
         target = r
     elif state["scored_round"] != r:
         sys.exit(f"Round {r} hasn't been scored (scored_round={state['scored_round']})")
-    originals, source = ctx.load_originals()
+    originals, source = ctx.load_originals(state["keypoints"])
     preds, labeled, pool = spreads(ctx, state, originals, tolabel.index)
     m = None if args.m == "all" else int(args.m)
     for f in args.exclude or []:
@@ -362,6 +378,10 @@ def cmd_select(args) -> None:
     if args.dry_run:
         print("(dry run -- nothing written)")
         return
+    tolabel, changes = sync_tolabel(tolabel, originals, state["keypoints"])
+    if len(changes):
+        print(f"{len(changes)} cells of the existing rows updated to the dataset's current labels "
+              f"(log: {write_sync_log(ctx, changes)})")
     tag = f"before_round{target}" + ("_extend" if args.extend else "")
     ctx.backup(ctx.raw / TOLABEL_CSV, tag)
     ctx.backup(ctx.manifest_path, tag)
@@ -372,6 +392,41 @@ def cmd_select(args) -> None:
     first = new_manifest.index[0]
     print(f"Appended to {ctx.raw / TOLABEL_CSV} -- review the new rows in the LP app.")
     print(f"First new row (data row {len(tolabel) + 1} of {len(tolabel) + len(rows)}): {first}")
+
+
+def write_sync_log(ctx: Ctx, changes: pd.DataFrame) -> Path:
+    """Save the cells `sync_tolabel` changed (never overwrites an earlier log)."""
+    path = ctx.active / f"sync_{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}_changes.csv"
+    changes.to_csv(path, index=False)
+    return path
+
+
+def cmd_sync(args) -> None:
+    """Take every tolabel cell outside the keypoints being labeled from the dataset's CSVs."""
+    ctx = Ctx(args.dataset)
+    state = ctx.load_state()
+    tolabel, _ = ctx.load_tolabel()
+    originals, _ = ctx.load_originals(state["keypoints"])
+    synced, changes = sync_tolabel(tolabel, originals, state["keypoints"])
+    dropped = sorted({c[1] for c in tolabel.columns} - {c[1] for c in synced.columns})
+    added = sorted({c[1] for c in synced.columns} - {c[1] for c in tolabel.columns})
+    n_rows = changes["image"].nunique()
+    print(f"{len(changes)} cells in {n_rows} of {len(tolabel)} rows differ from the dataset's "
+          "current labels")
+    if len(changes):
+        print("per keypoint:", changes.groupby("keypoint").size().to_dict())
+    if dropped or added:
+        print(f"keypoints dropped: {dropped}, added: {added}")
+    if not len(changes) and not dropped and not added:
+        print("Already in sync.")
+        return
+    if args.dry_run:
+        print("(dry run -- nothing written)")
+        return
+    ctx.backup(ctx.raw / TOLABEL_CSV, "before_sync")
+    synced.to_csv(ctx.raw / TOLABEL_CSV)
+    pd.testing.assert_frame_equal(read_exact(ctx.raw / TOLABEL_CSV), synced)
+    print(f"Wrote {ctx.raw / TOLABEL_CSV}; changed cells logged in {write_sync_log(ctx, changes)}")
 
 
 def cmd_finalize(args) -> None:
@@ -445,6 +500,9 @@ def main() -> None:
     p.add_argument("--extend", action="store_true",
                    help="add the frames to the round already selected (same scores, nothing "
                         "trained since) instead of starting the next round")
+    p.add_argument("--dry_run", action="store_true")
+
+    p = add("sync", cmd_sync)
     p.add_argument("--dry_run", action="store_true")
 
     p = add("finalize", cmd_finalize)

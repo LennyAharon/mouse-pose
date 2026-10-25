@@ -31,10 +31,19 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
 - **Every row in tolabel is treated as reviewed at training time**, and any empty cell is
   intentional (occluded) — kept as is. So the user says "round done" only after finishing the
   whole batch.
-- **Confirm the user has left the project** before `init`, `select`, `reorder`, `finalize`
-  (they rewrite files the app edits, and the app's next save would clobber them). The app
-  doesn't need to be closed: the user just returns to its home screen listing all projects.
-  Ask; don't infer.
+- **Confirm the user has left the project** before `init`, `select`, `reorder`, `sync`,
+  `finalize` (they rewrite files the app edits, and the app's next save would clobber them). The
+  app doesn't need to be closed: the user just returns to its home screen listing all projects.
+  Ask; don't infer. If the user labels a local copy and uploads it, check it against the Delta
+  file (rows, columns, which cells changed) before it replaces anything.
+- **tolabel follows the dataset's current labels everywhere except the keypoints being labeled**
+  (user, 2026-10-25). Whenever `_raw/<dataset>/CollectedData*.csv` change (e.g. a new lab label
+  version from MW), run `sync <dataset> --dry_run`, then `sync` (backup + a log of every changed
+  cell in `results/<dataset>/active/sync_*_changes.csv`). `train-csv` refuses while they differ;
+  `select` syncs the existing rows itself. Sync overwrites the user's in-app edits to other
+  keypoints too: report them (they are in the log) so corrections can go to the dataset's owner.
+  The dataset's CSVs need not carry the keypoints being labeled (MW's don't); every subcommand
+  adds them as empty columns, and `finalize` appends them.
 - Original `CollectedData*.csv` are only written by `finalize`, after a backup. No version bump.
 - Never touch `CollectedData_tmp.csv` or tolabel while models are training.
 
