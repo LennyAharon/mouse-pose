@@ -133,6 +133,8 @@ training:
     aind-vbn-body: [-0.4, 0.15]  # eye->nose 22.6% of 256 px crop, eye width 6.0%: ibl / hantman-mv scale
     aind-vbn-face: [-0.4, 0.15]  # front view, no nose label: eye width 6.6% of 256 px (hantman-mv 6.8%)
     cavelli: [-0.4, 0.15]        # pupil->nose 23-26% of width in both cameras (ibl 23%)
+    tyssowski: [-0.4, 0.15]      # hantman-mv rig size (448x290): fingertip spread 6.3% of width (hantman-mv 7.5%)
+    kaufman-water: [-0.4, 0.15]  # kaufman scale (800x600): tip->knuckle 2.8% / tip->palm 6.3% (kaufman 2.7 / 5.9%)
   imgaug_hflip: true
   train_batch_size: 32
   val_batch_size: 64

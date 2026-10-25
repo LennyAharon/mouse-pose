@@ -9,7 +9,7 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 | dataset | train frames | train sessions | test frames | test sessions | direct | trainable | eval |
 |---|---|---|---|---|---|---|---|
 | `facemap` | 2,400 | 53 | 100 | 4 | 14 | 14 | 9 |
-| `ibl` | 5,962 | 102 | 1,446 | 19 | 6 | 7 | 6 |
+| `ibl` | 5,962 | 102 | 1,446 | 19 | 10 | 15 | 10 |
 | `cheese-2d` | 665 | 59 | 291 | 30 | 29 | 29 | 29 |
 | `cazettes-side` | 830 | 41 | 217 | 11 | 12 | 17 | 12 |
 | `kondo` | 439 | 5 | 120 | 1 | 12 | 17 | 12 |
@@ -19,23 +19,27 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 | `aind-vbn-body` | 489 | 14 | 74 | 2 | 16 | 26 | 16 |
 | `aind-vbn-face` | 490 | 14 | 74 | 2 | 15 | 15 | 15 |
 | `cavelli` | 218 | 52 | 47 | 14 | 6 | 6 | 6 |
-| **total** | **15,185** | | **3,617** | | | | |
+| `tyssowski` | 174 | 20 | 30 | 6 | 6 | 11 | 6 |
+| `kaufman-water` | 2,506 | 20 | 404 | 4 | 4 | 8 | 4 |
+| **total** | **17,865** | | **4,051** | | | | |
 
 ## Pairwise direct-keypoint overlap
 
-| | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` | `cheese-3d` | `kaufman` | `aind-vbn-body` | `aind-vbn-face` | `cavelli` |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `facemap` | 14 | 2 | 11 | 3 | 5 | 6 | 13 | 5 | 6 | 8 | 3 |
-| `ibl` | 2 | 6 | 3 | 4 | 3 | 3 | 4 | 1 | 3 | 2 | 4 |
-| `cheese-2d` | 11 | 3 | 29 | 5 | 11 | 9 | 29 | 12 | 15 | 14 | 4 |
-| `cazettes-side` | 3 | 4 | 5 | 12 | 6 | 8 | 6 | 2 | 5 | 3 | 5 |
-| `kondo` | 5 | 3 | 11 | 6 | 12 | 7 | 11 | 7 | 6 | 5 | 4 |
-| `hantman-mv` | 6 | 3 | 9 | 8 | 7 | 17 | 9 | 10 | 5 | 6 | 4 |
-| `cheese-3d` | 13 | 4 | 29 | 6 | 11 | 9 | 31 | 12 | 15 | 14 | 6 |
-| `kaufman` | 5 | 1 | 12 | 2 | 7 | 10 | 12 | 16 | 2 | 6 | 2 |
-| `aind-vbn-body` | 6 | 3 | 15 | 5 | 6 | 5 | 15 | 2 | 16 | 9 | 4 |
-| `aind-vbn-face` | 8 | 2 | 14 | 3 | 5 | 6 | 14 | 6 | 9 | 15 | 2 |
-| `cavelli` | 3 | 4 | 4 | 5 | 4 | 4 | 6 | 2 | 4 | 2 | 6 |
+| | `facemap` | `ibl` | `cheese-2d` | `cazettes-side` | `kondo` | `hantman-mv` | `cheese-3d` | `kaufman` | `aind-vbn-body` | `aind-vbn-face` | `cavelli` | `tyssowski` | `kaufman-water` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `facemap` | 14 | 2 | 11 | 3 | 5 | 6 | 13 | 5 | 6 | 8 | 3 | 1 | 0 |
+| `ibl` | 2 | 10 | 7 | 4 | 3 | 3 | 8 | 1 | 7 | 2 | 4 | 2 | 0 |
+| `cheese-2d` | 11 | 7 | 29 | 5 | 11 | 9 | 29 | 12 | 15 | 14 | 4 | 2 | 0 |
+| `cazettes-side` | 3 | 4 | 5 | 12 | 6 | 8 | 6 | 2 | 5 | 3 | 5 | 2 | 0 |
+| `kondo` | 5 | 3 | 11 | 6 | 12 | 7 | 11 | 7 | 6 | 5 | 4 | 2 | 0 |
+| `hantman-mv` | 6 | 3 | 9 | 8 | 7 | 17 | 9 | 10 | 5 | 6 | 4 | 6 | 4 |
+| `cheese-3d` | 13 | 8 | 29 | 6 | 11 | 9 | 31 | 12 | 15 | 14 | 6 | 2 | 0 |
+| `kaufman` | 5 | 1 | 12 | 2 | 7 | 10 | 12 | 16 | 2 | 6 | 2 | 5 | 4 |
+| `aind-vbn-body` | 6 | 7 | 15 | 5 | 6 | 5 | 15 | 2 | 16 | 9 | 4 | 2 | 0 |
+| `aind-vbn-face` | 8 | 2 | 14 | 3 | 5 | 6 | 14 | 6 | 9 | 15 | 2 | 1 | 0 |
+| `cavelli` | 3 | 4 | 4 | 5 | 4 | 4 | 6 | 2 | 4 | 2 | 6 | 2 | 0 |
+| `tyssowski` | 1 | 2 | 2 | 2 | 2 | 6 | 2 | 5 | 2 | 1 | 2 | 6 | 4 |
+| `kaufman-water` | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 4 | 0 | 0 | 0 | 4 | 4 |
 
 ## `facemap`
 
@@ -46,8 +50,8 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 ## `ibl`
 
 - **Views:** 121 sessions left-view
-- **Direct (6):** nose_tip, pupil_center_left, tongue_end_left, tongue_end_right, wrist_left, wrist_right
-- **Hflip-only trainable:** pupil_center_right
+- **Direct (10):** ear_base_left, ear_bottom_left, ear_tip_left, ear_top_left, nose_tip, pupil_center_left, tongue_end_left, tongue_end_right, wrist_left, wrist_right
+- **Hflip-only trainable:** ear_base_right, ear_bottom_right, ear_tip_right, ear_top_right, pupil_center_right
 - **⚠ Unreferenced raw labeled-data dirs (deliberately not converted):** 6c6983ef-7383-4989-9183-32b1a300d17a_iblrig_leftCamera.paws_downsampled_20min, 6c6983ef-7383-4989-9183-32b1a300d17a_iblrig_rightCamera.paws_downsampled.flipped_20min, 7a887357-850a-4378-bd2a-b5bc8bdd3aac_iblrig_leftCamera.paws_downsampled_20min, 7a887357-850a-4378-bd2a-b5bc8bdd3aac_iblrig_rightCamera.paws_downsampled.flipped_20min, 81a78eac-9d36-4f90-a73a-7eb3ad7f770b_iblrig_leftCamera.paws_downsampled_20min, 81a78eac-9d36-4f90-a73a-7eb3ad7f770b_iblrig_rightCamera.paws_downsampled.flipped_20min, 88d24c31-52e4-49cc-9f32-6adbeb9eba87_iblrig_leftCamera.paws_downsampled_20min, 88d24c31-52e4-49cc-9f32-6adbeb9eba87_iblrig_rightCamera.paws_downsampled.flipped_20min, cde63527-7f5a-4cc3-8ac2-215d82e7da26_iblrig_leftCamera.paws_downsampled_20min, cde63527-7f5a-4cc3-8ac2-215d82e7da26_iblrig_rightCamera.paws_downsampled.flipped_20min, churchlandlab_CSHL_015_2019-11-12_001__iblrig_leftCamera.paws.short, churchlandlab_CSHL_015_2019-11-13_001__iblrig_leftCamera.paws.short, cortexlab_KS002_2019-10-11_001__iblrig_leftCamera.paws.short, cortexlab_KS002_2019-10-12_001__iblrig_leftCamera.paws.short, cortexlab_KS004_2019-09-25_001__iblrig_leftCamera.paws.short, cortexlab_KS004_2019-09-26_001__iblrig_leftCamera.paws.short, cortexlab_KS004_2019-09-27_001__iblrig_leftCamera.paws.short, cortexlab_KS004_2019-09-29_001__iblrig_leftCamera.paws.short, mainenlab_ZM_1897_2019-12-03_002__iblrig_leftCamera.paws.short, mainenlab_ZM_1897_2019-12-04_002__iblrig_leftCamera.paws.short, mainenlab_ZM_1897_2019-12-05_001__iblrig_leftCamera.paws.short, mainenlab_ZM_1897_2019-12-06_001__iblrig_leftCamera.paws.short, mainenlab_ZM_1898_2019-12-10_007__iblrig_leftCamera.paws.short, mainenlab_ZM_1898_2019-12-11_002__iblrig_leftCamera.paws.short, wittenlab_ibl_witten_04_2019-08-04_002__iblrig_leftCamera.paws.short, wittenlab_ibl_witten_04_2019-08-11_001__iblrig_leftCamera.paws.short
 
 ## `cheese-2d`
@@ -107,3 +111,17 @@ Every dataset's test sessions are disjoint from its train sessions (asserted on 
 
 - **Views:** 33 sessions left-view, 33 sessions right-view
 - **Direct (6):** nose_bottom, nose_tip, pupil_center_left, pupil_center_right, wrist_left, wrist_right
+
+## `tyssowski`
+
+- **Views:** 26 sessions right-view
+- **Excluded source keypoints:** mouth
+- **Direct (6):** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right, nose_tip, wrist_right
+- **Hflip-only trainable:** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left, wrist_left
+
+## `kaufman-water`
+
+- **Views:** 24 sessions right-view
+- **Excluded source keypoints:** RFPk1, RFPk2, RFPk3, RFPk4, RFPp1, RFPp2, RFPp3, RFPp4, RFPp5, RFLe1, RFLs1, Nose1, Nose2, Tng1, Tng2, RHPm, RHPl, RHPp, LFPm, LFPl, LFPp, spoutB, spoutT
+- **Direct (4):** d1_tip_right, d2_tip_right, d3_tip_right, d4_tip_right
+- **Hflip-only trainable:** d1_tip_left, d2_tip_left, d3_tip_left, d4_tip_left

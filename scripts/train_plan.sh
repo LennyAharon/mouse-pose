@@ -38,7 +38,7 @@ RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths
 DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['data_dir'])")
 mapfile -t DATASETS < <(python -c "from mighty_mouse.registry import load_registry; print('\n'.join(load_registry()))")
 declare -A TAG=([facemap]=face [ibl]=ibl [cheese-2d]=cheese [cazettes-side]=caz [kondo]=kondo [hantman-mv]=hmv [cheese-3d]=c3d [kaufman]=kauf
-                [aind-vbn-body]=vbnb [aind-vbn-face]=vbnf [cavelli]=cav)
+                [aind-vbn-body]=vbnb [aind-vbn-face]=vbnf [cavelli]=cav [tyssowski]=tys [kaufman-water]=kaufw)
 SEEDS="0"; ARCHS="S B"
 cmd="${1:-plan}"; shift || true
 while [ $# -gt 0 ]; do case "$1" in
