@@ -52,6 +52,8 @@ def main() -> None:
     ap.add_argument("--include", default="", help="comma regexes: keep only matching keypoints")
     ap.add_argument("--conf", type=float, default=0.7)
     ap.add_argument("--fps", type=int, default=3)
+    ap.add_argument("--median_panel", action="store_true",
+                    help="add, under each panel, the frame minus its session's median frame (dim frames)")
     ap.add_argument("--keypoint_map", default=None,
                     help="raw -> canonical names for the house colours (default: configs/datasets/<dataset>.yaml)")
     ap.add_argument("--raw_dir", type=Path, default=None, help="default: paths.yaml raw_dir")
@@ -101,6 +103,7 @@ def main() -> None:
     cfg = yaml.safe_load((Path(model_dirs[0]) / "config.yaml").read_text())
     model_tok = f"active-r{r}-{cfg['model']['backbone'].replace('_', '-')}-ens{len(preds)}"
     what = f"{args.dataset}-{args.frames}" + (f"-{args.include.replace(',', '+')}" if args.include else "")
+    what += "-medsub" if args.median_panel else ""
     name = f"{what}__{model_tok}_nogt"
     today = datetime.date.today()
     out = args.out_dir or Path(paths["results_dir"]) / "qualitative" / f"{args.dataset}-active-r{r}-{today:%m-%d}"
@@ -118,6 +121,8 @@ def main() -> None:
            "--title", f"{model_tok} (median of {len(preds)})", "--out", str(out / f"{name}.mp4")]
     if args.include:
         cmd += ["--include", args.include]
+    if args.median_panel:
+        cmd += ["--median_panel"]
     subprocess.run(cmd, check=True)
 
     readme = out / "README.md"
@@ -137,8 +142,10 @@ def main() -> None:
             + "<br>".join(f"`{d}`" for d in model_dirs) + " |\n")
     commit = subprocess.run(["git", "-C", str(repo_root()), "rev-parse", "--short", "HEAD"],
                             capture_output=True, text=True).stdout.strip()
+    note = (" Lower panels: the same overlays on the frame minus its session's median frame (median of up to 100 "
+            "frames of that session folder; gray = unchanged, contrast stretched per frame)." if args.median_panel else "")
     with open(readme, "a") as fh:
-        fh.write(f"\n## videos/{name}.mp4\n\n{subset}.\n\nmouse-pose `{commit}`:\n\n```\n{' '.join(sys.argv)}\n```\n")
+        fh.write(f"\n## videos/{name}.mp4\n\n{subset}.{note}\n\nmouse-pose `{commit}`:\n\n```\n{' '.join(sys.argv)}\n```\n")
     print(f"README: {readme}")
 
 
