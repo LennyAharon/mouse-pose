@@ -9,7 +9,9 @@ from the dataset's raw labeled-data/. Which frames:
 
   --frames pool   frames the round's models were NOT trained on (originals minus tolabel), --n per view,
                   evenly spread over sessions
-  --frames top    the --n pool frames with the highest disagreement (pool_scores.csv) -- what `select` adds
+  --frames top    the --n pool frames with the highest disagreement (pool_scores.csv; ignores `select`'s
+                  reserved-frame lists)
+  --frames selected  exactly the frames `select` added from this round's scores (the next labeling batch)
   --frames test   every frame of CollectedData_test.csv   (rows also in tolabel WERE trained on)
   --frames train  every frame of CollectedData.csv        (idem)
 
@@ -47,7 +49,7 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dataset", help="directory under raw_dir")
     ap.add_argument("--round", type=int, default=None, help="round to draw (default: the last scored one)")
-    ap.add_argument("--frames", choices=["pool", "top", "test", "train"], default="pool")
+    ap.add_argument("--frames", choices=["pool", "top", "selected", "test", "train"], default="pool")
     ap.add_argument("--n", type=int, default=60, help="pool: frames per view; top: frames in total")
     ap.add_argument("--include", default="", help="comma regexes: keep only matching keypoints")
     ap.add_argument("--conf", type=float, default=0.7)
@@ -83,6 +85,16 @@ def main() -> None:
         frames = preds[0].index[preds[0].index.isin(split)]
         n_seen = int(frames.isin(trained).sum())
         subset = f"all {len(frames)} {args.frames}-split frames ({n_seen} were in this round's training rows)"
+        n_frames = len(frames)
+    elif args.frames == "selected":
+        # the frames `select` added to tolabel from this round's scores (= the next round's labeling batch,
+        # reserved frames excluded), in tolabel order (by session)
+        manifest = pd.read_csv(active / "tolabel_manifest.csv", index_col=0)
+        chosen = manifest.index[manifest["round"] == r + 1]
+        if not len(chosen):
+            sys.exit(f"no frames were selected from round {r}'s scores yet (manifest has no round {r + 1})")
+        frames = chosen[chosen.isin(preds[0].index)]
+        subset = f"the {len(frames)} frames selected for labeling round {r + 1} (not trained on)"
         n_frames = len(frames)
     elif args.frames == "top":
         scores = pd.read_csv(rdir / "pool_scores.csv", index_col=0)["score"]
