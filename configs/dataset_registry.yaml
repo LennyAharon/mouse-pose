@@ -17,3 +17,5 @@ datasets:
   - aind-vbn-body
   - aind-vbn-face
   - cavelli
+  - tyssowski
+  - kaufman-water
