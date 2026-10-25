@@ -1,0 +1,40 @@
+# Recipe-of-record trunks of corpus head-fixed-v11 (2026-10-25, user): every trunk uses recipe E5, the
+# v10 experiment E5-unfreeze3000-14k (zero-shot better than recipe S in 15 of 16 comparisons over two seeds,
+# seen labs neutral). Read by scripts/delta/exp_specs.py for scripts/delta/interactive_feeder.sh --specs
+# and scripts/delta/submit_specs.sh (regular / preempt backups).
+#
+# E5 = recipe S (configs/model_zoominout.yaml: ViT-S DINOv3, bs 32, Adam 5e-5, T=2, per-dataset zoom) with
+# the backbone unfrozen at step 3000 instead of 1000, 14k steps instead of 12k, and the LR halvings moved
+# to 6k/8k/10k, plus the shared nonlinear head. Results go to <results_dir>/trunks-headmlp256/ with the
+# rest of the recipe of record (area: baseline). Dedicated models stay on recipe S
+# (scripts/train_plan.sh / the feeder's `dedicated` stage).
+
+config: configs/model_zoominout.yaml
+backbone: vits_dinov3
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500"]   # rolling checkpoint: runs continue across jobs
+
+targets:                               # leave-out set per trunk; the trunk trains on all other datasets
+  all: []                              # the all-data trunk
+  facemap: [facemap]
+  ibl: [ibl]
+  cheese-2d: [cheese-2d]
+  cazettes-side: [cazettes-side]
+  kondo: [kondo]
+  hantman-mv: [hantman-mv]
+  cheese-3d: [cheese-3d]
+  kaufman: [kaufman]
+  aind-vbn-body: [aind-vbn-body]
+  aind-vbn-face: [aind-vbn-face]
+  cavelli: [cavelli]
+  tyssowski: [tyssowski]
+  kaufman-water: [kaufman-water]
+  cheese: [cheese-2d, cheese-3d]       # same rig and mice: leave both out for a clean zero-shot number
+  kaufman-both: [kaufman, kaufman-water]   # same lab: a clean kaufman zero-shot leaves out both
+
+experiments:
+  v11:
+    area: baseline
+    seeds: [0]
+    overrides: ["training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]"]

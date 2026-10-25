@@ -90,7 +90,8 @@ def main() -> None:
                          f"--train_frames 1 --seeds {seed} --backbones {spec['backbone']} "
                          f"--sampling_temperatures 2 --head_modes shared --keep_checkpoints --skip_existing "
                          f"--output_root {root} --extra_overrides {overrides}")
-                print(f"mm-{exp_id}-{target}-s{seed}|{run_dir}|{','.join(left_out)}|{sweep}{code_field}")
+                out = ",".join(left_out) or "-"   # "-": no left-out set (all-data trunk)
+                print(f"mm-{exp_id}-{target}-s{seed}|{run_dir}|{out}|{sweep}{code_field}")
 
 
 if __name__ == "__main__":
