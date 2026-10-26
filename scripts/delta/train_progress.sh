@@ -28,6 +28,10 @@ squeue -u "$USER" -h -t R -o "%i|%j|%e|%P" | while IFS='|' read -r job name end 
     st=$(grep -oE "[0-9]+/[0-9]+ \[" <<< "$last" | head -1 | grep -oE "^[0-9]+/[0-9]+")
     ms=$(grep -m1 -oE "max_steps=[0-9]+" "$f" | cut -d= -f2); ms=${ms:-$MAX_STEPS}
     steps=$(( ep * ${st#*/} + ${st%/*} )); [ "$steps" -gt "$ms" ] && steps=$ms
+    # a resumed run restarts the epoch count: prefer the run's own step counter (train_status.json)
+    rd=$(grep -m1 -oE "start /[^ ]+" "$f" | cut -d" " -f2)
+    c=$(grep -oE '"completed": [0-9]+' "$rd/train_status.json" 2>/dev/null | grep -oE "[0-9]+$")
+    [ -n "$c" ] && steps=$c
     # speed = steps gained since this script's previous call (30 s - 30 min ago, kept in $STATE), which
     # includes validation pauses; on a first call, Lightning's own running it/s from the progress bar
     prev=$(awk -v r="$run" -v j="$job" '$1==r && $2==j {print $3, $4}' "$STATE.old" 2>/dev/null)
