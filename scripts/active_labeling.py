@@ -243,7 +243,7 @@ def cmd_score(args) -> None:
         sys.exit(
             f"The models were trained on a {TMP_CSV} that differs from {TOLABEL_CSV} "
             f"({diff['missing']} rows missing from training, {diff['extra']} extra). Was "
-            "`train-csv` skipped after the last `select`? Run it and retrain all 3 models."
+            "`train-csv` skipped after the last `select`? Run it and retrain every member."
         )
     if diff["edited"]:
         print(f"WARNING: {diff['edited']} rows of {TOLABEL_CSV} were edited after `train-csv`")

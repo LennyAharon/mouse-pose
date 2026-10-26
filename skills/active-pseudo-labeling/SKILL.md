@@ -1,6 +1,6 @@
 ---
 name: active-pseudo-labeling
-description: Use when the user wants to label new keypoints in a raw dataset (_raw/<dataset>/) by iterating label -> train a 3-model ensemble -> add the frames the ensemble disagrees on most (prefilled with the ensemble mean) -> repeat, e.g. "label the new ear keypoints in ibl with active pseudo-labeling". Never bumps the version.
+description: Use when the user wants to label new keypoints in a raw dataset (_raw/<dataset>/) by iterating label -> train a model ensemble (5 by default) -> add the frames the ensemble disagrees on most (prefilled with the ensemble mean) -> repeat, e.g. "label the new ear keypoints in ibl with active pseudo-labeling". Never bumps the version.
 ---
 
 # Active pseudo-labeling of new keypoints
@@ -55,8 +55,12 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
   n (sessions with fewer than n frames contribute all of theirs).
 - Whether the keypoints already hold rough labels to correct (`init --allow_existing`).
 - **m** per round, after seeing the stats; eligibility and prefill thresholds (default 0.9).
-- Train the 3 models themselves, or have Claude run them? (Users usually prefer to; they may
-  change the seed by hand.)
+- Ensemble size: **5 models (seeds 0-4) by default** (user, 2026-10-25; rounds 0-2 of the IBL digit tips used 3).
+  With 3, one member with a bad (e.g. early) best checkpoint dominates the spread; 5 makes the ranking and a
+  median prefill robust to one bad member. Spreads from 3 and 5 members are not exactly comparable across rounds.
+- Train the models themselves, or have Claude run them? (Users usually prefer to; they may
+  change the seed by hand.) On Delta: one job, one seed per GPU (`scripts/delta/train_lp.sbatch`,
+  `SEEDS="0 1 2 3 4"`, `--gpus-per-node=5` on an 8-GPU node, or 4 GPUs with two seeds sharing one).
 
 ## The round, step by step
 
@@ -71,17 +75,17 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
      sibling standalone config, set `csv_file: CollectedData_tmp.csv`, `model_name`, keypoints
      from `project.yaml`, verified against the CSV header) and get the user's sign-off.
    - Every round: log it in the config's header comment (rows, resulting model dirs).
-   - Give the three commands (only the seed and output dir differ; tag the dir with the round
+   - Give the commands, one per seed (only the seed and output dir differ; tag the dir with the round
      so rounds are easy to tell apart):
      ```
-     for s in 0 1 2; do
+     for s in 0 1 2 3 4; do
        litpose train configs/<dataset>.yaml \
          --output_dir results/<dataset>/$(date +%Y-%m-%d_%H-%M-%S)_round<R>_seed-$s \
          --overrides training.rng_seed_data_pt=$s
      done
      ```
-3. **`score <dataset> --model_dirs a b c`** (the three newest dirs; confirm each is `COMPLETED`
-   with seeds 0/1/2). It refuses unless every model dir's training CSV is byte-identical to the
+3. **`score <dataset> --model_dirs a b c d e`** (every member of the newest round; confirm each is
+   `COMPLETED` with seeds 0-4). It refuses unless every model dir's training CSV is byte-identical to the
    current `CollectedData_tmp.csv` *and* that CSV has the same rows as tolabel (so a skipped
    `train-csv` is caught); it warns if labels were edited after `train-csv`. Output is noisy
    (checkpoint-loading warnings): redirect to a log and print the report. Predictions are
@@ -137,7 +141,7 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
    original row and no non-target column differs, and it keeps the originals' row order.
    - The prefill is the mean over confident members by default. Ask whether the final fill
      should use the median instead (`select --m all --prefill_agg median`), which is more
-     robust to one bad member of three.
+     robust to one bad member.
    - If the user will do the last review directly in the final CSVs, `select --m all`
      followed straight by `finalize` is fine: every pool row then counts as reviewed. Say
      plainly that the unreviewed rows hold ensemble values (the >10 px tail is least
@@ -154,6 +158,7 @@ sessions), and train + test CSVs are pooled (the split is ignored until `finaliz
   max over keypoints, or a per-keypoint quota (top k per keypoint, deduplicated). The default is
   the mean; if one keypoint's `n>10px` count dwarfs its share of the selected batch, tell the
   user and offer the alternatives rather than silently changing it.
-- Only 3 members: spread is a noisy estimate, and different frames can top the ranking after
-  each retrain.
+- Few members: spread is a noisy estimate (worst with 3; hence 5 by default), and different frames
+  can top the ranking after each retrain. Each member's "best" checkpoint is picked on a ~5 % val split,
+  so check the chosen epochs after training: a member stopping very early inflates the spread.
 - Baseline is in-sample; use trends, not absolute values.
