@@ -278,6 +278,17 @@ def trunk_input_overrides(trunk_cfg: dict) -> list[str]:
     return [f"data.image_resize_dims.{k}={int(dims[k])}" for k in ("height", "width") if k in dims]
 
 
+def target_keypoints(inventory: dict, dataset: str, test_csv: Path) -> list[str]:
+    """Keypoints the target labels: its ``direct`` keypoints in the inventory, or, for a derived
+    dataset that is not in it (e.g. an active-labeling export), every keypoint with a visible == 2
+    label in its test csv."""
+    if dataset in inventory:
+        return sorted(inventory[dataset]["direct"])
+    df = pd.read_csv(test_csv, header=[0, 1, 2], index_col=0)
+    vis = df.xs("visible", axis=1, level=2).droplevel(0, axis=1)
+    return sorted(k for k in vis.columns.unique() if (vis[k] == 2).to_numpy().any())
+
+
 def trunk_datasets(trunk_dir: Path, trunk_cfg: dict) -> list[str]:
     """Datasets the trunk trained on (from the frames of the training csv it saved)."""
     csv = Path(trunk_dir) / trunk_cfg["data"]["csv_file"]

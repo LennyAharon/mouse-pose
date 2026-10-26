@@ -24,6 +24,7 @@ from mighty_mouse.adaptation import (
     pixel_errors,
     steps_for,
     summarize,
+    target_keypoints,
     trunk_head_overrides,
     trunk_input_overrides,
     trunk_problem,
@@ -316,6 +317,21 @@ class TestTrunkHeadOverrides:
         assert trunk_head_overrides({"model": m}) == [
             "+model.head_hidden_channels=256", "+model.head_groups={eye:[a,b],paw:[c]}",
             "+model.head_shared_channels=0", "+model.head_group_fan_in_gain=true"]
+
+
+class TestTargetKeypoints:
+    """Test the function target_keypoints."""
+
+    def test_target_keypoints_from_inventory(self, tmp_path: Path):
+        inv = {"ibl": {"direct": ["nose_tip", "ear_tip_left"]}}
+        kps = target_keypoints(inv, "ibl", tmp_path / "unused.csv")
+        assert kps == ["ear_tip_left", "nose_tip"]
+
+    def test_target_keypoints_from_test_csv(self, tmp_path: Path):
+        rows = [[1.0, 2.0, 2, np.nan, np.nan, 1], [3.0, 4.0, 0, 5.0, 6.0, 1]]
+        df = label_table(rows, ["a", "b"])
+        df.to_csv(tmp_path / "t.csv")
+        assert target_keypoints({}, "derived", tmp_path / "t.csv") == ["a"]
 
 
 class TestTrunkInputOverrides:

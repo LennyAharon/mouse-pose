@@ -1,0 +1,35 @@
+# IBL anchored LoRA WITH the fingertip labels (user, 2026-10-26): the leave-ibl-out 384 px trunk fine-tuned on the
+# active-labeling frames of IBL (dataset `ibl-digits`: CollectedData_tolabel.csv after round 3, exported with
+# scripts/export_tolabel.py --map d{1..4}_tip_r=d{1..4}_tip_left; train rows only = 1107 frames, d1-d4 tips labeled in
+# 906 / 1019 / 1015 / 837; the 185 rows from the excluded legacy sessions are dropped). Test = the 199 tolabel rows of
+# the original IBL test split (fingertips labeled), plus the corpus IBL test set (eval_also: ibl, 1446 frames, no tips).
+# Same arm, steps, seeds and trunk as configs/adaptation/v11-ibl-alora384.yaml (all 5962 IBL train frames, no tips),
+# which it is compared against.
+#
+#   python scripts/adapt/run_cell.py --config configs/adaptation/v11-ibl-digits-alora384.yaml \
+#       --cell ibl-digits__mm-anchored-lora__tfall__draw0 [--dry_run]
+
+name: v11-ibl-digits-alora384
+out_subdir: adaptation            # cells: <results_dir>/adaptation/v11-ibl-digits-alora384/ibl-digits/mm-anchored-lora/tfall-draw<d>
+keep_checkpoints: true            # 3 fine-tuned IBL models, kept for inference on video / new frames
+eval_last: true                   # also evaluate the final-step checkpoint (eval_last/)
+
+n_frames: [all]
+draws: [0, 1, 2]
+draws_all: [0, 1, 2]              # three seeds of the all-frames cell
+steps: {few: 2000, all: 6000}
+val_every: 250
+
+arms:
+  # num_workers: Delta gives each cell 16 CPUs (the grid default of 2 workers starves a 384 px run);
+  # resume_every_n_steps: a cell cut off by the 1 h interactive limit continues in its next job (run_cell.py)
+  mm-anchored-lora: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                     anchor_weight: 1.0, anchor_conf_power: 1,
+                     overrides: ["training.num_workers=15", "+training.resume_every_n_steps=500"]}
+
+curve_arms: [mm-anchored-lora]
+
+datasets:
+  ibl-digits:
+    trunk: experiments/R384-E5/face+cheese+caz+kondo+hmv+c3d+kauf+vbnb+vbnf+cav+tys+kaufw_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
+    eval_also: [ibl]

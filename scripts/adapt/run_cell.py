@@ -13,7 +13,8 @@ everything the trunk trained; an experts trunk with model.head_groups needs PYTH
 at a Lightning Pose that builds them, else ABORT); `litpose train <arm config>` with the cell's
 overrides; check the log (weights loaded, anchor attached, LoRA rank, head) and that the run's
 config kept the trunk's input size (evaluation predicts at the run's size); evaluate on the
-target dataset's test set only (`python -m mighty_mouse.train --datasets <ds>`; with the grid's
+target dataset's test set (`python -m mighty_mouse.train --datasets <ds>`, plus the dataset's
+`eval_also` test sets from the grid config; with the grid's
 `eval_last`, also the final-step checkpoint into eval_last/); for LoRA arms
 check that the reloaded model carries the trained adapters; delete checkpoints unless the grid
 keeps them; write run_info.json and `.done`. Idempotent: a cell with `.done` is skipped; a
@@ -50,6 +51,7 @@ from mighty_mouse.adaptation import (
     pixel_errors,
     steps_for,
     summarize,
+    target_keypoints,
     trained_keypoints,
     trunk_datasets,
     trunk_head_overrides,
@@ -151,6 +153,7 @@ def main() -> None:
         train_csv = masked_csv_name(cell.dataset, cell.mask)
     else:
         train_csv = ensure_masked_csv(data, cell.dataset, cell.mask)
+    labelled = target_keypoints(inv, cell.dataset, data / f"CollectedData_{cell.dataset}_test.csv")
     trunk, trunk_dir = None, results / grid.datasets[cell.dataset]["trunk"]
     if arm["init"] == INIT_TRUNK:
         why = trunk_problem(trunk_dir)
@@ -164,7 +167,7 @@ def main() -> None:
                  "keypoints": trained_keypoints(trunk_datasets(trunk_dir, tcfg), inv)}
         # the video anchor's channels: what the trunk knows and the target does not label
         trunk["video_keypoints"] = [k for k in trunk["keypoints"]
-                                    if k not in set(inv[cell.dataset]["direct"])]
+                                    if k not in set(labelled)]
         if any("head_groups" in o for o in trunk["head_overrides"]):   # an experts trunk
             probe = "from lightning_pose.models.factory import resolve_head_groups"
             if subprocess.run([sys.executable, "-c", probe], capture_output=True).returncode:
@@ -217,9 +220,11 @@ def main() -> None:
         sys.exit(f"ABORT {cell.id}: {'; '.join(problems)} (log {log})")
 
     # ── evaluate on the target dataset, check adapters, clean up ───────────────
+    # the target's test set, plus any the grid lists under the dataset's `eval_also`
+    eval_sets = ",".join([cell.dataset, *grid.datasets[cell.dataset].get("eval_also", [])])
     with open(out.with_name(out.name + "-eval.log"), "w") as fh:
         ev = subprocess.run([sys.executable, "-m", "mighty_mouse.train", "--output_dir", str(out),
-                             "--csv_file", train_csv, "--datasets", cell.dataset,
+                             "--csv_file", train_csv, "--datasets", eval_sets,
                              "--keep_checkpoints"],
                             stdout=fh, stderr=subprocess.STDOUT).returncode
     pred = out / "eval" / cell.dataset / "predictions.csv"
@@ -236,7 +241,7 @@ def main() -> None:
         with open(out.with_name(out.name + "-eval_last.log"), "w") as fh:
             ev = subprocess.run([sys.executable, "-m", "mighty_mouse.train",
                                  "--output_dir", str(out), "--csv_file", train_csv,
-                                 "--datasets", cell.dataset, "--checkpoint", str(last),
+                                 "--datasets", eval_sets, "--checkpoint", str(last),
                                  "--eval_subdir", "eval_last", "--keep_checkpoints"],
                                 stdout=fh, stderr=subprocess.STDOUT).returncode
         pred_last = out / "eval_last" / cell.dataset / "predictions.csv"
@@ -256,7 +261,6 @@ def main() -> None:
     import lightning_pose
     lp_dir   = Path(lightning_pose.__file__).parent
     errs     = pixel_errors(pred, data / f"CollectedData_{cell.dataset}_test.csv")
-    labelled = sorted(inv[cell.dataset]["direct"])
     result   = {"all_labelled": summarize(errs, labelled)}
     if cell.mask:
         result["hidden"] = summarize(errs, list(cell.mask))
