@@ -7,7 +7,7 @@
 set -u
 cd "$(dirname "$0")/../.."
 RESULTS=$(grep -E "^results_dir:" paths.yaml | awk '{print $2}')
-LOGS="$RESULTS/_logs/slurm"; MAX_STEPS=12000
+LOGS="$RESULTS/_logs/slurm"; MAX_STEPS=12000   # default; a run whose log names max_steps=N uses N
 now=$(date +%s)
 STATE="${XDG_CACHE_HOME:-$HOME/.cache}/train_progress.state"; mkdir -p "$(dirname "$STATE")"
 # keep the previous snapshot unless it is under 30 s old (so a quick re-run still has a baseline)
@@ -26,7 +26,8 @@ squeue -u "$USER" -h -t R -o "%i|%j|%e|%P" | while IFS='|' read -r job name end 
     fi
     ep=$(grep -oE "^Epoch [0-9]+" <<< "$last" | grep -oE "[0-9]+$")
     st=$(grep -oE "[0-9]+/[0-9]+ \[" <<< "$last" | head -1 | grep -oE "^[0-9]+/[0-9]+")
-    steps=$(( ep * ${st#*/} + ${st%/*} )); [ "$steps" -gt $MAX_STEPS ] && steps=$MAX_STEPS
+    ms=$(grep -m1 -oE "max_steps=[0-9]+" "$f" | cut -d= -f2); ms=${ms:-$MAX_STEPS}
+    steps=$(( ep * ${st#*/} + ${st%/*} )); [ "$steps" -gt "$ms" ] && steps=$ms
     # speed = steps gained since this script's previous call (30 s - 30 min ago, kept in $STATE), which
     # includes validation pauses; on a first call, Lightning's own running it/s from the progress bar
     prev=$(awk -v r="$run" -v j="$job" '$1==r && $2==j {print $3, $4}' "$STATE.old" 2>/dev/null)
@@ -38,10 +39,10 @@ squeue -u "$USER" -h -t R -o "%i|%j|%e|%P" | while IFS='|' read -r job name end 
     [ -z "$rate" ] && rate=$(grep -oE "[0-9.]+it/s" <<< "$last" | head -1 | grep -oE "^[0-9.]+")
     rate=${rate:-0}
     echo "$run $job $steps $now" >> "$STATE"
-    eta=$(awk -v s="$steps" -v r="$rate" -v n="$now" -v m=$MAX_STEPS 'BEGIN {printf "%d", (r > 0 ? n + (m - s) / r : n)}')
+    eta=$(awk -v s="$steps" -v r="$rate" -v n="$now" -v m="$ms" 'BEGIN {printf "%d", (r > 0 ? n + (m - s) / r : n)}')
     flag=""; [ "$eta" -gt "$(( $(date -d "$end" +%s) - 300 ))" ] && flag="  <-- may hit the time limit"
     err=$(grep -E "Traceback|Error" "$f" | grep -vi warn | head -1 | cut -c1-60)
-    printf "%-30s %-11s %5d/%-7d %-9s %-11s %-11s %s\n" "$run" "$job" "$steps" $MAX_STEPS "$rate" \
+    printf "%-30s %-11s %5d/%-7d %-9s %-11s %-11s %s\n" "$run" "$job" "$steps" "$ms" "$rate" \
       "$(date -d @"$eta" +%H:%M)" "${end#*T}" "training${flag}${err:+  ERROR: $err}"
   done
 done
