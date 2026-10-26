@@ -41,7 +41,7 @@ est_start() {  # partition, gpus -> estimated start (epoch s) of a new job, or e
 }
 best_gpus() {  # partition, runs available -> GPU count with the best runs/hour by the scheduler's estimate
   local p=$1 avail=$2 best=1 best_score=-1 g est wait score
-  for g in 1 2 4; do
+  for g in 1 2 4 8; do   # 8 only where MAX_GPUS allows it (A100x8: 8 GPUs, 128 CPUs per node)
     [ "$g" -gt "${MAX_GPUS[$p]}" ] || [ "$g" -gt "$avail" ] && continue
     est=$(sbatch --test-only -A beez-delta-gpu -p "$p" --gpus-per-node="$g" --cpus-per-task=$((16 * g)) \
           --mem=$((60 * g))G -t 00:59:00 --wrap true 2>&1 | grep -oE "start at [0-9T:-]+" | cut -d' ' -f3)
