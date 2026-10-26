@@ -30,6 +30,19 @@ experiments:
   R384-E5:                              # baseline, seed 1 (seed 0 exists): noise reference
     seeds: [1]
     overrides: []
+  AUG-ALL:                              # all four together (runs first: user wants results ASAP, 2026-10-26)
+    seeds: [0]
+    overrides: ["+training.imgaug.Affine.p=0.4", "+training.imgaug.Affine.kwargs.scale=[1.0,2.5]",
+                "+training.imgaug.Affine.kwargs.translate_percent=[-0.25,0.25]",
+                "training.imgaug.Rotate.p=0.6", "training.imgaug.Rotate.kwargs.rotate=[-180,180]",
+                "+training.imgaug.PerspectiveTransform.p=0.5", "+training.imgaug.PerspectiveTransform.kwargs.scale=[0.02,0.12]",
+                "+training.imgaug.ShearX.p=0.3", "+training.imgaug.ShearX.kwargs.shear=[-15,15]",
+                "+training.imgaug.ShearY.p=0.3", "+training.imgaug.ShearY.kwargs.shear=[-15,15]",
+                "+training.imgaug.GammaContrast.p=0.3", "+training.imgaug.GammaContrast.kwargs.gamma=[0.5,2.0]",
+                "+training.imgaug.LinearContrast.p=0.3", "+training.imgaug.LinearContrast.kwargs.alpha=[0.6,1.6]",
+                "+training.imgaug.GaussianBlur.p=0.2", "+training.imgaug.GaussianBlur.kwargs.sigma=[0.0,2.0]",
+                "+training.imgaug.JpegCompression.p=0.2", "+training.imgaug.JpegCompression.kwargs.compression=[50,95]",
+                "+training.imgaug.AdditiveGaussianNoise.p=0.2", "+training.imgaug.AdditiveGaussianNoise.kwargs.scale=[0,12]"]
   AUG-ZOOM:                             # close-ups for every lab: zoom in up to 2.5x around a shifted centre
     seeds: [0]
     overrides: ["+training.imgaug.Affine.p=0.4", "+training.imgaug.Affine.kwargs.scale=[1.0,2.5]",
@@ -45,19 +58,6 @@ experiments:
   AUG-APPEAR:                           # lighting / camera differences
     seeds: [0]
     overrides: ["+training.imgaug.GammaContrast.p=0.3", "+training.imgaug.GammaContrast.kwargs.gamma=[0.5,2.0]",
-                "+training.imgaug.LinearContrast.p=0.3", "+training.imgaug.LinearContrast.kwargs.alpha=[0.6,1.6]",
-                "+training.imgaug.GaussianBlur.p=0.2", "+training.imgaug.GaussianBlur.kwargs.sigma=[0.0,2.0]",
-                "+training.imgaug.JpegCompression.p=0.2", "+training.imgaug.JpegCompression.kwargs.compression=[50,95]",
-                "+training.imgaug.AdditiveGaussianNoise.p=0.2", "+training.imgaug.AdditiveGaussianNoise.kwargs.scale=[0,12]"]
-  AUG-ALL:                              # all four together
-    seeds: [0]
-    overrides: ["+training.imgaug.Affine.p=0.4", "+training.imgaug.Affine.kwargs.scale=[1.0,2.5]",
-                "+training.imgaug.Affine.kwargs.translate_percent=[-0.25,0.25]",
-                "training.imgaug.Rotate.p=0.6", "training.imgaug.Rotate.kwargs.rotate=[-180,180]",
-                "+training.imgaug.PerspectiveTransform.p=0.5", "+training.imgaug.PerspectiveTransform.kwargs.scale=[0.02,0.12]",
-                "+training.imgaug.ShearX.p=0.3", "+training.imgaug.ShearX.kwargs.shear=[-15,15]",
-                "+training.imgaug.ShearY.p=0.3", "+training.imgaug.ShearY.kwargs.shear=[-15,15]",
-                "+training.imgaug.GammaContrast.p=0.3", "+training.imgaug.GammaContrast.kwargs.gamma=[0.5,2.0]",
                 "+training.imgaug.LinearContrast.p=0.3", "+training.imgaug.LinearContrast.kwargs.alpha=[0.6,1.6]",
                 "+training.imgaug.GaussianBlur.p=0.2", "+training.imgaug.GaussianBlur.kwargs.sigma=[0.0,2.0]",
                 "+training.imgaug.JpegCompression.p=0.2", "+training.imgaug.JpegCompression.kwargs.compression=[50,95]",
