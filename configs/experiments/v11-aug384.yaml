@@ -4,7 +4,7 @@
 # the user does not want to touch the steps yet); AUG-ALL combines all four. Targets: the all-data trunk (in-domain
 # cost) and four zero-shot problems: kondo (bottom view), facemap (close-up scale), both cheese labs and both kaufman
 # labs (clean leave-outs). Reference = R384-E5 seed 0 (no extra seeds: user 2026-10-26). Order: the single arms
-# (ZOOM, ROT, PERSP, APPEAR) first, AUG-ALL last.
+# (ZOOM, ROT60, PERSP, APPEAR) first, AUG-ALL last.
 #
 # The recipe's imgaug block (configs/model_zoominout.yaml) already has Rotate +-25 deg (p 0.4), MotionBlur, CoarseDropout,
 # CoarseSalt / Pepper, ElasticTransformation, per-dataset CropAndPad zoom and hflip with left/right swap. New augmenters
@@ -32,9 +32,10 @@ experiments:
     seeds: [0]
     overrides: ["+training.imgaug.Affine.p=0.4", "+training.imgaug.Affine.kwargs.scale=[1.0,2.5]",
                 "+training.imgaug.Affine.kwargs.translate_percent=[-0.25,0.25]"]
-  AUG-ROT:                              # any head orientation: full in-plane rotation instead of +-25 deg
+  AUG-ROT60:                            # wider in-plane rotation, +-60 deg instead of +-25 (user 2026-10-26; the +-180
+                                        # arm AUG-ROT hurt zero-shot: cheese-2d +22 %, kaufman-water +12 %, deleted)
     seeds: [0]
-    overrides: ["training.imgaug.Rotate.p=0.6", "training.imgaug.Rotate.kwargs.rotate=[-180,180]"]
+    overrides: ["training.imgaug.Rotate.p=0.6", "training.imgaug.Rotate.kwargs.rotate=[-60,60]"]
   AUG-PERSP:                            # camera tilt: perspective warp + shear
     seeds: [0]
     overrides: ["+training.imgaug.PerspectiveTransform.p=0.5", "+training.imgaug.PerspectiveTransform.kwargs.scale=[0.02,0.12]",
@@ -51,7 +52,7 @@ experiments:
     seeds: [0]
     overrides: ["+training.imgaug.Affine.p=0.4", "+training.imgaug.Affine.kwargs.scale=[1.0,2.5]",
                 "+training.imgaug.Affine.kwargs.translate_percent=[-0.25,0.25]",
-                "training.imgaug.Rotate.p=0.6", "training.imgaug.Rotate.kwargs.rotate=[-180,180]",
+                "training.imgaug.Rotate.p=0.6", "training.imgaug.Rotate.kwargs.rotate=[-60,60]",
                 "+training.imgaug.PerspectiveTransform.p=0.5", "+training.imgaug.PerspectiveTransform.kwargs.scale=[0.02,0.12]",
                 "+training.imgaug.ShearX.p=0.3", "+training.imgaug.ShearX.kwargs.shear=[-15,15]",
                 "+training.imgaug.ShearY.p=0.3", "+training.imgaug.ShearY.kwargs.shear=[-15,15]",
