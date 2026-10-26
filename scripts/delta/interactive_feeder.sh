@@ -29,6 +29,8 @@ export PATH=/work/nvme/beez/laharon/.conda/envs/mighty-mouse/bin:$PATH
 # 2-3x faster, so long runs such as 384 px fit in one hour there). 96 CPUs per 8 GPUs: 4 x 16 fits.
 declare -A MAX_GPUS=([gpuA40x4-interactive]=4 [gpuA100x4-interactive]=4 [gpuA100x8-interactive]=4
                      [gpuH200x8-interactive]=4)
+# FEEDER_MAX_GPUS (env) caps GPUs per job, e.g. "gpuH200x8-interactive=2" when 4-GPU jobs there wait a day
+for kv in ${FEEDER_MAX_GPUS:-}; do MAX_GPUS[${kv%%=*}]=${kv#*=}; done
 RUN_MIN=50   # one run incl. evaluation, minutes (measured ~45-50, 2026-10-22)
 REBALANCE_MIN=30
 est_start() {  # partition, gpus -> estimated start (epoch s) of a new job, or empty
