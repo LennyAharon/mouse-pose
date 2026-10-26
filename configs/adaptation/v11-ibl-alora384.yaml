@@ -13,7 +13,7 @@
 
 name: v11-ibl-alora384
 out_subdir: adaptation            # cells go to <results_dir>/adaptation/v11-ibl-alora384/ibl/mm-anchored-lora/tfall-draw<d>
-keep_checkpoints: false
+keep_checkpoints: true            # 3 fine-tuned IBL models, kept for inference on video / new frames
 eval_last: true                   # also evaluate the final-step checkpoint (eval_last/)
 
 n_frames: [all]
