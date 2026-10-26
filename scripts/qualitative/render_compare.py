@@ -41,6 +41,9 @@ def view_of(target: str, frame: str) -> str:
     sess = frame.split("/")[2]
     if target == "ibl":
         return "left" if sess.endswith("_left") else "right (flipped)"
+    if target in ("cheese-2d", "cheese-3d"):       # six cameras, named in the session
+        m = re.search(r"_(BC|TC|TL|TR|L|R)(?:_|$)", sess)
+        return m.group(1) if m else "camera"
     m = re.search(r"(cam\d+)$", sess)              # e.g. kaufman <session>-cam1 / -cam2
     return m.group(1) if m else "camera"
 
