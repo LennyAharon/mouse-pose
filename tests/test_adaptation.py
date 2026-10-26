@@ -25,6 +25,7 @@ from mighty_mouse.adaptation import (
     steps_for,
     summarize,
     trunk_head_overrides,
+    trunk_input_overrides,
     trunk_problem,
 )
 
@@ -108,6 +109,13 @@ class TestExpand:
         with pytest.raises(ValueError, match="order must list"):
             load_grid(p)
 
+    def test_expand_draws_all(self, tmp_path: Path):
+        p = tmp_path / "s.yaml"
+        p.write_text(yaml.safe_dump({**GRID, "n_frames": ["all"], "draws_all": [0, 1, 2],
+                                     "datasets": {"ibl": {"trunk": "x/ibl"}}, "masked": {}}))
+        assert [c.id for c in expand(load_grid(p))] == [
+            f"ibl__mm__tfall__draw{d}" for d in (0, 1, 2)]
+
     def test_expand_ids_unique(self, grid):
         ids = [c.id for c in expand(grid)]
         assert len(ids) == len(set(ids))
@@ -186,6 +194,15 @@ class TestBuildOverrides:
                   "+model.head_hidden_channels=256",
                   "training.optimizer_params.learning_rate=0.0005"]:
             assert o in ov, o
+
+    def test_build_overrides_input_size(self, grid):
+        trunk = {**TRUNK, "input_overrides": ["data.image_resize_dims.height=384",
+                                              "data.image_resize_dims.width=384"]}
+        ov = build_overrides(grid, Cell("ibl", "mm", ALL, 1), Path("/d"), "x.csv", trunk)
+        assert {"data.image_resize_dims.height=384", "data.image_resize_dims.width=384"} <= set(ov)
+        assert "training.rng_seed_data_pt=1" in ov
+        assert not any("image_resize_dims" in o for o in
+                       build_overrides(grid, Cell("ibl", "mm", 10, 0), Path("/d"), "x.csv", TRUNK))
 
     def test_build_overrides_eval_last(self, grid):
         assert not any("ckpt_every_n_steps" in o for o in
@@ -299,6 +316,18 @@ class TestTrunkHeadOverrides:
         assert trunk_head_overrides({"model": m}) == [
             "+model.head_hidden_channels=256", "+model.head_groups={eye:[a,b],paw:[c]}",
             "+model.head_shared_channels=0", "+model.head_group_fan_in_gain=true"]
+
+
+class TestTrunkInputOverrides:
+    """Test the function trunk_input_overrides."""
+
+    def test_trunk_input_overrides_384(self):
+        cfg = {"data": {"image_resize_dims": {"height": 384, "width": 384}}}
+        assert trunk_input_overrides(cfg) == ["data.image_resize_dims.height=384",
+                                              "data.image_resize_dims.width=384"]
+
+    def test_trunk_input_overrides_missing(self):
+        assert trunk_input_overrides({"data": {}}) == []
 
 
 class TestHideKeypoints:

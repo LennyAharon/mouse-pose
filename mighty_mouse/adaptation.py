@@ -10,8 +10,9 @@ overrides, and scores the evaluated cells. It does no I/O at import time and nev
 
 Arms (``init`` x ``adapter`` x ``anchor``):
 
-- ``init: trunk``  -- start from the dataset's leave-one-out trunk (its head is rebuilt from the
-  trunk's config.yaml); ``adapter: lora`` trains LoRA adapters (``lora_lr``) + the head
+- ``init: trunk``  -- start from the dataset's leave-one-out trunk (its head and input size are
+  taken from the trunk's config.yaml, so training and evaluation both run at the trunk's
+  resolution); ``adapter: lora`` trains LoRA adapters (``lora_lr``) + the head
   (``head_lr``), no adapter = full fine-tuning of every weight at ``lr``; ``anchor: true``
   distils the frozen trunk into the channels the target frame does not label (anchored LoRA).
 - ``init: dinov3`` -- DINOv3 backbone + a new head (``head: linear`` or ``nonlinear``) trained
@@ -82,6 +83,7 @@ class Grid:
     keep_checkpoints: bool = False
     order:       list = field(default_factory=list)   # launch order of the N blocks and "masked"
     eval_last:   bool = False   # also save the final-step checkpoint and evaluate it (eval_last/)
+    draws_all:   list = field(default_factory=lambda: [0])   # draws (seeds) of the `all` cells
 
 
 def load_grid(path: str | Path) -> Grid:
@@ -100,6 +102,7 @@ def load_grid(path: str | Path) -> Grid:
         dedicated=cfg.get("dedicated") or {}, out_subdir=cfg.get("out_subdir", "adaptation"),
         keep_checkpoints=bool(cfg.get("keep_checkpoints", False)),
         eval_last=bool(cfg.get("eval_last", False)),
+        draws_all=[int(d) for d in cfg.get("draws_all", [0])],
     )
     blocks = grid.n_frames + ([MASKED] if grid.masked.get("settings") else [])
     grid.order = list(cfg.get("order") or blocks)
@@ -129,13 +132,14 @@ def expand(grid: Grid) -> list[Cell]:
     """All cells of the grid, in launch order: the blocks of ``grid.order`` (each N value, and
     ``masked``; default every N in ``n_frames`` order, then masked), each by dataset then arm.
 
-    ``n: all`` is run once (draw 0): every draw would select the same frames. Arms with
+    ``n: all`` is run for ``draws_all`` only (default draw 0: every draw selects the same frames;
+    more draws there are seeds: a different validation split and data order). Arms with
     ``skip_all: true`` (e.g. DINOv3 from scratch, whose all-frames point is the dedicated model)
     get no ``all`` cell.
     """
     blocks = {}
     for n in grid.n_frames:
-        draws, cells = ([0] if n == ALL else grid.draws), []
+        draws, cells = (grid.draws_all if n == ALL else grid.draws), []
         for ds in grid.datasets:
             for arm in grid.curve_arms:
                 if n == ALL and grid.arms[arm].get("skip_all", False):
@@ -263,6 +267,17 @@ def trunk_head_overrides(trunk_cfg: dict) -> list[str]:
     return ov
 
 
+def trunk_input_overrides(trunk_cfg: dict) -> list[str]:
+    """Overrides that give a cell the trunk's input size (``data.image_resize_dims``).
+
+    The cell's config.yaml then carries it, so the evaluation after training (which rebuilds the
+    model from that config) predicts at the same size. Without these a 384 px trunk would be
+    fine-tuned and evaluated at the base config's 256 px.
+    """
+    dims = trunk_cfg["data"].get("image_resize_dims") or {}
+    return [f"data.image_resize_dims.{k}={int(dims[k])}" for k in ("height", "width") if k in dims]
+
+
 def trunk_datasets(trunk_dir: Path, trunk_cfg: dict) -> list[str]:
     """Datasets the trunk trained on (from the frames of the training csv it saved)."""
     csv = Path(trunk_dir) / trunk_cfg["data"]["csv_file"]
@@ -292,8 +307,9 @@ def build_overrides(
         data_dir: corpus data dir.
         train_csv: training csv file name (the masked one for masked cells).
         trunk: for ``init: trunk`` arms, ``{"checkpoint", "backbone", "head_overrides",
-            "keypoints"}`` (keypoints = the trunk's trained keypoints, anchored when the arm has
-            ``anchor``).
+            "keypoints"}`` and optionally ``"input_overrides"`` (keypoints = the trunk's trained
+            keypoints, anchored when the arm has ``anchor``; input_overrides = its input size,
+            :func:`trunk_input_overrides`).
         video_dir: the target lab's unlabelled video folder, for arms with ``video: true`` (the
             anchor is also applied to unlabelled video frames: Lightning Pose's anchor_video loss,
             weight ``video_weight``, default the anchor weight; by default only on the channels the
@@ -335,7 +351,7 @@ def build_overrides(
                    "+model.anchor.mode=unlabeled",
                    f"+model.anchor.conf_power={arm.get('anchor_conf_power', 1)}",
                    f"+model.anchor.keypoints={kps}"]
-        ov += list(trunk["head_overrides"])
+        ov += list(trunk["head_overrides"]) + list(trunk.get("input_overrides", []))
     else:
         ov += [f"model.backbone={arm.get('backbone', 'vits_dinov3')}",
                f"training.optimizer_params.learning_rate={arm['lr']}"]

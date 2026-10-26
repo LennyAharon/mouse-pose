@@ -8,15 +8,18 @@ Run one adaptation cell end to end: train, check, evaluate on the target dataset
     python scripts/adapt/run_cell.py --config ... --cell <id> --dry_run     # print the command
 
 Steps: (masked cells) write the masked training csv into data_dir if missing; resolve the arm
-(trunk checkpoint, the trunk's head rebuilt from its config.yaml, anchored keypoints = everything
-the trunk trained; an experts trunk with model.head_groups needs PYTHONPATH pointing at a
-Lightning Pose that builds them, else ABORT); `litpose train <arm config>` with the cell's
-overrides; check the log (weights loaded, anchor attached, LoRA rank, head); evaluate on the
+(trunk checkpoint, the trunk's head and input size from its config.yaml, anchored keypoints =
+everything the trunk trained; an experts trunk with model.head_groups needs PYTHONPATH pointing
+at a Lightning Pose that builds them, else ABORT); `litpose train <arm config>` with the cell's
+overrides; check the log (weights loaded, anchor attached, LoRA rank, head) and that the run's
+config kept the trunk's input size (evaluation predicts at the run's size); evaluate on the
 target dataset's test set only (`python -m mighty_mouse.train --datasets <ds>`; with the grid's
 `eval_last`, also the final-step checkpoint into eval_last/); for LoRA arms
 check that the reloaded model carries the trained adapters; delete checkpoints unless the grid
 keeps them; write run_info.json and `.done`. Idempotent: a cell with `.done` is skipped; a
-partial directory is moved aside. Exit code != 0 on any failure.
+partial directory is moved aside, except one with a rolling resume checkpoint (an arm with
+`+training.resume_every_n_steps=N` in its overrides, cut off by a job time limit): that cell
+continues where it stopped, its training log appended. Exit code != 0 on any failure.
 """
 
 import argparse
@@ -50,6 +53,7 @@ from mighty_mouse.adaptation import (
     trained_keypoints,
     trunk_datasets,
     trunk_head_overrides,
+    trunk_input_overrides,
     trunk_problem,
 )
 from mighty_mouse.paths import load_paths, repo_root
@@ -156,6 +160,7 @@ def main() -> None:
         tcfg  = yaml.safe_load((trunk_dir / "config.yaml").read_text())
         trunk = {"checkpoint": str(ckpt), "backbone": tcfg["model"]["backbone"],
                  "head_overrides": trunk_head_overrides(tcfg),
+                 "input_overrides": trunk_input_overrides(tcfg),
                  "keypoints": trained_keypoints(trunk_datasets(trunk_dir, tcfg), inv)}
         # the video anchor's channels: what the trunk knows and the target does not label
         trunk["video_keypoints"] = [k for k in trunk["keypoints"]
@@ -181,14 +186,17 @@ def main() -> None:
     # ── train ──────────────────────────────────────────────────────────────────
     os.chdir(repo_root())
     out.parent.mkdir(parents=True, exist_ok=True)
-    if out.exists():
+    resume = any((out / "resume").glob("*.ckpt"))   # Lightning Pose continues from it
+    if out.exists() and not resume:
         stamp = datetime.now(timezone.utc).strftime("%m%d%H%M%S")
         # shutil.move: /teamspace refuses directory renames (EXDEV), so copy + delete
         shutil.move(str(out), str(out.with_name(f"{out.name}.partial-{stamp}")))
     log = out.with_name(out.name + ".log")
     started = now()
     print(f"=== {cell.id}: training -> {out}")
-    with open(log, "w") as fh:
+    if resume:
+        print(f"    resuming from {out / 'resume'}")
+    with open(log, "a" if resume else "w") as fh:
         rc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, env=train_env()).returncode
     problems = log_checks(arm, log.read_text(errors="replace"))
     if rc != 0:
@@ -199,6 +207,12 @@ def main() -> None:
     if trunk and any("head_groups" in o for o in trunk["head_overrides"]):
         if "head_groups" not in (out / "config.yaml").read_text():
             problems.append("the run's config lost the trunk's head groups")
+    if trunk and (out / "config.yaml").exists():   # evaluation predicts at the run's input size
+        dims = yaml.safe_load((out / "config.yaml").read_text())["data"]["image_resize_dims"]
+        want = {o.split("=")[0].rsplit(".", 1)[1]: int(o.split("=")[1])
+                for o in trunk["input_overrides"]}
+        if any(int(dims[k]) != v for k, v in want.items()):
+            problems.append(f"the run's input size {dims} differs from the trunk's {want}")
     if problems:
         sys.exit(f"ABORT {cell.id}: {'; '.join(problems)} (log {log})")
 

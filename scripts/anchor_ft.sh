@@ -27,7 +27,9 @@ RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths
 # FULL_FT=1 -> no LoRA, the whole backbone trains at FT_LR (default 5e-5, the few-shot `anchor` arm) with the anchor;
 # The trunk's head (head_hidden_channels, head_groups, head_shared_channels, head_group_fan_in_gain) is read from its
 # config.yaml and rebuilt before loading: a grouped checkpoint has the same keys as a plain nonlinear head and would
-# otherwise load silently into the wrong head. HEAD_HIDDEN (env) still overrides head_hidden_channels. A trunk with
+# otherwise load silently into the wrong head. Its input size (data.image_resize_dims) is carried over too, so
+# training and the evaluation (which rebuilds the model from the run's config.yaml) run at the trunk's resolution.
+# HEAD_HIDDEN (env) still overrides head_hidden_channels. A trunk with
 # head_groups needs a Lightning Pose that supports them (PYTHONPATH=<lightning-pose-wt-head-groups-fanin>); else ABORT.
 LORA_RANK="${LORA_RANK:-16}"; LORA_LR="${LORA_LR:-5e-5}"; HEAD_LR="${HEAD_LR:-5e-4}"; ANCHOR_W="${ANCHOR_W:-1.0}"
 FULL_FT="${FULL_FT:-0}"
@@ -62,6 +64,8 @@ if m.get("head_groups"):
     groups = ",".join(f"{g}:[{','.join(kps)}]" for g, kps in m["head_groups"].items())
     ov += [f"+model.head_groups={{{groups}}}", f"+model.head_shared_channels={int(m.get('head_shared_channels') or 0)}",
            f"+model.head_group_fan_in_gain={str(bool(m.get('head_group_fan_in_gain', False))).lower()}"]
+dims = cfg["data"].get("image_resize_dims") or {}
+ov += [f"data.image_resize_dims.{k}={int(dims[k])}" for k in ("height", "width") if k in dims]
 print(cfg["model"]["backbone"], "[" + ",".join(f"'{n}'" for n in names) + "]", ";".join(ov) or "-")
 PY
 )
@@ -72,7 +76,8 @@ if [ "$FULL_FT" = 1 ]; then
 else
     LR="$HEAD_LR"; ADAPT="+model.lora.rank=$LORA_RANK +model.lora.alpha=$((2 * LORA_RANK)) +model.lora.lr=$LORA_LR"
 fi
-# the trunk's head (from its config.yaml), rebuilt before loading; HEAD_HIDDEN (env) overrides the hidden width
+# the trunk's head and input size (from its config.yaml), rebuilt before loading; HEAD_HIDDEN (env) overrides the
+# hidden width
 [ "$HEADOV" = - ] && HEADOV=""
 if [ -n "${HEAD_HIDDEN:-}" ]; then
     HEADOV=$(echo "$HEADOV" | tr ';' '\n' | grep -v '^+model.head_hidden_channels=' | tr '\n' ';')
@@ -83,7 +88,7 @@ if [[ "$HEADOV" == *head_groups* ]]; then
     python -c "from lightning_pose.models.factory import resolve_head_groups" 2>/dev/null || {
         echo "ABORT: the trunk has model.head_groups but this lightning_pose ($(python -c 'import lightning_pose, os; print(os.path.dirname(lightning_pose.__file__))')) does not support them; run with PYTHONPATH=<lightning-pose-wt-head-groups-fanin>"; exit 1; }
 fi
-[ -n "$HEADOV" ] && { ADAPT="$ADAPT ${HEADOV//;/ }"; echo "    head from trunk: ${HEADOV//;/ }" | cut -c1-200; }
+[ -n "$HEADOV" ] && { ADAPT="$ADAPT ${HEADOV//;/ }"; echo "    head + input size from trunk: ${HEADOV//;/ }" | cut -c1-200; }
 mkdir -p "$(dirname "$OUT")"; LOG="$OUT.log"
 if [ -d "$OUT" ]; then mv "$OUT" "$OUT.partial-$(date -u +%m%d%H%M)"; fi
 echo "=== [$(date -u +%H:%M)] anchored $([ "$FULL_FT" = 1 ] && echo "full FT lr $LR" || echo "LoRA r$LORA_RANK lr $LORA_LR head $HEAD_LR"): $BACKBONE $DS N=$N steps=$STEPS draw=$DRAW anchor w $ANCHOR_W"

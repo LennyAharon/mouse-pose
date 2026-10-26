@@ -1,0 +1,38 @@
+# IBL all-frames anchored LoRA from the v11 leave-ibl-out trunk at 384 px, 3 seeds (user, 2026-10-26).
+# Arm = cosyne-2026's mm-anchored-lora (LoRA r64, adapters 2e-4, head 5e-4, frozen trunk distilled into every
+# channel a frame does not label, 6000 steps, lr halves at 3000), on every IBL train frame of head-fixed-v11.
+# The input size (384 x 384) comes from the trunk's config.yaml (mighty_mouse.adaptation.trunk_input_overrides), so
+# training and the evaluation on the IBL test set both run at 384; run_cell.py aborts if the run's config lost it.
+# Seeds = draws_all (training.rng_seed_data_pt: validation split and data order; the frames are all the same).
+# The digit tips being labeled by active pseudo-labeling are not in the corpus yet: they are anchored, not trained.
+# Zero-shot reference = the trunk's eval/ibl; dedicated reference = the 256 px recipe-S IBL model.
+#
+#   python scripts/adapt/plan.py --config configs/adaptation/v11-ibl-alora384.yaml
+#   python scripts/adapt/run_cell.py --config configs/adaptation/v11-ibl-alora384.yaml \
+#       --cell ibl__mm-anchored-lora__tfall__draw0 [--dry_run]
+
+name: v11-ibl-alora384
+out_subdir: adaptation            # cells go to <results_dir>/adaptation/v11-ibl-alora384/ibl/mm-anchored-lora/tfall-draw<d>
+keep_checkpoints: false
+eval_last: true                   # also evaluate the final-step checkpoint (eval_last/)
+
+n_frames: [all]
+draws: [0, 1, 2]
+draws_all: [0, 1, 2]              # three seeds of the all-frames cell
+steps: {few: 2000, all: 6000}
+val_every: 250
+
+arms:
+  # num_workers: Delta gives each cell 16 CPUs (the grid default of 2 workers starves a 384 px run);
+  # resume_every_n_steps: a cell cut off by the 1 h interactive limit continues in its next job (run_cell.py)
+  mm-anchored-lora: {init: trunk, adapter: lora, rank: 64, lora_lr: 2.0e-4, head_lr: 5.0e-4, anchor: true,
+                     anchor_weight: 1.0, anchor_conf_power: 1,
+                     overrides: ["training.num_workers=15", "+training.resume_every_n_steps=500"]}
+
+curve_arms: [mm-anchored-lora]
+
+datasets:
+  ibl: {trunk: experiments/R384-E5/face+cheese+caz+kondo+hmv+c3d+kauf+vbnb+vbnf+cav+tys+kaufw_train/supervised/sampling-T2/tf1/vits_dinov3/seed0}
+
+dedicated:
+  nonlinear: dedicated-headmlp256/{ds}_train/supervised/sampling-T2/tf1/vits_dinov3/seed0
