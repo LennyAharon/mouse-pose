@@ -50,7 +50,8 @@ best_gpus() {  # partition, runs available -> GPU count with the best runs/hour 
   done
   echo "$best"
 }
-PARTS="gpuA40x4-interactive gpuA100x4-interactive gpuA100x8-interactive gpuH200x8-interactive"
+# FEEDER_PARTS (env) limits the partitions it fills, e.g. to leave one slot to another job
+PARTS="${FEEDER_PARTS:-gpuA40x4-interactive gpuA100x4-interactive gpuA100x8-interactive gpuH200x8-interactive}"
 allowed_on() {  # run line, partition -> true if the line's 7th field is empty or lists the partition
   local parts
   parts=$(cut -d'|' -f7 <<< "$1")
