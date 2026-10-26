@@ -8,7 +8,9 @@ A definition's `code:` adds a 5th field (experiment checkouts) and `partitions:`
 Each run is the baseline train_sweep command (recipe S, shared head, T=2, the definition's config and
 head_overrides) plus the experiment's overrides, in <results_dir>/experiments/<id>/ (or with the baseline
 in trunks-headmlp256/ for `area: baseline`), for every target of the definition or the experiment's own
-`targets:` subset. A run whose directory exists (started or done) is skipped.
+`targets:` subset. A target is a list of left-out datasets (zero-shot predictions on their train frames),
+or `{keep: [...], zeroshot: [...]}` for a dataset subset (scripts/scaling_subsets.py). A run whose
+directory exists (started or done) is skipped.
 
     python scripts/delta/exp_specs.py configs/experiments/v10-schedule.yaml > <spec file>
     python scripts/delta/exp_specs.py configs/experiments/v10-schedule.yaml --all    # include started runs
@@ -76,8 +78,16 @@ def main() -> None:
         if unknown:
             raise SystemExit(f"{exp_id}: targets {sorted(unknown)} are not in the definition's targets")
         for target in targets:
-            left_out = spec["targets"][target]
-            keep = [d for d in datasets if d not in left_out]
+            entry = spec["targets"][target]
+            if isinstance(entry, dict):   # a dataset subset: train on `keep`, zero-shot on `zeroshot`
+                unknown = set(entry["keep"]) - set(datasets)
+                if unknown:
+                    raise SystemExit(f"{target}: unknown datasets {sorted(unknown)}")
+                keep = [d for d in datasets if d in entry["keep"]]
+                left_out = list(entry.get("zeroshot", []))
+            else:                         # a list of left-out datasets
+                left_out = entry
+                keep = [d for d in datasets if d not in left_out]
             tag = "+".join(short[d] for d in keep)
             if not (Path(load_paths()["data_dir"]) / f"CollectedData_{tag}_train.csv").exists():
                 raise SystemExit(f"no training csv for tag {tag} (target {target}); build it first")

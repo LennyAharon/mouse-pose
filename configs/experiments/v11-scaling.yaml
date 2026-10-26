@@ -1,0 +1,1184 @@
+# Zero-shot vs number of training datasets (user, 2026-10-26), written by
+# scripts/scaling_subsets.py (do not edit by hand). Per target dataset and draw d: the other
+# datasets minus the target's sibling, shuffled once (seed d, target index); the first 3 / 6 / 9
+# are nested random subsets; 3 draws. The 12-dataset point is the existing leave-one-out trunk
+# (experiments/R384-E5). Same recipe as those trunks: E5 at 384 px, nonlinear head, seed 0.
+# Runs: <results_dir>/experiments/SCALE/<tag>_train/;
+# zero-shot on the target's train frames, and every trunk is evaluated on all 13 test sets.
+# Order: draw 0 for every target first, then draw 1, then draw 2.
+
+config: configs/model_zoominout.yaml
+backbone: vits_dinov3
+head_overrides:
+- +model.head_hidden_channels=256
+- +training.resume_every_n_steps=500
+- training.unfreezing_step=3000
+- training.min_steps=14000
+- training.max_steps=14000
+- training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]
+- data.image_resize_dims.height=384
+- data.image_resize_dims.width=384
+targets:
+  facemap-k3-d0:
+    keep:
+    - cazettes-side
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - facemap
+  ibl-k3-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - aind-vbn-body
+    zeroshot:
+    - ibl
+  cheese-2d-k3-d0:
+    keep:
+    - ibl
+    - cazettes-side
+    - kaufman-water
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k3-d0:
+    keep:
+    - cheese-2d
+    - aind-vbn-face
+    - cavelli
+    zeroshot:
+    - cazettes-side
+  kondo-k3-d0:
+    keep:
+    - cheese-3d
+    - kaufman
+    - kaufman-water
+    zeroshot:
+    - kondo
+  hantman-mv-k3-d0:
+    keep:
+    - facemap
+    - cheese-3d
+    - kaufman
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k3-d0:
+    keep:
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    zeroshot:
+    - cheese-3d
+    - ibl
+  kaufman-k3-d0:
+    keep:
+    - cazettes-side
+    - kondo
+    - aind-vbn-face
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k3-d0:
+    keep:
+    - kondo
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k3-d0:
+    keep:
+    - facemap
+    - cheese-3d
+    - tyssowski
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k3-d0:
+    keep:
+    - ibl
+    - kondo
+    - kaufman-water
+    zeroshot:
+    - cavelli
+  tyssowski-k3-d0:
+    keep:
+    - facemap
+    - kaufman
+    - aind-vbn-body
+    zeroshot:
+    - tyssowski
+  kaufman-water-k3-d0:
+    keep:
+    - ibl
+    - cheese-2d
+    - hantman-mv
+    zeroshot:
+    - kaufman-water
+  facemap-k6-d0:
+    keep:
+    - cazettes-side
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - facemap
+  ibl-k6-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - kondo
+    - aind-vbn-body
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - ibl
+  cheese-2d-k6-d0:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - kaufman
+    - aind-vbn-face
+    - kaufman-water
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k6-d0:
+    keep:
+    - cheese-2d
+    - kondo
+    - hantman-mv
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    zeroshot:
+    - cazettes-side
+  kondo-k6-d0:
+    keep:
+    - facemap
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - kondo
+  hantman-mv-k6-d0:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - kondo
+    - cheese-3d
+    - kaufman
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k6-d0:
+    keep:
+    - ibl
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - cheese-3d
+  kaufman-k6-d0:
+    keep:
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - cheese-3d
+    - aind-vbn-face
+    - tyssowski
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k6-d0:
+    keep:
+    - kondo
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k6-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - kondo
+    - cheese-3d
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k6-d0:
+    keep:
+    - ibl
+    - cheese-2d
+    - kondo
+    - cheese-3d
+    - aind-vbn-face
+    - kaufman-water
+    zeroshot:
+    - cavelli
+  tyssowski-k6-d0:
+    keep:
+    - facemap
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    zeroshot:
+    - tyssowski
+  kaufman-water-k6-d0:
+    keep:
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    zeroshot:
+    - kaufman-water
+  facemap-k9-d0:
+    keep:
+    - ibl
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - facemap
+  ibl-k9-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - kondo
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - ibl
+  cheese-2d-k9-d0:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k9-d0:
+    keep:
+    - ibl
+    - cheese-2d
+    - kondo
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - cazettes-side
+  kondo-k9-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - kondo
+  hantman-mv-k9-d0:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - kondo
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - tyssowski
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k9-d0:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - cheese-3d
+  kaufman-k9-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    - tyssowski
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k9-d0:
+    keep:
+    - facemap
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k9-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k9-d0:
+    keep:
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - aind-vbn-face
+    - kaufman-water
+    zeroshot:
+    - cavelli
+  tyssowski-k9-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    zeroshot:
+    - tyssowski
+  kaufman-water-k9-d0:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - kaufman-water
+  facemap-k3-d1:
+    keep:
+    - hantman-mv
+    - aind-vbn-face
+    - kaufman-water
+    zeroshot:
+    - facemap
+  cheese-2d-k3-d1:
+    keep:
+    - facemap
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k3-d1:
+    keep:
+    - cheese-2d
+    - kondo
+    - tyssowski
+    zeroshot:
+    - cazettes-side
+  kondo-k3-d1:
+    keep:
+    - ibl
+    - cheese-2d
+    - aind-vbn-face
+    zeroshot:
+    - kondo
+  hantman-mv-k3-d1:
+    keep:
+    - ibl
+    - cheese-3d
+    - tyssowski
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k3-d1:
+    keep:
+    - ibl
+    - kondo
+    - kaufman
+    zeroshot:
+    - cheese-3d
+  kaufman-k3-d1:
+    keep:
+    - ibl
+    - hantman-mv
+    - cavelli
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k3-d1:
+    keep:
+    - hantman-mv
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+    - tyssowski
+  aind-vbn-face-k3-d1:
+    keep:
+    - cazettes-side
+    - hantman-mv
+    - cavelli
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k3-d1:
+    keep:
+    - ibl
+    - kondo
+    - hantman-mv
+    zeroshot:
+    - cavelli
+  kaufman-water-k3-d1:
+    keep:
+    - facemap
+    - kondo
+    - cavelli
+    zeroshot:
+    - kaufman-water
+  facemap-k6-d1:
+    keep:
+    - ibl
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    - kaufman-water
+    zeroshot:
+    - facemap
+  ibl-k6-d1:
+    keep:
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - ibl
+  cheese-2d-k6-d1:
+    keep:
+    - facemap
+    - kondo
+    - hantman-mv
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k6-d1:
+    keep:
+    - facemap
+    - cheese-2d
+    - kondo
+    - aind-vbn-face
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cazettes-side
+  kondo-k6-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - hantman-mv
+    - aind-vbn-face
+    - tyssowski
+    zeroshot:
+    - kondo
+  hantman-mv-k6-d1:
+    keep:
+    - ibl
+    - cheese-2d
+    - cheese-3d
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k6-d1:
+    keep:
+    - facemap
+    - ibl
+    - kondo
+    - kaufman
+    - aind-vbn-face
+    - kaufman-water
+    zeroshot:
+    - cheese-3d
+  kaufman-k6-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - hantman-mv
+    - cheese-3d
+    - cavelli
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k6-d1:
+    keep:
+    - cheese-2d
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k6-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - cavelli
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k6-d1:
+    keep:
+    - ibl
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    zeroshot:
+    - cavelli
+  tyssowski-k6-d1:
+    keep:
+    - facemap
+    - hantman-mv
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - tyssowski
+  kaufman-water-k6-d1:
+    keep:
+    - facemap
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - kaufman-water
+  facemap-k9-d1:
+    keep:
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - facemap
+  ibl-k9-d1:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - ibl
+  cheese-2d-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - kondo
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k9-d1:
+    keep:
+    - facemap
+    - cheese-2d
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - aind-vbn-face
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cazettes-side
+  kondo-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - aind-vbn-body
+    - aind-vbn-face
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - kondo
+  hantman-mv-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - kondo
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cheese-3d
+  kaufman-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - kaufman
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k9-d1:
+    keep:
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cavelli
+  tyssowski-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - kondo
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - tyssowski
+  kaufman-water-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - kaufman-water
+  facemap-k3-d2:
+    keep:
+    - ibl
+    - cazettes-side
+    - cavelli
+    zeroshot:
+    - facemap
+  ibl-k3-d2:
+    keep:
+    - facemap
+    - kaufman
+    - tyssowski
+    zeroshot:
+    - ibl
+  cheese-2d-k3-d2:
+    keep:
+    - kondo
+    - hantman-mv
+    - kaufman-water
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k3-d2:
+    keep:
+    - kaufman
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cazettes-side
+  kondo-k3-d2:
+    keep:
+    - cheese-2d
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - kondo
+  hantman-mv-k3-d2:
+    keep:
+    - cazettes-side
+    - kondo
+    - kaufman-water
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k3-d2:
+    keep:
+    - kondo
+    - aind-vbn-body
+    - tyssowski
+    zeroshot:
+    - cheese-3d
+  kaufman-k3-d2:
+    keep:
+    - ibl
+    - hantman-mv
+    - cheese-3d
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k3-d2:
+    keep:
+    - ibl
+    - cheese-2d
+    - kondo
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k3-d2:
+    keep:
+    - cheese-2d
+    - hantman-mv
+    - tyssowski
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k3-d2:
+    keep:
+    - ibl
+    - cheese-2d
+    - kaufman
+    zeroshot:
+    - cavelli
+  tyssowski-k3-d2:
+    keep:
+    - facemap
+    - ibl
+    - cavelli
+    zeroshot:
+    - tyssowski
+  kaufman-water-k3-d2:
+    keep:
+    - facemap
+    - cazettes-side
+    - kondo
+    zeroshot:
+    - kaufman-water
+  facemap-k6-d2:
+    keep:
+    - ibl
+    - cazettes-side
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - facemap
+  ibl-k6-d2:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - kaufman
+    - tyssowski
+    zeroshot:
+    - ibl
+  cheese-2d-k6-d2:
+    keep:
+    - ibl
+    - kondo
+    - hantman-mv
+    - kaufman
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k6-d2:
+    keep:
+    - kondo
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cazettes-side
+  kondo-k6-d2:
+    keep:
+    - cheese-2d
+    - cazettes-side
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - kondo
+  hantman-mv-k6-d2:
+    keep:
+    - ibl
+    - cazettes-side
+    - kondo
+    - kaufman
+    - aind-vbn-face
+    - kaufman-water
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k6-d2:
+    keep:
+    - facemap
+    - cazettes-side
+    - kondo
+    - kaufman
+    - aind-vbn-body
+    - tyssowski
+    zeroshot:
+    - cheese-3d
+  kaufman-k6-d2:
+    keep:
+    - ibl
+    - cazettes-side
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k6-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - kondo
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k6-d2:
+    keep:
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - tyssowski
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k6-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cheese-3d
+    - kaufman
+    - tyssowski
+    zeroshot:
+    - cavelli
+  tyssowski-k6-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - kondo
+    - aind-vbn-face
+    - cavelli
+    zeroshot:
+    - tyssowski
+  kaufman-water-k6-d2:
+    keep:
+    - facemap
+    - cazettes-side
+    - kondo
+    - cheese-3d
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - kaufman-water
+  facemap-k9-d2:
+    keep:
+    - ibl
+    - cazettes-side
+    - kondo
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - facemap
+  ibl-k9-d2:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - kaufman
+    - aind-vbn-face
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - ibl
+  cheese-2d-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - kondo
+    - hantman-mv
+    - kaufman
+    - aind-vbn-face
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cheese-2d
+  cazettes-side-k9-d2:
+    keep:
+    - facemap
+    - cheese-2d
+    - kondo
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cazettes-side
+  kondo-k9-d2:
+    keep:
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - cheese-3d
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - kondo
+  hantman-mv-k9-d2:
+    keep:
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - kaufman-water
+    zeroshot:
+    - hantman-mv
+  cheese-3d-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - kondo
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - cheese-3d
+  kaufman-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    zeroshot:
+    - kaufman
+  aind-vbn-body-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - kondo
+    - hantman-mv
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-body
+  aind-vbn-face-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - cavelli
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - aind-vbn-face
+  cavelli-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - cheese-3d
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - tyssowski
+    zeroshot:
+    - cavelli
+  tyssowski-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-face
+    - cavelli
+    zeroshot:
+    - tyssowski
+  kaufman-water-k9-d2:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - cavelli
+    - tyssowski
+    zeroshot:
+    - kaufman-water
+experiments:
+  SCALE:
+    seeds:
+    - 0
+    overrides: []
