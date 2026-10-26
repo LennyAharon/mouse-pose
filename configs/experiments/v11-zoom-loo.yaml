@@ -1,0 +1,49 @@
+# AUG-ZOOM on the remaining leave-one-out targets (user, 2026-10-26: decide whether ZOOM joins the recipe
+# from now on). Same experiment id, overrides and head_overrides as AUG-ZOOM in v11-aug384.yaml, so the runs land
+# in the same <results_dir>/experiments/AUG-ZOOM/ tree; with that definition's five targets (all-data, kondo,
+# facemap, cheese both out, kaufman both out) ZOOM then covers all 16 targets of the baseline R384-E5
+# (configs/experiments/v11-res384.yaml). Single leave-outs of sibling datasets (cheese-2d / cheese-3d, kaufman /
+# kaufman-water, vbn body / face) keep the sibling in training, exactly as the baseline does (paired comparison).
+
+config: configs/model_zoominout.yaml
+backbone: vits_dinov3
+head_overrides:
+- +model.head_hidden_channels=256
+- +training.resume_every_n_steps=500
+- training.unfreezing_step=3000
+- training.min_steps=14000
+- training.max_steps=14000
+- training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]
+- data.image_resize_dims.height=384
+- data.image_resize_dims.width=384
+targets:
+  ibl:
+  - ibl
+  cheese-2d:
+  - cheese-2d
+  cazettes-side:
+  - cazettes-side
+  hantman-mv:
+  - hantman-mv
+  cheese-3d:
+  - cheese-3d
+  kaufman:
+  - kaufman
+  aind-vbn-body:
+  - aind-vbn-body
+  aind-vbn-face:
+  - aind-vbn-face
+  cavelli:
+  - cavelli
+  tyssowski:
+  - tyssowski
+  kaufman-water:
+  - kaufman-water
+experiments:
+  AUG-ZOOM:
+    seeds:
+    - 0
+    overrides:
+    - +training.imgaug.Affine.p=0.4
+    - +training.imgaug.Affine.kwargs.scale=[1.0,2.5]
+    - +training.imgaug.Affine.kwargs.translate_percent=[-0.25,0.25]
