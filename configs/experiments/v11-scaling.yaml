@@ -1,13 +1,14 @@
 # Zero-shot vs number of training datasets (user, 2026-10-26), written by
-# scripts/scaling_subsets.py (do not edit by hand). Per draw: the 13 datasets shuffled once;
-# the first 3 / 6 / 9 are nested random subsets; 3 draws = 9 trunks. Each trunk is
-# evaluated zero-shot on every dataset it did not train on. The 12-dataset points are the existing
-# leave-one-out trunks (experiments/R384-E5). Same recipe as those trunks: E5 at 384 px, nonlinear
-# head, seed 0. Runs: <results_dir>/experiments/SCALE/<tag>_train/.
-# Shuffle seeds of the 3 draws (picked for coverage): [36, 87, 68].
+# scripts/scaling_subsets.py (do not edit by hand). Per target: the other datasets minus the
+# target's sibling, shuffled once per draw; the first 3 / 6 / 9 are nested random subsets; 3 draws.
+# The top point of each curve is the existing leave-one-out trunk (experiments/R384-E5; both-out
+# for cheese-3d and kaufman). Same recipe as those trunks: E5 at 384 px, nonlinear head, seed 0.
+# Runs: <results_dir>/experiments/SCALE/<tag>_train/; checkpoints deleted after evaluation.
+# Draw seeds per target ([seed, target index]): {'ibl': [0, 1, 2], 'cheese-3d': [0, 1, 2], 'kaufman': [0, 1, 2]}.
 
 config: configs/model_zoominout.yaml
 backbone: vits_dinov3
+drop_checkpoints: true
 head_overrides:
 - +model.head_hidden_channels=256
 - +training.resume_every_n_steps=500
@@ -18,150 +19,270 @@ head_overrides:
 - data.image_resize_dims.height=384
 - data.image_resize_dims.width=384
 targets:
-  k3-d0:
+  ibl-k3-d0:
     keep:
-    - kondo
-    - aind-vbn-body
-    - aind-vbn-face
-    zeroshot:
     - facemap
-    - ibl
     - cheese-2d
-    - cazettes-side
-    - hantman-mv
-    - cheese-3d
-    - kaufman
-    - cavelli
-    - tyssowski
-    - kaufman-water
-  k6-d0:
-    keep:
-    - facemap
-    - kondo
-    - hantman-mv
     - aind-vbn-body
-    - aind-vbn-face
-    - cavelli
     zeroshot:
     - ibl
-    - cheese-2d
-    - cazettes-side
-    - cheese-3d
-    - kaufman
-    - tyssowski
-    - kaufman-water
-  k9-d0:
+  ibl-k6-d0:
     keep:
     - facemap
+    - cheese-2d
+    - kondo
+    - aind-vbn-body
+    - tyssowski
+    - kaufman-water
+    zeroshot:
     - ibl
+  ibl-k9-d0:
+    keep:
+    - facemap
+    - cheese-2d
     - kondo
     - hantman-mv
+    - kaufman
     - aind-vbn-body
-    - aind-vbn-face
     - cavelli
     - tyssowski
     - kaufman-water
     zeroshot:
-    - cheese-2d
-    - cazettes-side
-    - cheese-3d
-    - kaufman
-  k3-d1:
+    - ibl
+  ibl-k3-d1:
     keep:
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    zeroshot:
     - ibl
     - cheese-3d
-    - tyssowski
+  ibl-k6-d1:
+    keep:
+    - cheese-2d
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - cavelli
     zeroshot:
+    - ibl
+  ibl-k9-d1:
+    keep:
     - facemap
     - cheese-2d
     - cazettes-side
     - kondo
     - hantman-mv
+    - cheese-3d
     - kaufman
     - aind-vbn-body
-    - aind-vbn-face
     - cavelli
-    - kaufman-water
-  k6-d1:
+    zeroshot:
+    - ibl
+  ibl-k3-d2:
     keep:
     - facemap
-    - ibl
-    - cazettes-side
-    - cheese-3d
     - kaufman
     - tyssowski
     zeroshot:
-    - cheese-2d
-    - kondo
-    - hantman-mv
-    - aind-vbn-body
-    - aind-vbn-face
-    - cavelli
-    - kaufman-water
-  k9-d1:
+    - ibl
+  ibl-k6-d2:
     keep:
     - facemap
-    - ibl
     - cheese-2d
     - cazettes-side
-    - hantman-mv
-    - cheese-3d
+    - kondo
     - kaufman
     - tyssowski
-    - kaufman-water
     zeroshot:
-    - kondo
-    - aind-vbn-body
-    - aind-vbn-face
-    - cavelli
-  k3-d2:
-    keep:
-    - cheese-3d
-    - kaufman
-    - kaufman-water
-    zeroshot:
-    - facemap
     - ibl
+  ibl-k9-d2:
+    keep:
+    - facemap
     - cheese-2d
     - cazettes-side
     - kondo
     - hantman-mv
+    - kaufman
+    - aind-vbn-face
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - ibl
+  cheese-3d-k6-d0:
+    keep:
+    - ibl
+    - cazettes-side
+    - hantman-mv
+    - kaufman
+    - aind-vbn-body
+    - cavelli
+    zeroshot:
+    - cheese-3d
+  cheese-3d-k9-d0:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - hantman-mv
+    - kaufman
     - aind-vbn-body
     - aind-vbn-face
     - cavelli
     - tyssowski
-  k6-d2:
+    zeroshot:
+    - cheese-3d
+  cheese-3d-k3-d1:
     keep:
     - ibl
-    - cheese-2d
+    - kondo
+    - kaufman
+    zeroshot:
     - cheese-3d
+  cheese-3d-k6-d1:
+    keep:
+    - facemap
+    - ibl
+    - kondo
     - kaufman
     - aind-vbn-face
     - kaufman-water
     zeroshot:
+    - cheese-3d
+  cheese-3d-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - kondo
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
+    - tyssowski
+    - kaufman-water
+    zeroshot:
+    - cheese-3d
+  cheese-3d-k3-d2:
+    keep:
+    - kondo
+    - aind-vbn-body
+    - tyssowski
+    zeroshot:
+    - cheese-3d
+  cheese-3d-k6-d2:
+    keep:
     - facemap
     - cazettes-side
     - kondo
-    - hantman-mv
+    - kaufman
     - aind-vbn-body
+    - tyssowski
+    zeroshot:
+    - cheese-3d
+  cheese-3d-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cazettes-side
+    - kondo
+    - kaufman
+    - aind-vbn-body
+    - aind-vbn-face
     - cavelli
     - tyssowski
-  k9-d2:
+    zeroshot:
+    - cheese-3d
+  kaufman-k3-d0:
     keep:
-    - ibl
+    - cazettes-side
+    - kondo
+    - aind-vbn-face
+    zeroshot:
+    - kaufman
+  kaufman-k6-d0:
+    keep:
     - cheese-2d
     - cazettes-side
     - kondo
     - cheese-3d
+    - aind-vbn-face
+    - tyssowski
+    zeroshot:
     - kaufman
+  kaufman-k9-d0:
+    keep:
+    - facemap
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
     - aind-vbn-body
     - aind-vbn-face
-    - kaufman-water
+    - tyssowski
     zeroshot:
-    - facemap
+    - kaufman
+  kaufman-k3-d1:
+    keep:
+    - ibl
     - hantman-mv
     - cavelli
+    zeroshot:
+    - kaufman
+  kaufman-k6-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - hantman-mv
+    - cheese-3d
+    - cavelli
+    zeroshot:
+    - kaufman
+  kaufman-k9-d1:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - cavelli
     - tyssowski
+    zeroshot:
+    - kaufman
+  kaufman-k3-d2:
+    keep:
+    - ibl
+    - hantman-mv
+    - cheese-3d
+    zeroshot:
+    - kaufman
+  kaufman-k6-d2:
+    keep:
+    - ibl
+    - cazettes-side
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    zeroshot:
+    - kaufman
+  kaufman-k9-d2:
+    keep:
+    - facemap
+    - ibl
+    - cheese-2d
+    - cazettes-side
+    - kondo
+    - hantman-mv
+    - cheese-3d
+    - aind-vbn-body
+    - aind-vbn-face
+    zeroshot:
+    - kaufman
 experiments:
   SCALE:
     seeds:

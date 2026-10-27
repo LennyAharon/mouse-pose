@@ -14,8 +14,9 @@ twice: the later job's copy exits at once. It never cancels a job. At most --max
 own jobs wait at a time.
 
 Every decision and the scheduler's estimates go to <results_dir>/_logs/queue_optimizer.log, the
-last cycle to queue_optimizer_state.json (read them to tune --lead / shapes). Stops when no run is
-left and none of its jobs is pending or running.
+last cycle to queue_optimizer_state.json (read them to tune --lead / shapes). For definitions with
+`drop_checkpoints: true` it deletes a run's checkpoints once it is fully evaluated. Stops when no
+run is left and none of its jobs is pending or running.
 
     cd mouse-pose && setsid nohup python scripts/delta/queue_optimizer.py \\
         --specs configs/experiments/v11-zoom-loo.yaml configs/experiments/v11-scaling.yaml \\
@@ -24,12 +25,17 @@ left and none of its jobs is pending or running.
 
 import argparse
 import json
+import re
+import shutil
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 from mighty_mouse.paths import load_paths
+from mighty_mouse.registry import load_registry
 
 REPO       = Path(__file__).resolve().parents[2]
 PARTITIONS = ["gpuA100x4", "gpuA100x8", "gpuA40x4", "gpuH200x8", "gpuA100x4-preempt",
@@ -76,6 +82,38 @@ def my_jobs() -> list[dict]:
             for ln in out.splitlines() if ln]
 
 
+def drop_checkpoints(specs: list[str], results: Path) -> list[Path]:
+    """For definitions with `drop_checkpoints: true`: delete the checkpoints (and rolling resume
+    checkpoint) of every finished run, i.e. training COMPLETED, test-set evaluation written and a
+    zero-shot prediction file for each of its `zeroshot` datasets. Returns the runs cleaned."""
+    short = dict(re.findall(r"\[([\w-]+)\]=(\w+)", (REPO / "scripts/train_plan.sh").read_text()))
+    reg, cleaned = load_registry(), []
+    for d in specs:
+        spec = yaml.safe_load((REPO / d).read_text())
+        if not spec.get("drop_checkpoints"):
+            continue
+        for exp_id, exp in spec["experiments"].items():
+            for entry in spec["targets"].values():
+                if not isinstance(entry, dict):
+                    continue
+                tag = "+".join(short[x] for x in reg if x in entry["keep"])
+                for seed in exp.get("seeds", [0]):
+                    run = (results / "experiments" / exp_id / f"{tag}_train" / "supervised"
+                           / "sampling-T2" / "tf1" / spec["backbone"] / f"seed{seed}")
+                    status = run / "train_status.json"
+                    done = (status.exists() and "COMPLETED" in status.read_text()
+                            and any(run.glob("eval/*/predictions.csv"))
+                            and all((run / "zeroshot" / f"{z}_train_predictions.csv").exists()
+                                    for z in entry.get("zeroshot", [])))
+                    ckpts = list(run.glob("tb_logs/*/version_*/checkpoints/*.ckpt"))
+                    if done and (ckpts or (run / "resume").exists()):
+                        for c in ckpts:
+                            c.unlink()
+                        shutil.rmtree(run / "resume", ignore_errors=True)
+                        cleaned.append(run)
+    return cleaned
+
+
 def load_user() -> str:
     return sh("whoami").strip()
 
@@ -98,6 +136,8 @@ def main() -> None:
     say     = lambda m: log.write(f"[{datetime.now():%m-%d %H:%M:%S}] {m}\n")   # noqa: E731
     say(f"start: specs {args.specs}, lead {args.lead} min, max_pending {args.max_pending}")
     while True:
+        for run in drop_checkpoints(args.specs, results):
+            say(f"checkpoints deleted (drop_checkpoints): {run}")
         now   = time.time()
         jobs  = my_jobs()
         held  = {r for j in jobs for r in j["runs"].split(",") if r}
