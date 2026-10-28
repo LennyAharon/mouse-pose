@@ -8,10 +8,10 @@ import pandas as pd
 import pytest
 
 from mighty_mouse.inventory import (
+    column_layout,
     dataset_entry,
     direct_mask,
     hflip_partner,
-    keypoint_names,
     sessions,
     trainable_mask,
     unreferenced_raw_sessions,
@@ -40,11 +40,13 @@ def frames_of(session: str, n: int = 2) -> list[str]:
     return [f"labeled-data/ds/{session}/img{i}.png" for i in range(n)]
 
 
-class TestKeypointNames:
-    """Test the function keypoint_names."""
+class TestColumnLayout:
+    """Test the function column_layout."""
 
-    def test_keypoint_names_column_order(self):
-        assert keypoint_names(label_df(frames_of("s0"), {})) == CANONICAL
+    def test_column_layout_column_order(self):
+        assert column_layout(label_df(frames_of("s0"), {}))[:4] == [
+            ("nose_tip", "x"), ("nose_tip", "y"), ("nose_tip", "visible"), ("ear_tip_left", "x"),
+        ]
 
 
 class TestSessions:
@@ -134,8 +136,15 @@ class TestDatasetEntry:
              pytest.raises(ValueError, match="overlap"):
             dataset_entry("ds", CANONICAL, corpus, corpus / "raw")
 
-    def test_dataset_entry_rejects_schema_mismatch(self, corpus):
+    def test_dataset_entry_rejects_keypoint_order(self, corpus):
         self.write(corpus, label_df(frames_of("s0"), {}), label_df(frames_of("s1"), {}))
         with patch("mighty_mouse.inventory.repo_root", return_value=corpus), \
-             pytest.raises(ValueError, match="schema"):
+             pytest.raises(ValueError, match="canonical layout"):
             dataset_entry("ds", CANONICAL[::-1], corpus, corpus / "raw")
+
+    def test_dataset_entry_rejects_missing_visible(self, corpus):
+        test = label_df(frames_of("s1"), {}).drop(columns=("scorer", "tongue_tip", "visible"))
+        self.write(corpus, label_df(frames_of("s0"), {}), test)
+        with patch("mighty_mouse.inventory.repo_root", return_value=corpus), \
+             pytest.raises(ValueError, match="test CSV columns"):
+            dataset_entry("ds", CANONICAL, corpus, corpus / "raw")

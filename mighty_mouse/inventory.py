@@ -1,10 +1,11 @@
 """
 Read-only inventory of the converted head-fixed corpus.
 
-Validates that every per-dataset CSV shares one canonical keypoint schema, derives
-the three per-dataset keypoint masks (direct / trainable / evaluation), asserts
-train/test session disjointness, and reports raw labeled-data directories that the
-conversion configs never reference (e.g. kondo's iter7_* sets) without adding them.
+Validates that every per-dataset CSV has the canonical column layout (x, y, visible for
+each keypoint of configs/keypoints.yaml, in order), derives the three per-dataset keypoint
+masks (direct / trainable / evaluation), asserts train/test session disjointness, and reports
+raw labeled-data directories that the conversion configs never reference (e.g. kondo's iter7_*
+sets) without adding them.
 
 Run before freezing a data version, so documentation cannot silently drift:
 
@@ -28,7 +29,9 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
+from mighty_mouse.configs import default_configs_dir, load_canonical_keypoints
 from mighty_mouse.datasets import ALL_DATASETS
+from mighty_mouse.labels import COORDS
 from mighty_mouse.paths import load_paths, repo_root
 
 # ── per-dataset extraction ───────────────────────────────────────────────────
@@ -40,11 +43,9 @@ def read_csv(path: Path) -> pd.DataFrame:
     return df
 
 
-def keypoint_names(df: pd.DataFrame) -> list[str]:
-    """Canonical keypoint names in column order."""
-    return [b for b, c in zip(df.columns.get_level_values(1), df.columns.get_level_values(2),
-                              strict=True)
-            if c == "x"]
+def column_layout(df: pd.DataFrame) -> list[tuple[str, str]]:
+    """(keypoint, coord) of every column, in order."""
+    return list(zip(df.columns.get_level_values(1), df.columns.get_level_values(2), strict=True))
 
 
 def sessions(df: pd.DataFrame) -> set[str]:
@@ -84,15 +85,28 @@ def unreferenced_raw_sessions(name: str, referenced: set[str], raw_dir: Path) ->
 
 
 def dataset_entry(name: str, canonical: list[str], data_dir: Path, raw_dir: Path) -> dict:
-    """Build the full inventory entry for one dataset; raises on schema mismatch."""
+    """Build the full inventory entry for one dataset.
+
+    Args:
+        name: dataset name
+        canonical: keypoints from configs/keypoints.yaml
+        data_dir: converted corpus
+        raw_dir: raw datasets (for unreferenced labeled-data directories)
+
+    Raises:
+        ValueError: if a CSV's columns are not x, y, visible for each canonical keypoint in
+            order, or if train and test share a session
+    """
     train = read_csv(data_dir / f"CollectedData_{name}_train.csv")
     test  = read_csv(data_dir / f"CollectedData_{name}_test.csv")
 
+    expected = [(k, c) for k in canonical for c in COORDS]
     for split, df in (("train", train), ("test", test)):
-        if keypoint_names(df) != canonical:
+        if column_layout(df) != expected:
             raise ValueError(
-                f"{name} {split} CSV keypoint schema deviates from canonical "
-                f"({len(keypoint_names(df))} vs {len(canonical)} keypoints, or wrong order)"
+                f"{name} {split} CSV columns deviate from the canonical layout (x, y, visible "
+                f"per keypoint of configs/keypoints.yaml, in order): {len(df.columns)} vs "
+                f"{len(expected)} columns, or wrong order"
             )
 
     train_sessions = sessions(train)
@@ -200,7 +214,7 @@ def main() -> None:
     data_dir = args.data_dir or Path(paths["data_dir"])
     raw_dir  = args.raw_dir or Path(paths["raw_dir"])
 
-    canonical = keypoint_names(read_csv(data_dir / f"CollectedData_{ALL_DATASETS[0]}_train.csv"))
+    canonical = load_canonical_keypoints(default_configs_dir())
     entries   = {name: dataset_entry(name, canonical, data_dir, raw_dir) for name in ALL_DATASETS}
 
     manifest = {
