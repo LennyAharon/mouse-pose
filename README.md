@@ -257,8 +257,9 @@ mighty-mouse/
     ensemble_pseudo_labels.py   overwrite a raw dataset's labels with a confidence-thresholded mean of several models (see skills/transfer-pseudo-labels)
     active_labeling.py          label new keypoints by iterating hand-labeling and ensemble-disagreement frame selection (see skills/active-pseudo-labeling)
     qualitative/                house-style overlay videos: render_panel.py, render_compare.py,
-                                 ensemble_variance_rows.py, active_round_video.py (see skills/pose-video)
-    qualitative_index.py        <results_dir>/qualitative/INDEX.md from each delivery's README front matter
+                                 ensemble_variance_rows.py, active_round_video.py (see skills/pose-video);
+                                 qualitative_index.py builds <results_dir>/qualitative/INDEX.md from each
+                                 delivery's README front matter
     pretraining/
       extract_embeddings.py     per-frame CLS embeddings for every pretraining video (see skills/pretraining/extract-embeddings)
     preprocessing/

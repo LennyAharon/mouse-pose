@@ -22,8 +22,8 @@ cross = +-1 SD across them, frames from the dataset's raw labeled-data/. Which f
 Delivery (skills/pose-video, output hygiene):
 <results_dir>/qualitative/<dataset>-active-r<R>-<MM-DD>/ with
 videos/<what>__<model tokens>_nogt.mp4, csv/ (member predictions on the drawn frames + the
-renderer's tables) and README.md (front matter for scripts/qualitative_index.py, model-token
-table, exact commands).
+renderer's tables) and README.md (front matter for scripts/qualitative/qualitative_index.py,
+model-token table, exact commands).
 """
 
 import argparse
