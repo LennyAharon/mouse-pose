@@ -256,6 +256,9 @@ mighty-mouse/
     transfer_pseudo_labels.py   write model predictions into one raw dataset's label CSVs (see skills/transfer-pseudo-labels)
     ensemble_pseudo_labels.py   overwrite a raw dataset's labels with a confidence-thresholded mean of several models (see skills/transfer-pseudo-labels)
     active_labeling.py          label new keypoints by iterating hand-labeling and ensemble-disagreement frame selection (see skills/active-pseudo-labeling)
+    qualitative/                house-style overlay videos: render_panel.py, render_compare.py,
+                                 ensemble_variance_rows.py, active_round_video.py (see skills/pose-video)
+    qualitative_index.py        <results_dir>/qualitative/INDEX.md from each delivery's README front matter
     pretraining/
       extract_embeddings.py     per-frame CLS embeddings for every pretraining video (see skills/pretraining/extract-embeddings)
     preprocessing/
@@ -283,6 +286,7 @@ mighty-mouse/
       active_labeling.py        ensemble-disagreement frame selection, stats, merge-back (CLI: scripts/active_labeling.py)
     plots/
       plot_keypoints.py         keypoint overlay visualization
+      house_style.py            shared colours, banner, header/footer for overlay videos (skills/pose-video)
     pretraining/
       video_list.py             flatten the pretraining videos paths file into videos to process
       embed.py                  frame decoding + frozen-ViT CLS extraction
