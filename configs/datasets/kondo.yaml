@@ -5,8 +5,6 @@ exclude:
   sessions:
 
 keypoints:
-  # ears realigned by MW to cheese-2d's ear definitions (kondo MW v0, 2026-09-26): root = where
-  # the ear attaches (base), tip = tip, lateral = rear edge (cheese ear(bottom))
   earroot: ear_base_{side}
   eartip: ear_tip_{side}
   earlateral: ear_bottom_{side}
