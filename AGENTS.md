@@ -34,6 +34,7 @@ short `name`/`description` frontmatter — readable by any agent, not just Claud
 - **Zero-shot / few-shot adaptation curves and masked-label bars (local queue or SLURM / ACCESS)** → [`skills/adaptation-curves/SKILL.md`](skills/adaptation-curves/SKILL.md)
 - **Any GPU job on NCSA Delta (before submitting, and on start / finish): report the expected wait and pick the fastest route** → [`skills/delta-gpu-queue/SKILL.md`](skills/delta-gpu-queue/SKILL.md)
 - **Any overlay video or figure of predictions / labels** → [`skills/pose-video/SKILL.md`](skills/pose-video/SKILL.md) (its *House style* section is mandatory: group palette, banner, SD crosses + strip, file naming)
+- **Extracting per-frame CLS embeddings from the pretraining videos (MAE pretraining data pipeline)** → [`skills/pretraining/extract-embeddings/SKILL.md`](skills/pretraining/extract-embeddings/SKILL.md)
 
 Read the relevant one before starting the task — they have hard-won detail (what
 to ask before converting a dataset, why a version bump can refuse as a no-op, etc.)
@@ -50,6 +51,10 @@ that isn't worth re-deriving from scratch.
   [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)
   for the full list of decisions (new keypoints, laterality, multi-view merging,
   train/test split) that need a human call rather than an inferred default.
+- **`ALL_DATASETS` and tracked configs go together.** A dataset is in `ALL_DATASETS`
+  (the list in `configs/dataset_registry.yaml`, read by `mighty_mouse/datasets.py`) if and only if its `configs/datasets/<name>.yaml` is tracked
+  in git. Experimental/undecided datasets stay out of the list and have their config
+  gitignored (see the bottom of `.gitignore`); do both together when promoting one.
 - **Don't hardcode values that drift.** The keypoint count, for example, changes as
   datasets are added — read `configs/model.yaml`'s `data.num_keypoints` fresh each
   time rather than writing a specific number into docs, comments, or code.
