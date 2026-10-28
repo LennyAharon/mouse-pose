@@ -16,7 +16,6 @@ many keypoints it shows; the footer the frame id. Writes <out dir>/videos/<name>
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 import cv2
@@ -36,20 +35,7 @@ from mighty_mouse.plots.house_style import (
     square,
     video_path,
 )
-
-
-def view_of(target: str, frame: str) -> str:
-    sess = frame.split("/")[2]
-    if target.startswith("ibl"):                   # ibl and derived sets (ibl-digits)
-        return "left" if sess.endswith("_left") else "right (flipped)"
-    if target in ("cheese-2d", "cheese-3d"):       # six cameras, named in the session
-        m = re.search(r"_(BC|TC|TL|TR|L|R)(?:_|$)", sess)
-        return m.group(1) if m else "camera"
-    m = re.search(r"(cam\d+)$", sess)              # e.g. kaufman <session>-cam1 / -cam2
-    if m:
-        return m.group(1)
-    m = re.search(r"_(left|right)$", sess)         # e.g. cavelli <session>_left / _right
-    return m.group(1) if m else "camera"
+from mighty_mouse.plots.views import view_of
 
 
 def main() -> None:
@@ -101,7 +87,7 @@ def main() -> None:
 
     views = {}
     for f in sorted(models[0][1].index):
-        views.setdefault(view_of(args.target, f), []).append(f)
+        views.setdefault(view_of(args.target, f.split("/")[2]), []).append(f)
     views = {v: [fs[int(i)] for i in np.linspace(0, len(fs) - 1, min(args.frames, len(fs)))]
              for v, fs in sorted(views.items())}
     n = max(len(fs) for fs in views.values())

@@ -20,7 +20,6 @@ Writes <out dir>/videos/<name>.mp4.
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 import cv2
@@ -30,6 +29,7 @@ import pandas as pd
 from mighty_mouse.paths import load_paths
 from mighty_mouse.plots.house_style import BANNER_H, GROUPS, Writer, fit, video_path
 from mighty_mouse.plots.house_style import color as group_color
+from mighty_mouse.plots.views import view_of
 
 EXTRA = ["tongue_tip", "pupil_center_right"]   # always drawn, even where supervised
 RING  = {"pupil_center_right"}                 # ring, not a filled dot
@@ -53,26 +53,6 @@ VIEW_ORDER = [("ibl", "left"), ("ibl", "right"), ("facemap", "cam0"), ("facemap"
 def put(canvas, x, y, text, color=(235, 235, 235), fs=0.5):
     cv2.putText(canvas, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, fs, color, 1, cv2.LINE_AA)
     return x + cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, fs, 1)[0][0]
-
-
-def view_of(dataset, session):
-    if dataset == "facemap":
-        return "cam0" if "cam0" in session else "cam1"
-    if dataset == "ibl":   # legacy sessions: <...>_leftCamera.<...> (left view, unflipped)
-        left = session.endswith("_left") or ("leftCamera" in session and "right" not in session)
-        return "left" if left else "right"
-    if dataset in ("cheese-2d", "cheese-3d"):
-        m = re.search(r"_(BC|TC|TL|TR|L|R)(?:_|$)", session)
-        return m.group(1) if m else None
-    if dataset in ("hantman-mv", "tyssowski"):
-        return "front" if session.endswith("_front") else "side"
-    if dataset in ("kaufman", "kaufman-water"):
-        m = re.search(r"-(cam\d)$", session)
-        return m.group(1) if m else None
-    if dataset == "cavelli":
-        return "left" if session.endswith("_left") else "right"
-    return {"cazettes-side": "side", "kondo": "bottom",
-            "aind-vbn-body": "body", "aind-vbn-face": "face"}[dataset]
 
 
 def val(df, fr, k, c):

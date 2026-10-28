@@ -37,15 +37,21 @@ import pandas as pd
 import yaml
 
 from mighty_mouse.paths import load_paths, repo_root
+from mighty_mouse.plots.views import view_of
 
 RENDERER = Path(__file__).with_name("ensemble_variance_rows.py")
 SPLIT_CSV = {"train": "CollectedData.csv", "test": "CollectedData_test.csv"}
 
 
-def is_left(session: str) -> bool:
-    """Same view rule as ensemble_variance_rows.py (incl. legacy ibl `..._leftCamera...`
-    sessions)."""
-    return session.endswith("_left") or ("leftCamera" in session and "right" not in session)
+def spread_per_view(frames: pd.Index, dataset: str, n: int) -> pd.Index:
+    """At most n frames per camera view, evenly spaced through `frames` (so across sessions),
+    in their original order; same view rule as ensemble_variance_rows.py."""
+    views = pd.Series([view_of(dataset, Path(f).parent.name) for f in frames], index=frames)
+    keep = []
+    for _, view in views.groupby(views, sort=True):
+        keep += list(view.index[np.unique(np.linspace(0, len(view) - 1,
+                                                      min(n, len(view))).astype(int))])
+    return frames[frames.isin(keep)]
 
 
 def main() -> None:
@@ -99,13 +105,7 @@ def main() -> None:
         frames = preds[0].index[preds[0].index.isin(split)]
         n_all = len(frames)
         if args.per_view:
-            left = pd.Series([is_left(Path(f).parent.name) for f in frames], index=frames)
-            keep = pd.Index([])
-            for view in (left[left], left[~left]):
-                take = np.unique(np.linspace(0, len(view) - 1,
-                                             min(args.per_view, len(view))).astype(int))
-                keep = keep.append(view.index[take] if len(view) else pd.Index([]))
-            frames = frames[frames.isin(keep)]
+            frames = spread_per_view(frames, args.dataset, args.per_view)
         n_seen = int(frames.isin(trained).sum())
         subset = (f"{len(frames)} of the {n_all} {args.frames}-split frames "
                   f"({args.per_view} per view, evenly spread)"
@@ -124,7 +124,8 @@ def main() -> None:
         subset = f"the {len(frames)} frames selected for labeling round {r + 1} (not trained on)"
         n_frames = len(frames)
     elif args.frames == "top":
-        scores = pd.read_csv(rdir / "pool_scores.csv", index_col=0)["score"]
+        # NaN = no keypoint scored on that frame; `select` never picks those
+        scores = pd.read_csv(rdir / "pool_scores.csv", index_col=0)["score"].dropna()
         frames = (scores.loc[scores.index.intersection(pool)]
                   .sort_values(ascending=False).index[:args.n])
         # back to dataset order, so a session's frames stay together
@@ -134,13 +135,7 @@ def main() -> None:
     else:
         # --n per view, evenly spaced through the dataset order (so across sessions), as the
         # renderer would pick them; pre-picked here so csv/ only holds the drawn frames
-        left = pd.Series([is_left(Path(f).parent.name) for f in pool], index=pool)
-        frames = pd.Index([])
-        for view in (left[left], left[~left]):
-            take = (np.unique(np.linspace(0, len(view) - 1, min(args.n, len(view))).astype(int))
-                    if len(view) else [])
-            frames = frames.append(view.index[take])
-        frames = pool[pool.isin(frames)]
+        frames = spread_per_view(pool, args.dataset, args.n)
         subset, n_frames = "pool frames (not trained on)", args.n
 
     cfg = yaml.safe_load((Path(model_dirs[0]) / "config.yaml").read_text())

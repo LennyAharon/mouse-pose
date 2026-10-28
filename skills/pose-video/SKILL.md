@@ -177,9 +177,10 @@ and put the command in the delivery README. Conventions it encodes:
 - **Every panel carries its view name, its inherited-keypoint count, and a step/frame footer**;
   the banner names the run, the floor and the colour key. No separate legend image.
 - `--exclude` defaults to `cheese-2d`; pass `--exclude ""` to include it.
-- `VIEW_ORDER` in the script lists the (dataset, view) panels and `view_of()` maps a session
-  directory to its view. **A new dataset or camera means adding both**; views present in the data
-  but missing from `VIEW_ORDER` are appended at the end and reported, never dropped silently.
+- `VIEW_ORDER` in the script lists the (dataset, view) panels; `view_of()` in
+  `mighty_mouse/plots/views.py` maps a session directory to its view for every renderer. **A new
+  dataset or camera means checking both**; views present in the data but missing from
+  `VIEW_ORDER` are appended at the end and reported, never dropped silently.
 
 Variants, same script:
 

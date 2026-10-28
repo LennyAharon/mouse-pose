@@ -58,6 +58,7 @@ from mighty_mouse.plots.house_style import (
     square,
     video_path,
 )
+from mighty_mouse.plots.views import view_of
 
 MODES = [("ensemble var", "Var(x)"), ("inv-conf-weighted", "Var(x) / mean(c)"),
          ("mixture", "mean(1/c) + Var(x)")]
@@ -125,7 +126,8 @@ def main() -> None:
     ap.add_argument("--modes",     default="",
                     help="comma list of rows to draw: 'ensemble var', "
                          "'inv-conf-weighted', 'mixture' (default all)")
-    ap.add_argument("--no_gt",     action="store_true")
+    ap.add_argument("--no_gt",     action="store_true",
+                    help="do not draw ground truth (labels still score the csv/ tables)")
     ap.add_argument("--median_panel", action="store_true",
                     help="under each panel, the same overlays on the frame minus its session's "
                          "median frame")
@@ -176,11 +178,14 @@ def main() -> None:
         keep = [i for i, (name, _) in enumerate(MODES) if name in want]
         assert keep, f"--modes {want} matches none of {[m for m, _ in MODES]}"
         modes, sd = [MODES[i] for i in keep], [sd[i] for i in keep]
-    if args.no_gt and not args.gt_csv:
+    # labels score the csv/ tables even with --no_gt (which only stops drawing them); raw
+    # predictions without --gt_csv or --data_dir have none
+    gt_csv = (Path(args.gt_csv) if args.gt_csv
+              else D / f"CollectedData_{args.target}_test.csv" if D else None)
+    if gt_csv is None:
         gt, sg, labelled = None, None, []
     else:
-        gt_csv = Path(args.gt_csv) if args.gt_csv else D / f"CollectedData_{args.target}_test.csv"
-        gt = pd.read_csv(gt_csv, header=[0, 1, 2], index_col=0).loc[idx]
+        gt = pd.read_csv(gt_csv, header=[0, 1, 2], index_col=0).reindex(idx)
         sg = gt.columns[0][0]
         labelled = [k for k in kps if (sg, k, "visible") in gt.columns]
     OUT = video_path(args.out)
@@ -200,7 +205,9 @@ def main() -> None:
                 for (name, _), (a, b) in zip(modes, sd, strict=True):
                     r[f"sd_{name.replace(' ', '_')}"] = float(np.hypot(a[i, j], b[i, j]))
                 rows.append(r)
-    per = pd.DataFrame(rows)
+    # explicit columns: nothing above --conf still gives a (header-only) table
+    per = pd.DataFrame(rows, columns=["frame", "keypoint", "mean_conf", "x", "y", "err"]
+                       + [f"sd_{name.replace(' ', '_')}" for name, _ in modes])
     per.to_csv(CSV / (OUT.stem + "_per_frame_keypoint.csv"), index=False)
     for k, g in per.groupby("keypoint", sort=False):
         for name, _ in modes:
@@ -210,14 +217,13 @@ def main() -> None:
                              median_err_px=lab.err.median(),
                              spearman_err_sd=(lab.err.corr(lab[col], method="spearman")
                                               if len(lab) > 2 else np.nan)))
-    pd.DataFrame(summ).to_csv(CSV / (OUT.stem + "_summary.csv"), index=False)
+    pd.DataFrame(summ, columns=["keypoint", "variance", "median_sd_px", "median_err_px",
+                                "spearman_err_sd"]).to_csv(CSV / (OUT.stem + "_summary.csv"),
+                                                           index=False)
 
     views = {}
     for i, f in enumerate(idx):
-        # <uuid>_left / _right_flipped, or the legacy ibl <...>_leftCamera.<...>
-        sess = Path(f).parent.name
-        left = sess.endswith("_left") or ("leftCamera" in sess and "right" not in sess)
-        views.setdefault("left" if left else "right (flipped)", []).append(i)
+        views.setdefault(view_of(args.target, Path(f).parent.name), []).append(i)
     views = {v: [ii[int(t)] for t in np.linspace(0, len(ii) - 1, min(args.frames, len(ii)))]
              for v, ii in sorted(views.items())}
     n = max(len(v) for v in views.values())
@@ -237,7 +243,7 @@ def main() -> None:
         line = (f"{args.title} | {args.target} {args.subset} | "
                 f"dot = median of all {len(preds)} models; "
                 f"{shown_rule} | {cross} (true length{scale}) | "
-                + ("no ground truth drawn" if args.no_gt else "x = ground truth")
+                + ("no ground truth drawn" if args.no_gt or gt is None else "x = ground truth")
                 + (" | lower panels: frame - session median "
                    "(gray = unchanged, contrast stretched per frame)"
                    if args.median_panel else ""))
