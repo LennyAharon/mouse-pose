@@ -417,7 +417,9 @@ def cmd_sync(args) -> None:
         print("per keypoint:", changes.groupby("keypoint").size().to_dict())
     if dropped or added:
         print(f"keypoints dropped: {dropped}, added: {added}")
-    if not len(changes) and not dropped and not added:
+    elif list(synced.columns) != list(tolabel.columns):
+        print("columns reordered to follow the dataset's CSVs")
+    if not len(changes) and list(synced.columns) == list(tolabel.columns):
         print("Already in sync.")
         return
     if args.dry_run:
