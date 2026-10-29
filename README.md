@@ -242,6 +242,8 @@ mighty-mouse/
   configs/
     keypoints.yaml              canonical keypoint vocabulary
     model.yaml                  LP model config; data_dir/csv_file overridden per-run by train_sweep*.py
+    model_zoominout.yaml        the Mighty Mouse recipe's config: model.yaml + augmentation, per-dataset
+                                 zoom, step-based validation (needs lightning-pose post_sub_lp_delta)
     datasets/
       <dataset>.yaml            per-dataset conversion config
 
@@ -282,6 +284,7 @@ mighty-mouse/
     train.py                    sweep combo/naming/command logic shared by both
                                  train_sweep*.py scripts; also a standalone CLI
                                  (`python -m mighty_mouse.train`) for evaluation only
+    comparison.py               pixel errors over labeled cells (visible == 2), pooled summaries
     labeling/
       ensemble.py               run an ensemble of LP models on a label CSV's images; confidence-thresholded mean
       active_labeling.py        ensemble-disagreement frame selection, stats, merge-back (CLI: scripts/active_labeling.py)
