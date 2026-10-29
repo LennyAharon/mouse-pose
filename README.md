@@ -255,6 +255,8 @@ mighty-mouse/
     train_plan.sh               Mighty Mouse recipe: all-data / dedicated / leave-one-out models, missing ones
                                  trained (see skills/train-plan; needs lightning-pose post_sub_lp_delta)
     zeroshot_predict.py         a leave-one-out trunk's predictions on the left-out dataset's train frames
+    eval_suite.py               test-set pixel-error tables of every trunk / dedicated model (see skills/eval-suite)
+    zeroshot_score.py           leave-one-out zero-shot scores, per keypoint (see skills/eval-suite)
     bump_version.py             snapshot a raw dataset's label CSVs as a new version (see skills/bump-dataset-version)
     corpus_summary.py           per-dataset frame/keypoint summary -> assets/corpus.{csv,md}; run automatically by bump_version.py
     add_keypoints.py            add empty keypoint columns to a raw dataset (see skills/add-keypoints-to-raw-dataset)

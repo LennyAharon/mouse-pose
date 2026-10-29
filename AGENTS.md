@@ -30,6 +30,7 @@ short `name`/`description` frontmatter — readable by any agent, not just Claud
 - **Versioning a dataset's label CSVs** → [`skills/bump-dataset-version/SKILL.md`](skills/bump-dataset-version/SKILL.md)
 - **Training a standalone LP model on one raw dataset** → [`skills/train-lightning-pose-model/SKILL.md`](skills/train-lightning-pose-model/SKILL.md)
 - **Training the Mighty Mouse recipe on the combined corpus (all-data, dedicated and leave-one-out models)** → [`skills/train-plan/SKILL.md`](skills/train-plan/SKILL.md) (needs lightning-pose branch `post_sub_lp_delta`)
+- **Evaluating or comparing the trained models (test-set tables, leave-one-out zero-shot, transfer videos)** → [`skills/eval-suite/SKILL.md`](skills/eval-suite/SKILL.md)
 - **Pseudo-labeling a raw dataset (from another dataset's model, an ensemble of models, precomputed predictions, or its own hand-corrected rows)** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
 - **Labeling new keypoints by iterating label → train ensemble → add highest-disagreement frames** → [`skills/active-pseudo-labeling/SKILL.md`](skills/active-pseudo-labeling/SKILL.md)
 - **Any overlay video or figure of predictions / labels** → [`skills/pose-video/SKILL.md`](skills/pose-video/SKILL.md) (its *House style* section: group palette, banner, header/footer, SD crosses + strip, file naming)
