@@ -207,6 +207,10 @@ lacks the branch's classes (`mighty_mouse.train.check_lightning_pose`). Check wi
 | `--keep_checkpoints` | keeps the best checkpoint after evaluation (needed for zero-shot predictions or fine-tuning) |
 | `--output_root <dir>` | writes runs under another root, same layout |
 
+`scripts/train_plan.sh` builds these commands for the recipe's three stages (all-data trunk,
+dedicated per-dataset models, leave-one-out trunks), shows which runs exist and trains the missing
+ones; see [`skills/train-plan/SKILL.md`](../skills/train-plan/SKILL.md).
+
 Both sampling and zoom look up each training frame's dataset, so `mighty_mouse/train.py` passes
 `ALL_DATASETS` as `data.dataset_names` whenever a run uses either. Evaluation (`evaluate_model`)
 scores labeled cells only (`visible == 2`) and leaves the tongue and lip keypoints out
