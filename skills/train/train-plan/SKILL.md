@@ -1,55 +1,60 @@
 ---
 name: train-plan
-description: Run after a corpus version is built, or when the user asks what to train. Shows which Mighty Mouse recipe models exist or are missing for the current corpus (all-data trunk, dedicated per-dataset models, leave-one-out trunks), asks which stages and seeds to run, and launches them with scripts/train/train_plan.sh.
+description: Run after a corpus version is built (or when the user asks what to train). Shows which recipe-of-record models exist or are missing for the current data version (all-data trunk, dedicated per-dataset models, leave-one-out trunks), asks the user which stages and seeds to run, and launches them in sequence on the GPU with scripts/train/train_plan.sh.
 ---
 
 # Training plan
 
-**Requires lightning-pose on branch `post_sub_lp_delta`** (`paninski-lab/lightning-pose`): the
-recipe's sampling temperature, per-dataset zoom, nonlinear head and resumable runs exist only there.
-Check before training with `git -C <lightning-pose clone> branch --show-current`;
-`scripts/train/train_sweep.py` also stops with a message if the installed lightning-pose lacks them. (Once
-the branch is merged into lightning-pose `main`, drop this section.)
+**Never launch training on your own.** `plan` and `dry` are always safe and are what this skill
+runs by default. `run` starts GPU jobs and is only allowed when the user has named, in this
+conversation, the stages (and seeds) to run; if in doubt, show the table and ask.
 
-**Never launch training on your own.** `plan`, `dry` and `show` are always safe and are what this
-skill runs by default. `run` starts GPU training and is only allowed when the user has named the
-stages (and seeds) to run; if in doubt, show the table and ask.
+`scripts/train/train_plan.sh` knows the recipe of record (shared **nonlinear** head, T=2, per-dataset zoom-in/out) in
+the two sizes the user trains (2026-09-29): **S** = ViT-S DINOv3 12k steps
+(`configs/model_zoominout.yaml`, results under `trunks/`, `dedicated/`) and **B** = ViT-B DINOv3
+24k steps (`configs/ablations/model_zoominout_24k.yaml`, under `trunks_24k/`, `dedicated_24k/`);
+`--arch S|B|SB` (default both). It never retrains something that exists (`--skip_existing`), so it
+can be re-run at any time.
 
-`scripts/train/train_plan.sh` encodes the recipe (header of the script): ViT-S DINOv3,
-`configs/model_zoominout.yaml`, sampling temperature 2, nonlinear head (256 channels), a rolling
-checkpoint every 500 steps, best checkpoint kept. Trunks (all-data and leave-one-out) train 14k steps
-at 384 x 384 (backbone unfrozen at 3k, LR halved at 6k / 8k / 10k); dedicated models keep the
-config's 12k steps at 256 x 256. Results: `<results_dir>/trunks/<tag>_train/...` and
-`<results_dir>/dedicated/<dataset>_train/...`. It never retrains a finished run (`--skip_existing`),
-so it can be re-run at any time.
+**Head (user, 2026-10-22): nonlinear is the default and the go-to.** Every stage adds
+`+model.head_hidden_channels=256` (the adaptation-curves trunk
+recipe) and writes to `trunks-headmlp256/`, `dedicated-headmlp256/` (`trunks_24k-headmlp256/` ... for B).
+`--head linear` gives the old stock linear head (`trunks/`, `dedicated/`) and only when the user asks.
+Check the first run's log for lightning-pose's `nonlinear head: ConvT -> 256 -> ...` line.
+On NCSA Delta, launch with `submit` (one SLURM job per run) and/or `scripts/delta/interactive_feeder.sh`
+(see `skills/train/delta-gpu-queue`), not `run`.
 
-1. `bash scripts/train/train_plan.sh plan` and show the table. Rows: `all` (the all-data trunk),
-   `dedicated` (one per dataset), `loo` (one leave-one-out trunk per dataset; `loo:<ds>` /
-   `dedicated:<ds>` for one). Status per seed: `done` = evaluated; `resumable` = has a rolling
-   checkpoint and continues on the next `run`; `trained` = trained but not evaluated (the next `run`
-   only evaluates it); `PARTIAL` = crashed without a checkpoint (delete the directory to retrain);
-   `missing`; `NO CSV` = build the merged tag first
-   (`python scripts/preprocess/build_dataset.py --tag <tag> --datasets ... --n_frames -1`).
-2. Ask which stages and how many seeds, and wait for the answer. Suggested order: `all` first (what
-   downstream experiments use), then `dedicated` (per-dataset references), then `loo` (needed for
-   zero-shot / transfer experiments). One seed first.
-3. `bash scripts/train/train_plan.sh show <stages> [--seeds "0;1"]` prints the script `run` would launch;
-   check it, then `bash scripts/train/train_plan.sh run <stages> [--seeds ...] [--parallel N]`. It runs
-   detached (`setsid nohup`) and keeps at most N training runs on the machine at once (default 1),
-   counting every `scripts/train/train_sweep.py` process. After every `loo` run it writes zero-shot
+1. `bash scripts/train/train_plan.sh plan` and show the table to the user. Rows are `all` (the
+   Mighty Mouse all-data trunk), `dedicated` (one per dataset), `loo` (one leave-one-out per
+   dataset; `loo:<ds>` for one); columns are arch x seed. `done` = evaluated, `PARTIAL` = crashed or running, `missing` =
+   never trained, `NO CSV` = build the merged tag first (`dataset-update` skill step 4).
+2. If a previous corpus version exists, tell the user which models the data change invalidated
+   (`python scripts/data_manifest.py --no-write --diff v<N-1>`), and that a vocabulary change
+   invalidates everything.
+3. Ask which stages and how many seeds, and wait for the answer. Suggested order: `all` first (it is what every downstream
+   experiment uses), then `dedicated` (upper-bound references, small and fast), then `loo` (only
+   needed for zero-shot / few-shot transfer experiments). Seeds: 1 for everything first; 3 for
+   `all` when ensembles or seed-variance are needed. Train only what the user asked for (on
+   2026-09-29: the all-data trunk in both sizes, then leave-one-out for selected datasets). Alone
+   on the L4 a ViT-S 12k trunk takes ~1.5 h and a ViT-B 24k trunk ~5.5 h; two at a time each is
+   slower (~2.5-3 h / ~8-10 h).
+4. `bash scripts/train/train_plan.sh show <stages>` prints the script `run` would launch (check it),
+   then `bash scripts/train/train_plan.sh run <stages> --seeds "..." [--arch ...]`. It runs detached
+   (`setsid nohup`, survives the session) and keeps **2 training runs** on the GPU whenever it has
+   work left (user, 2026-09-29): before each job it waits until fewer than 2 are running, counted
+   globally (every `scripts/train/train_sweep.py` process, including other sessions'), then launches it
+   in the background. So a queue always fills a free second slot, a plan started next to one other
+   run starts at once, and a third run always waits. Never use `wait -n` for slot control (it once
+   let 3 runs start). After every `loo` run it writes zero-shot
    predictions on the left-out dataset's train frames (`scripts/evaluation/zeroshot_predict.py` ->
-   `<run>/zeroshot/<ds>_train_predictions.csv`; test frames are in `<run>/eval/<ds>/`).
-   `bash scripts/train/train_plan.sh status` tails the log (`<results_dir>/_logs/train_plan_*.log`).
-   Queued runs read `paths.yaml` when they start: do not repoint it while a plan is running.
-4. When done, rerun `plan` to confirm every row is `done`, check the first run's log for
-   lightning-pose's `nonlinear head: ConvT -> 256 -> ...` line, and evaluate with the `eval-suite`
-   skill.
+   `<run>/zeroshot/<ds>_train_predictions.csv`); test frames are in `<run>/eval/<ds>/`. Log at
+   `<results_dir>/_logs/train_plan_<stamp>_<stages>.log`; `bash scripts/train/train_plan.sh status` to
+   check. A `PARTIAL` dir from a crash must be deleted before re-running (skip_existing keys on the
+   dir). Queued runs read `paths.yaml` when they launch: do not repoint it while a plan is live.
+5. When done: rerun `plan` to confirm every row is `done`, note the outcome in
+   `docs/results_catalog.md` (roots under `trunks/` and `dedicated/` for this version) and in
+   memory, and tell the user which experiments are now unblocked (few-shot cells need the `loo`
+   trunks; `scripts/fewshot_cell.sh` must be pointed at the new trunk paths first). Evaluation:
+   the `eval-suite` skill (leave-one-out zero-shot scoring is its step 5).
 
-Adding a dataset: add it to `ALL_DATASETS` and give it a short name at the end of `SHORT_NAMES`
-(`mighty_mouse/datasets.py`); its tags and rows follow.
-
-## On NCSA Delta (our branch)
-
-Launch with `scripts/train/train_plan.sh submit` (one SLURM job per run, `scripts/delta/train_plan_job.sbatch`)
-and/or `scripts/delta/interactive_feeder.sh` (see `skills/train/delta-gpu-queue`), not `run`. Our
-`train_plan.sh` also keeps the `args` subcommand the feeder reads and the `--head` / `--arch` options.
+Adding a dataset: append its short name to the `TAG` map in `train_plan.sh` (and the registry).
