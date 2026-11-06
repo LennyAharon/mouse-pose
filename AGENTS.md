@@ -21,24 +21,14 @@ the data itself lives in sibling directories of the parent `poseinterface/` chec
 
 ## Where things live
 
-Full directory layout: see [`README.md`](README.md#directory-layout). Workflows
-you'll hit often have their own docs under `skills/<name>/SKILL.md` (plain markdown with a
-short `name`/`description` frontmatter — readable by any agent, not just Claude):
-
-- **Onboarding a new raw dataset** → [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)
-- **Adding new (empty) keypoints to an existing raw dataset for labeling** → [`skills/add-keypoints-to-raw-dataset/SKILL.md`](skills/add-keypoints-to-raw-dataset/SKILL.md)
-- **Versioning a dataset's label CSVs** → [`skills/bump-dataset-version/SKILL.md`](skills/bump-dataset-version/SKILL.md)
-- **Training a standalone LP model on one raw dataset** → [`skills/train-lightning-pose-model/SKILL.md`](skills/train-lightning-pose-model/SKILL.md)
-- **Pseudo-labeling a raw dataset (from another dataset's model, an ensemble of models, precomputed predictions, or its own hand-corrected rows)** → [`skills/transfer-pseudo-labels/SKILL.md`](skills/transfer-pseudo-labels/SKILL.md)
-- **Labeling new keypoints by iterating label → train ensemble → add highest-disagreement frames** → [`skills/active-pseudo-labeling/SKILL.md`](skills/active-pseudo-labeling/SKILL.md)
-- **Zero-shot / few-shot adaptation curves and masked-label bars (local queue or SLURM / ACCESS)** → [`skills/adaptation-curves/SKILL.md`](skills/adaptation-curves/SKILL.md)
-- **Any GPU job on NCSA Delta (before submitting, and on start / finish): report the expected wait and pick the fastest route** → [`skills/delta-gpu-queue/SKILL.md`](skills/delta-gpu-queue/SKILL.md)
-- **Any overlay video or figure of predictions / labels** → [`skills/pose-video/SKILL.md`](skills/pose-video/SKILL.md) (its *House style* section is mandatory: group palette, banner, SD crosses + strip, file naming)
-- **Extracting per-frame CLS embeddings from the pretraining videos (MAE pretraining data pipeline)** → [`skills/pretraining/extract-embeddings/SKILL.md`](skills/pretraining/extract-embeddings/SKILL.md)
-
-Read the relevant one before starting the task — they have hard-won detail (what
-to ask before converting a dataset, why a version bump can refuse as a no-op, etc.)
-that isn't worth re-deriving from scratch.
+Full directory layout: see [`README.md`](README.md#directory-layout). Workflows you'll hit
+often have their own docs under `skills/**/SKILL.md` (plain markdown with a short
+`name`/`description` frontmatter — readable by any agent, not just Claude). Each
+`description:` says when to use it; list them with `ls skills/*/*/SKILL.md`
+(skills are grouped by stage: `skills/{pretrain,preprocess,train,evaluation}/`) and read the relevant
+one before starting the task — they have hard-won detail (what to ask before converting a
+dataset, why a version bump can refuse as a no-op, etc.) that isn't worth re-deriving from
+scratch.
 
 ## Rules for working in this repo
 
@@ -48,13 +38,14 @@ that isn't worth re-deriving from scratch.
   `model.yaml`, `ALL_DATASETS`, running `convert_dataset.py`) is a separate decision
   that needs its own explicit go-ahead — never assume it just because stage 1
   finished, even in the same conversation. See
-  [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)
+  [`skills/preprocess/preprocess-new-dataset/SKILL.md`](skills/preprocess/preprocess-new-dataset/SKILL.md)
   for the full list of decisions (new keypoints, laterality, multi-view merging,
   train/test split) that need a human call rather than an inferred default.
 - **`ALL_DATASETS` and tracked configs go together.** A dataset is in `ALL_DATASETS`
-  (the list in `configs/dataset_registry.yaml`, read by `mighty_mouse/datasets.py`) if and only if its `configs/datasets/<name>.yaml` is tracked
+  (`mighty_mouse/datasets.py`) if and only if its `configs/datasets/<name>.yaml` is tracked
   in git. Experimental/undecided datasets stay out of the list and have their config
-  gitignored (see the bottom of `.gitignore`); do both together when promoting one.
+  gitignored (see the bottom of `.gitignore`); do both together when promoting one, and give
+  it a short name at the end of `SHORT_NAMES` (merged-CSV tags).
 - **Don't hardcode values that drift.** The keypoint count, for example, changes as
   datasets are added — read `configs/model.yaml`'s `data.num_keypoints` fresh each
   time rather than writing a specific number into docs, comments, or code.
@@ -89,10 +80,10 @@ public functions. Ruff (`pyproject.toml`) is the source of truth for anything it
   `patch.dict` on registries like `POST_PROCESS`).
 - CI (`.github/workflows/tests.yml`) installs every dependency *except* lightning-pose,
   so tested modules must not import `lightning_pose` at module level (import it inside the
-  function that needs it, as `mighty_mouse/train.py` does), and any package they import
+  function that needs it, as `mighty_mouse/train/sweep.py` does), and any package they import
   directly must be listed in `pyproject.toml` rather than arriving via lightning-pose.
 
-**Scripts that write to real data.** `scripts/convert_dataset.py` and
-`scripts/build_dataset.py` write into `data_dir` from `paths.yaml` unless given
+**Scripts that write to real data.** `scripts/preprocess/convert_dataset.py` and
+`scripts/preprocess/build_dataset.py` write into `data_dir` from `paths.yaml` unless given
 `--data_dir` — always pass a scratch `--data_dir` when smoke-testing them.
-`scripts/transfer_pseudo_labels.py` and `scripts/ensemble_pseudo_labels.py` edit raw label CSVs in place.
+`scripts/preprocess/transfer_pseudo_labels.py` and `scripts/preprocess/ensemble_pseudo_labels.py` edit raw label CSVs in place.

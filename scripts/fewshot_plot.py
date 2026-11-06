@@ -5,14 +5,21 @@ Lines = draw-0 cells (the complete grid); small hollow markers = other frame dra
 available (spread). Anchors: zero-shot (n−1 trunk, dashed) and dedicated model (dotted).
 Metric: pooled mean pixel error over test (frame, keypoint) cells; pupil_center_right excluded.
 """
-import argparse, json, sys
+import argparse
+import json
+import sys
 from pathlib import Path
+
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np, pandas as pd
+import numpy as np
+import pandas as pd
+
 sys.path.insert(0, "/teamspace/studios/this_studio/mouse-pose")
 from mighty_mouse.paths import load_paths
+
 P = load_paths(); R = Path(P["results_dir"]); D = Path(P["data_dir"])
 inv = json.load(open(D / "dataset_inventory.json"))["datasets"]
 DS = ["ibl", "kondo", "cazettes-side", "facemap", "cheese-2d"]

@@ -21,13 +21,13 @@ lives elsewhere (`docs/build_dataset.md`, the experiment plan); this file is *ho
 ## Data pipeline
 
 ```bash
-python scripts/convert_dataset.py --dataset <name>     # raw -> canonical CSVs, per dataset
-python scripts/build_dataset.py --tag <tag> ...        # merge per-dataset CSVs into a tag
-python -m mighty_mouse.inventory                         # validate + regenerate inventory
+python scripts/preprocess/convert_dataset.py --dataset <name>     # raw -> canonical CSVs, per dataset
+python scripts/preprocess/build_dataset.py --tag <tag> ...        # merge per-dataset CSVs into a tag
+python -m mighty_mouse.preprocess.inventory                         # validate + regenerate inventory
 ```
 
 The dataset registry (`configs/dataset_registry.yaml`) is the single ordered source of
-dataset ids — list position = id, append-only. `python -m mighty_mouse.inventory` validates
+dataset ids — list position = id, append-only. `python -m mighty_mouse.preprocess.inventory` validates
 the 36-keypoint schema, asserts train/test session disjointness, derives the
 direct/trainable/eval keypoint masks, and regenerates `docs/dataset_inventory.md` plus a
 machine-readable `dataset_inventory.json` next to the data. Run it before freezing any
@@ -42,7 +42,7 @@ All training goes through the sweep scripts (never bare `litpose` for real runs 
 sweep wires the registry, output layout, and evaluation):
 
 ```bash
-python scripts/train_sweep.py \
+python scripts/train/train_sweep.py \
     --csv_files "CollectedData_face+ibl+cheese+caz+kondo_train.csv" \
     --train_frames "1" --seeds "0" --backbones "vits_dinov3" \
     --sampling_temperatures "2" --head_modes "shared" \
@@ -97,7 +97,7 @@ factory loads with `strict=False`, so a broken path can otherwise pass silently.
 Automatic after each sweep run. Standalone / re-run:
 
 ```bash
-python -m mighty_mouse.train --output_dir <run_dir> [--csv_file <train csv>] --keep_checkpoints
+python -m mighty_mouse.train.sweep --output_dir <run_dir> [--csv_file <train csv>] --keep_checkpoints
 ```
 
 (`--csv_file` is inferred from standard sweep paths but must be given for non-standard
@@ -172,7 +172,7 @@ Re-encode to H.264 for in-IDE playback:
 
 ## Remote jobs (Lightning AI)
 
-`scripts/train_sweep_lightning.py` — same args as the local sweep, plus:
+`scripts/train/train_sweep_lightning.py` — same args as the local sweep, plus:
 
 - `--publish_dir /teamspace/gcs_folders/head-fixed-nips26` — a Job's filesystem dies with
   the job; results are copied to this GCP teamspace folder **only after eval succeeds**

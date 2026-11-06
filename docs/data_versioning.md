@@ -82,7 +82,7 @@ can always be traced to the data version it was trained on even without the READ
 1. Add or update raw data under `_raw/` (new folder for anything changed). Update
    `configs/datasets/*.yaml` if a dataset's raw folder, keypoint map or exclusions changed.
 2. Point `paths.yaml` `data_dir`/`results_dir` at `head-fixed-v<N>`.
-3. `python scripts/convert_dataset.py --dataset <each>` and `python scripts/build_dataset.py ...`
+3. `python scripts/preprocess/convert_dataset.py --dataset <each>` and `python scripts/preprocess/build_dataset.py ...`
    for the tags you need (n=1 / n-1 / n=all, see `docs/build_dataset.md`).
 4. `python scripts/data_manifest.py` → writes `data/head-fixed-v<N>/MANIFEST.json`.
 5. `python scripts/data_manifest.py --diff v<N-1>` → prints what changed vs the previous version
@@ -103,7 +103,7 @@ any other agent read the same file. `dataset-update` runs when a dataset changes
 exist or are missing (and runs only what the user names); `eval-suite` is the post-training
 evaluation battery and the folder convention for every qualitative deliverable
 (`<results_dir>/qualitative/<topic>-<MM-DD>/README.md` with front matter, indexed into
-`qualitative/INDEX.md` by `scripts/qualitative_index.py`); `pose-video` renders overlays.
+`qualitative/INDEX.md` by `scripts/evaluation/qualitative/qualitative_index.py`); `pose-video` renders overlays.
 
 ## v1 (done 2026-09-18)
 

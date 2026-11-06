@@ -3,7 +3,7 @@
 Per-keypoint table of many models on ONE target dataset's held-out test frames.
 
 The fine-tune convention (eval-suite skill): when adapting to dataset X, report only X, per
-keypoint, never the other datasets. Cells are visible == 2 labels (mighty_mouse.comparison
+keypoint, never the other datasets. Cells are visible == 2 labels (mighty_mouse.evaluation.comparison
 .visible_errors); each cell is "mean / median" px, plus a pooled column over the scored keypoints.
 A keypoint the model never trained (not in `trainable` of the datasets of its saved training csv,
 e.g. tongue for a leave-ibl-out trunk) is shown as "untrained" and left out of its pooled number.
@@ -32,7 +32,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from mighty_mouse.comparison import target_scores, trained_keypoints, visible_errors
+from mighty_mouse.evaluation.comparison import target_scores, trained_keypoints, visible_errors
 from mighty_mouse.paths import load_paths
 
 

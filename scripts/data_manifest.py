@@ -65,7 +65,7 @@ def load_registry(raw_dir: Path) -> dict:
 
 
 def mw_version_of(raw: Path, claimed: int | None) -> dict:
-    """The lab's own label version of a raw dataset (scripts/bump_version.py, skills/bump-dataset-version).
+    """The lab's own label version of a raw dataset (scripts/preprocess/bump_version.py, skills/preprocess/bump-dataset-version).
 
     `_raw/<ds>/VERSION.txt` names the version the live CSVs represent and `versions/` holds its immutable
     snapshot. `verified` is True only when both live CSVs are byte-identical to that snapshot; without

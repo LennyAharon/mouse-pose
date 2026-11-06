@@ -110,17 +110,16 @@ training:
       kwargs:
         percent: [-0.15, 0.15]
         keep_size: true
-  # Per-dataset zoom-out: each dataset's CropAndPad percent upper bound (lower bound, p,
-  # keep_size inherited from the CropAndPad entry above, which is also the fallback for
-  # unlisted datasets). Bounds chosen so each source is zoomed out roughly to the corpus
-  # minimum apparent scale (ibl): eye-width medians give facemap ~4-6x above ibl,
-  # cheese lateral ~2.5-3x, kondo ~2x, cazettes ~1.5x; shrink factor ≈ 1+2p.
-  # Requires data.dataset_names (set by the sweep / CLI override).
-  # Zoom in AND out: [lower, upper] CropAndPad percent per dataset. Negative = crop = enlarge,
-  # factor 1/(1+2p): ibl -0.4 -> 5x, cazettes -0.375 -> 4x, kondo -0.33 -> 3x, cheese -0.25 -> 2x,
-  # so every source also reaches the LARGEST apparent scale in the corpus (facemap, whose eye is
-  # ~3-5x ibl's); upper bounds unchanged from model_zoomaug.yaml. Out-of-frame keypoints become
-  # NaN (unlabeled) after augmentation. Requires lightning-pose-dev >= 44b69c8 (pair support).
+  # Per-dataset zoom in AND out: [lower, upper] CropAndPad percent for each dataset, replacing
+  # the CropAndPad entry above (whose p and keep_size it keeps; unlisted datasets use that entry).
+  # Shrink factor ~ 1 + 2p. Upper bounds zoom each source out roughly to the corpus's smallest
+  # apparent scale (ibl): eye-width medians put facemap ~4-6x above ibl, cheese lateral ~2.5-3x,
+  # kondo ~2x, cazettes ~1.5x. Negative lower bounds crop (enlarge, factor 1/(1+2p): ibl -0.4 ->
+  # 5x, cazettes -0.375 -> 4x, kondo -0.33 -> 3x, cheese -0.25 -> 2x), so every source also
+  # reaches the corpus's largest apparent scale (facemap, whose eye is ~3-5x ibl's). Keypoints
+  # pushed out of the frame become NaN (unlabeled). Needs data.dataset_names (set by
+  # mighty_mouse/train/sweep.py) and lightning-pose branch post_sub_lp_delta
+  # (paninski-lab/lightning-pose); stock lightning-pose ignores this key.
   imgaug_per_dataset_zoom:
     facemap: [-0.15, 2.0]
     cheese-2d: [-0.25, 1.0]
@@ -143,8 +142,9 @@ training:
   val_prob: 0.05
   train_frames: 1
   # Multi-dataset sampling temperature over supervision mass (q_d ∝ (n_d·k̄_d)^(1/T) / k̄_d).
-  # null/1 = stock frame-proportional loader; "inf" = equal supervision per dataset.
-  # Values > 1 require data.dataset_names (the sweep sets it from the dataset registry).
+  # null/1 = stock frame-proportional loader; "inf" = equal supervision per dataset. Set per
+  # run by scripts/train/train_sweep.py --sampling_temperatures (with data.dataset_names); needs
+  # lightning-pose branch post_sub_lp_delta.
   sampling_temperature: null
   num_gpus: 1
   unfreezing_step: 1000

@@ -7,7 +7,7 @@ Every root is fully evaluated (eval CSVs present for every cell, except 2 cells 
 checkpoints ≈ 3.5 GB) and are what every figure, table and score script reads.
 
 Nothing here is a live input to the other session's `experiments/` (its references to old roots
-are inside copied docs/patches only), and no training is running.
+are inside copied patch documents only), and no training is running.
 
 ## Principles
 

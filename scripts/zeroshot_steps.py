@@ -2,7 +2,7 @@
 """
 Zero-shot along training: score every leave-out trunk's periodic-checkpoint predictions of the
 dataset it never saw (<run>/zeroshot/steps/step<k>_<ds>_{test,train}_predictions.csv, from
-scripts/delta/zeroshot_steps.sbatch) like scripts/zeroshot_score.py: visible == 2 labels, pooled
+scripts/delta/zeroshot_steps.sbatch) like scripts/evaluation/zeroshot_score.py: visible == 2 labels, pooled
 over the keypoints the trunk was trained on ("TRAINED"), mean / median px, detection (likelihood
 >= --conf) and confident-but-wrong (>= --conf and > --wrong_px). The run's final predictions (its
 -best.ckpt: eval/<ds>/predictions.csv, zeroshot/<ds>_train_predictions.csv) are step "best".
@@ -25,7 +25,7 @@ from pathlib import Path
 import pandas as pd
 from zeroshot_score import read_preds, score
 
-from mighty_mouse.comparison import trained_keypoints
+from mighty_mouse.evaluation.comparison import trained_keypoints
 from mighty_mouse.paths import load_paths
 from mighty_mouse.registry import load_registry
 

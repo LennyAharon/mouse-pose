@@ -3,7 +3,7 @@
 # (experiment, target, seed) that has not started yet, for scripts/delta/interactive_feeder.sh --specs.
 #
 # BASELINE (do not change): recipe of record S with the shared nonlinear head, i.e. exactly
-#   scripts/train_plan.sh submit loo:<ds> --arch S          (seed 0)
+#   scripts/train/train_plan.sh submit loo:<ds> --arch S          (seed 0)
 # = configs/model_zoominout.yaml (ViT-S DINOv3, 12k steps, bs 32, Adam 5e-5, unfreezing_step 1000,
 #   MultiStepLR milestones [4000, 6000, 8000] x 0.5, T=2, per-dataset zoom) + head_overrides below,
 #   results in <results_dir>/trunks-headmlp256/. Its leave-ibl-out and leave-kaufman-out runs exist.

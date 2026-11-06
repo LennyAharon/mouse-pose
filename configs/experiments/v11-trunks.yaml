@@ -7,7 +7,7 @@
 # the backbone unfrozen at step 3000 instead of 1000, 14k steps instead of 12k, and the LR halvings moved
 # to 6k/8k/10k, plus the shared nonlinear head. Results go to <results_dir>/trunks-headmlp256/ with the
 # rest of the recipe of record (area: baseline). Dedicated models stay on recipe S
-# (scripts/train_plan.sh / the feeder's `dedicated` stage).
+# (scripts/train/train_plan.sh / the feeder's `dedicated` stage).
 
 config: configs/model_zoominout.yaml
 backbone: vits_dinov3

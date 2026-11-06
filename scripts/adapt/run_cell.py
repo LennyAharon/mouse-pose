@@ -13,7 +13,7 @@ everything the trunk trained; an experts trunk with model.head_groups needs PYTH
 at a Lightning Pose that builds them, else ABORT); `litpose train <arm config>` with the cell's
 overrides; check the log (weights loaded, anchor attached, LoRA rank, head) and that the run's
 config kept the trunk's input size (evaluation predicts at the run's size); evaluate on the
-target dataset's test set (`python -m mighty_mouse.train --datasets <ds>`, plus the dataset's
+target dataset's test set (`python -m mighty_mouse.train.sweep --datasets <ds>`, plus the dataset's
 `eval_also` test sets from the grid config; with the grid's
 `eval_last`, also the final-step checkpoint into eval_last/); for LoRA arms
 check that the reloaded model carries the trained adapters; delete checkpoints unless the grid

@@ -42,7 +42,7 @@ Select checkpoints on source validation only. Do not use target videos or labels
 Example preview for Cazettes held out (run from the mouse-pose directory):
 
 ```bash
-python scripts/train_sweep.py --dry_run \
+python scripts/train/train_sweep.py --dry_run \
   --config_file configs/zero_shot/vitb_dinov3.yaml \
   --csv_files CollectedData_face+ibl+cheese+kondo_train.csv \
   --backbones 'vits_dinov3;vitb_dinov3' --sampling_temperatures 2 --head_modes shared \

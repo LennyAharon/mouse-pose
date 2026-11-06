@@ -87,7 +87,7 @@ def main() -> None:
 
     datasets = load_registry()
     short = dict(kv.split("=") for kv in subprocess.run(
-        ["bash", "-c", "grep -oE '\\[[a-z0-9-]+\\]=[a-z0-9]+' scripts/train_plan.sh | tr -d '[]'"],
+        ["bash", "-c", "grep -oE '\\[[a-z0-9-]+\\]=[a-z0-9]+' scripts/train/train_plan.sh | tr -d '[]'"],
         cwd=REPO, capture_output=True, text=True).stdout.split())
     sizes = [int(k) for k in args.sizes.split(",")]
     targets, seeds = subsets(datasets, args.targets, sizes, args.draws)
@@ -118,7 +118,7 @@ def main() -> None:
     print(f"wrote {args.out}")
     if args.build:
         for tag, keep in missing.items():
-            r = subprocess.run([sys.executable, "scripts/build_dataset.py", "--tag", tag,
+            r = subprocess.run([sys.executable, "scripts/preprocess/build_dataset.py", "--tag", tag,
                                 "--datasets", *keep, "--n_frames", "-1"], cwd=REPO,
                                capture_output=True, text=True)
             print(f"  {'built' if r.returncode == 0 else 'FAILED'} {tag}")

@@ -1,13 +1,9 @@
 """
 Single source of truth for which datasets are registered in the combined corpus.
 
-Used by scripts/build_dataset.py (as the default --datasets set) and mighty_mouse/train.py (as the
-set evaluated against after each training run). The list itself lives in
-configs/dataset_registry.yaml, where the list position is the dataset id (samplers, per-dataset
-heads and checkpoints identify datasets by index): append new datasets at the end, never
-reorder. This does NOT derive from configs/datasets/*.yaml; adding a dataset is still a manual
-step (see skills/preprocess-new-dataset/SKILL.md, stage 2), since not every
-configs/datasets/<name>.yaml is necessarily ready to be part of default runs yet.
+This does NOT derive from configs/datasets/*.yaml; adding a dataset here is a manual step
+(stage 2 of onboarding a dataset) since not every configs/datasets/<name>.yaml is necessarily
+ready to be part of default runs yet.
 
 Invariant: a dataset is in the registry (ALL_DATASETS) if and only if its
 configs/datasets/<name>.yaml is tracked in git (a collaborator's default runs would otherwise fail

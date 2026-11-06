@@ -60,7 +60,7 @@ def main() -> None:
     spec = yaml.safe_load(args.definition.read_text())
     results = Path(load_paths()["results_dir"])
     datasets = load_registry()
-    short = dict(re.findall(r"\[([\w-]+)\]=(\w+)", (REPO / "scripts" / "train_plan.sh").read_text()))
+    short = dict(re.findall(r"\[([\w-]+)\]=(\w+)", (REPO / "scripts" / "train" / "train_plan.sh").read_text()))
     head_ov = list(spec.get("head_overrides", []))
     # optional experiment code (worktrees): appended as a 5th field that scripts/delta/pack_job.sh honors
     code = spec.get("code")

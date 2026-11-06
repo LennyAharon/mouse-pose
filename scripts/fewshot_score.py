@@ -1,4 +1,4 @@
-"""Score the few-shot grid: arm 2 (dino) vs arm 3 (trunk), with zero-shot and dedicated anchors.
+r"""Score the few-shot grid: arm 2 (dino) vs arm 3 (trunk), with zero-shot and dedicated anchors.
 Metric (project convention, matches the notebooks): POOLED mean pixel error over all labeled
 (test frame, keypoint) cells of eval/<ds>/pixel_error.csv, pupil_center_right always excluded.
   full      = every keypoint the dataset labels
@@ -8,11 +8,16 @@ Metric (project convention, matches the notebooks): POOLED mean pixel error over
               restricted to keypoints the target does NOT label (the trunk knowledge a lab gets for
               free and cannot measure); zero-shot row = what the trunk had before fine-tuning.
 """
-import json, sys
+import json
+import sys
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
+
 sys.path.insert(0, "/teamspace/studios/this_studio/mouse-pose")
 from mighty_mouse.paths import load_paths
+
 P = load_paths(); R = Path(P["results_dir"]); D = Path(P["data_dir"])
 inv = json.load(open(D / "dataset_inventory.json"))["datasets"]
 DS = ["ibl", "kondo", "cheese-2d", "cazettes-side", "facemap"]

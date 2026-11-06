@@ -17,7 +17,6 @@ Writes <out>/csv/eval_<measure>.csv and prints markdown tables.
 """
 
 import argparse
-import json
 from pathlib import Path
 
 import numpy as np

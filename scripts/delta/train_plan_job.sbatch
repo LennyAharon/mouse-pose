@@ -1,5 +1,5 @@
 #!/bin/bash
-# One recipe-of-record run on NCSA Delta, as submitted by `scripts/train_plan.sh submit`:
+# One recipe-of-record run on NCSA Delta, as submitted by `scripts/train/train_plan.sh submit`:
 # train_sweep.py (train + evaluate on every dataset's test set), then, for a leave-one-out
 # trunk, zero-shot predictions on the left-out dataset's TRAIN frames
 # (<run>/zeroshot/<ds>_train_predictions.csv), exactly as `train_plan.sh run` does locally.
@@ -74,13 +74,13 @@ echo "[$(date -u +%H:%M)] start $RUN_DIR"
 
 EVAL_ONLY=()   # a job cut off during evaluation must not retrain: evaluate only
 trained_only && ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1 && EVAL_ONLY=(--eval_only)
-python scripts/train_sweep.py "$@" "${EVAL_ONLY[@]}"
+python scripts/train/train_sweep.py "$@" "${EVAL_ONLY[@]}"
 
 if [ "$LEFT_OUT" != - ]; then
     mkdir -p "$RUN_DIR/zeroshot"
     for ds in ${LEFT_OUT//,/ }; do
         [ -f "$RUN_DIR/zeroshot/${ds}_train_predictions.csv" ] ||
-            python scripts/zeroshot_predict.py --run "$RUN_DIR" --dataset "$ds"
+            python scripts/evaluation/zeroshot_predict.py --run "$RUN_DIR" --dataset "$ds"
     done
 fi
 echo "[$(date -u +%H:%M)] end $RUN_DIR"

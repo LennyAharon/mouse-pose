@@ -86,7 +86,7 @@ def drop_checkpoints(specs: list[str], results: Path) -> list[Path]:
     """For definitions with `drop_checkpoints: true`: delete the checkpoints (and rolling resume
     checkpoint) of every finished run, i.e. training COMPLETED, test-set evaluation written and a
     zero-shot prediction file for each of its `zeroshot` datasets. Returns the runs cleaned."""
-    short = dict(re.findall(r"\[([\w-]+)\]=(\w+)", (REPO / "scripts/train_plan.sh").read_text()))
+    short = dict(re.findall(r"\[([\w-]+)\]=(\w+)", (REPO / "scripts/train/train_plan.sh").read_text()))
     reg, cleaned = load_registry(), []
     for d in specs:
         spec = yaml.safe_load((REPO / d).read_text())

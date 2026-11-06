@@ -7,7 +7,7 @@
 # Each task trains + evaluates one cell (~10-40 min on an L4, faster on A100; all-frames cells ~1-1.5 h) and is
 # idempotent (`.done` cells exit at once), so the same command can be resubmitted after failures. Requirements on the
 # cluster: this repo + paths.yaml pointing at a copy of the data dir and results tree (trunks with checkpoints), and
-# an environment with mighty_mouse and Lightning Pose post_sub_lp installed (see skills/adaptation-curves/SKILL.md).
+# an environment with mighty_mouse and Lightning Pose post_sub_lp installed (see skills/evaluation/adaptation-curves/SKILL.md).
 # Adjust the #SBATCH lines to the cluster's partition / account names.
 #SBATCH --job-name=mm-adapt
 #SBATCH --gres=gpu:1

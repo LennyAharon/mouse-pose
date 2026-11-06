@@ -10,7 +10,6 @@ _archive/, deletes regenerable qualitative intermediates. Never touches an eval 
 """
 
 import argparse
-import fnmatch
 import json
 import shutil
 from datetime import date

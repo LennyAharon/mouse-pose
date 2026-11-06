@@ -22,14 +22,14 @@ from pathlib import Path
 import pandas as pd
 
 from mighty_mouse.configs import default_configs_dir, load_canonical_keypoints, load_dataset_config
-from mighty_mouse.convert import (
+from mighty_mouse.labels import read_labels_csv
+from mighty_mouse.paths import load_paths
+from mighty_mouse.preprocess.convert import (
     post_process,
     process_split,
     raw_dataset_dir,
     validate_dataset_config,
 )
-from mighty_mouse.labels import read_labels_csv
-from mighty_mouse.paths import load_paths
 
 
 def main() -> None:

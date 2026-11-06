@@ -1,5 +1,5 @@
 #!/bin/bash
-# Progress of my running Delta training jobs (skills/delta-gpu-queue): one line per run with steps
+# Progress of my running Delta training jobs (skills/train/delta-gpu-queue): one line per run with steps
 # done, speed, projected end of training, and the job's hard time limit, plus the feeder's status.
 #
 #   scripts/delta/train_progress.sh              # once

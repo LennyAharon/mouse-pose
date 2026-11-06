@@ -1,5 +1,5 @@
 #!/bin/bash
-# GPU wait report for NCSA Delta (skills/delta-gpu-queue): before submitting, which partition gives a
+# GPU wait report for NCSA Delta (skills/train/delta-gpu-queue): before submitting, which partition gives a
 # GPU soonest for THIS request; after submitting, when queued jobs are expected to start and why.
 #
 #   scripts/delta/gpu_wait.sh                                  # default request: 1 GPU, 16 CPU, 60G, 3h

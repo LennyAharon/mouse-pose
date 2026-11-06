@@ -1,5 +1,5 @@
 #!/bin/bash
-# Keep Delta's interactive GPU partitions busy with recipe-of-record runs (skills/delta-gpu-queue).
+# Keep Delta's interactive GPU partitions busy with recipe-of-record runs (skills/train/delta-gpu-queue).
 # Interactive partitions have priority factor 10000 (regular 100) but allow 1 job per user per
 # partition and 1 h. The limit is per JOB, not per GPU: every minute, each interactive partition
 # without a job of mine gets ONE job holding up to N GPUs with the next N unfinished runs side by side
@@ -69,7 +69,7 @@ SPECS="$RESULTS/_logs/packs"; mkdir -p "$SPECS" "$RESULTS/_logs/slurm"
 
 while true; do
   # runs not started anywhere (train_plan.sh args lists only `missing` ones), in stage order
-  mapfile -t MISSING < <(bash scripts/train_plan.sh args $STAGES --arch S $HEADOPT 2>/dev/null
+  mapfile -t MISSING < <(bash scripts/train/train_plan.sh args $STAGES --arch S $HEADOPT 2>/dev/null
                          for d in "${SPECDEFS[@]}"; do python scripts/delta/exp_specs.py "$d"; done)
   # runs already waiting in an interactive queue (pack jobs carry their run names in --comment)
   targeted=$(squeue -u "$USER" -h -p "$(echo $PARTS | tr ' ' ,)" -o "%k" 2>/dev/null | tr ',' '\n')

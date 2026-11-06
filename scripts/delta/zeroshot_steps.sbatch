@@ -1,7 +1,7 @@
 #!/bin/bash
 # Zero-shot along training on NCSA Delta: for every leave-out trunk under <results_dir>/<area>/ that still
 # has periodic checkpoints, predict each left-out dataset's test AND train frames with every
-# *-periodic.ckpt (scripts/zeroshot_predict.py --every_ckpt ->
+# *-periodic.ckpt (scripts/evaluation/zeroshot_predict.py --every_ckpt ->
 # <run>/zeroshot/steps/step<k>_<ds>_{test,train}_predictions.csv). Resumable: finished outputs are
 # skipped, so a job that hits its time limit is simply resubmitted. Score with scripts/zeroshot_steps.py.
 #
@@ -27,7 +27,7 @@ for run in "$RESULTS/$AREA"/*_train/supervised/sampling-T2/tf1/vits_dinov3/seed*
         [ -e "$zs" ] || continue
         ds=$(basename "$zs" _train_predictions.csv)
         echo "[$(date +%T)] $ds <- $(basename "$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$run")")")")")")"
-        python scripts/zeroshot_predict.py --run "$run" --dataset "$ds" --every_ckpt 2>&1 | grep -E "^checkpoint|^wrote|Error|Traceback"
+        python scripts/evaluation/zeroshot_predict.py --run "$run" --dataset "$ds" --every_ckpt 2>&1 | grep -E "^checkpoint|^wrote|Error|Traceback"
     done
 done
 echo "[$(date +%T)] done"

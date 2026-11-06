@@ -11,7 +11,7 @@
 #
 # Paths are relative to results_dir (paths.yaml), so the same file runs on any machine with the same results tree.
 # Rerun after a data update: retrain the trunks / dedicated models it lists, bump `name`, run the skill.
-# Skill: skills/adaptation-curves/SKILL.md.  Code: mighty_mouse/adaptation.py, scripts/adapt/.
+# Skill: skills/evaluation/adaptation-curves/SKILL.md.  Code: mighty_mouse/adaptation.py, scripts/adapt/.
 
 name: cosyne-2026
 out_subdir: adaptation            # cells go to <results_dir>/adaptation/<name>/<dataset>/<arm>/[mask-<kps>/]tf<N>-draw<d>

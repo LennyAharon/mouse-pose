@@ -24,7 +24,7 @@ Any arm may also set ``config`` (the Lightning Pose config it trains from, defau
 a trunk arm with ``anchor`` may set ``video: true`` to anchor on the target lab's unlabelled video
 as well (the dataset's ``video_dir`` in the grid config, relative to data_dir).
 
-Scripts: ``scripts/adapt/{plan,run_cell,collect,plot}.py``; skill: ``skills/adaptation-curves/``.
+Scripts: ``scripts/adapt/{plan,run_cell,collect,plot}.py``; skill: ``skills/evaluation/adaptation-curves/``.
 """
 
 from __future__ import annotations

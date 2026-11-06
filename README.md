@@ -1,8 +1,5 @@
 # Head-Fixed Combined Pose Estimation Dataset
 
-Current consolidated zero-shot research recipes, comparison metrics, and recovery instructions:
-[zero-shot baseline](docs/zero_shot_baseline.md).
-
 Pipeline for merging multiple labeled datasets into a single standardized training set for Lightning Pose.
 
 ## Installation
@@ -37,7 +34,7 @@ Some datasets require a preprocessing step to generate pseudo-labels before conv
 ### 2. Convert the dataset (run once per dataset)
 
 ```bash
-python scripts/convert_dataset.py --dataset <dataset-name>
+python scripts/preprocess/convert_dataset.py --dataset <dataset-name>
 ```
 
 Reads `configs/datasets/<dataset-name>.yaml`. Outputs to `data/head-fixed/`:
@@ -47,88 +44,78 @@ Reads `configs/datasets/<dataset-name>.yaml`. Outputs to `data/head-fixed/`:
 
 Re-running is safe — images are skipped if already present.
 
-Two options for data versioning (`docs/data_versioning.md`): `--link_frames` symlinks each frame to the
-raw file instead of copying it (frames never change between data versions, only label CSVs do), and a
-`raw_folder: <name>-v2` key in `configs/datasets/<dataset>.yaml` reads the CSVs from a re-labeled raw
-folder while the dataset keeps its name. Register a changed dataset first:
-`python scripts/data_manifest.py --register <dataset> --note "what changed"`.
-
 ### 3. Build a merged training set (run as needed)
 
 ```bash
-# every dataset contributes all of its available train frames
-python scripts/build_dataset.py --tag face+ibl --datasets facemap ibl --n_frames -1
+# balanced: every dataset capped at the same frame count — tag names this explicitly
+python scripts/preprocess/build_dataset.py --tag face+ibl-600 --datasets facemap ibl --n_frames 600
+
+# full: every dataset contributes everything it has, unbalanced
+python scripts/preprocess/build_dataset.py --tag face+ibl --datasets facemap ibl --n_frames -1
 ```
 
 Outputs to `data/head-fixed/`:
 - `CollectedData_<tag>_train.csv`
 - `CollectedData_<tag>_test.csv`
 
-Every tag uses `--n_frames -1` (all frames). `--n_frames <N>` caps each dataset at `N` frames
-instead; it isn't part of the current design, but if you use it, frame selection is reproducible —
-the same `--seed` + dataset name always selects the same frames regardless of which other datasets
-share the tag (default seed 42, moot at `-1`).
+Frame selection is reproducible: the same `--seed` + dataset name always produces the same frames,
+regardless of which other datasets are included. The default seed is 42 (moot for `--n_frames -1`,
+which always takes every frame).
 
-Single-dataset tags need no build step: `convert_dataset.py` already writes
-`CollectedData_<dataset>_{train,test}.csv` with every frame, byte-identical to what a single-dataset
-`--n_frames -1` build would produce.
-
-**See [`docs/build_dataset.md`](docs/build_dataset.md) for which tags to build and why** — in short,
-n=1 (each dataset alone), n−1 (leave-one-out), and n=all, rather than all `2^n − 1` combinations.
+**See [`docs/build_dataset.md`](docs/build_dataset.md) for the full naming convention and why both a
+balanced (`-600`) and full (bare) version of each tag exist** — in short, `-600` isolates whether
+cross-dataset variety helps independent of data quantity, while the full/bare version answers what's
+actually the best model to deploy.
 
 ### 4. Train
 
 ```bash
 # Dry run to preview commands
-python scripts/train_sweep.py --dry_run \
-    --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
-    --train_frames "1" \
+python scripts/train/train_sweep.py --dry_run \
+    --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
+    --train_frames "200;400;600" \
     --seeds "0;1;2"
 
 # Full sweep
-python scripts/train_sweep.py \
-    --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
-    --train_frames "1" \
+python scripts/train/train_sweep.py \
+    --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
+    --train_frames "200;400;600" \
     --seeds "0;1;2" \
     --backbones "vits_dino"
 ```
 
-`--train_frames 1` is Lightning Pose's convention for "use every frame in the CSV" — not one frame.
-Since every tag already contains all available frames, that's what every run uses; `--train_frames
-<N>` would subsample from the CSV at training time, which the current design doesn't do. See
-[`docs/train_sweep.md`](docs/train_sweep.md) for the two-phase plan (n=1 and n=all first, then the
-n−1 ablations).
+`--train_frames` subsamples further from whatever pool `build_dataset.py` wrote (see
+[`docs/build_dataset.md`](docs/build_dataset.md)) — it must be ≤ the CSV's `--n_frames`. If you only
+need one data point per tag rather than a learning curve, `--train_frames 200` alone is the standard
+choice: small enough that a single dataset performs only "reasonable but not great," which is the
+regime where dataset-merging effects are easiest to see.
 
 Results land at `results/head-fixed/<tag>/<losses>/tf<N>/<backbone>/seed<N>/`.
 Evaluation runs automatically after each model against every per-dataset test CSV.
 
 ### 5. Train on Lightning AI (parallel, optional)
 
-`scripts/train_sweep_lightning.py` takes the exact same CLI args as `train_sweep.py` above, but
+`scripts/train/train_sweep_lightning.py` takes the exact same CLI args as `train_sweep.py` above, but
 launches every combo as an independent Lightning Job instead of looping sequentially:
 
 ```bash
 pip install -e ".[lightning]"
 
 # from within a Lightning AI studio
-python scripts/train_sweep_lightning.py \
-    --csv_files "CollectedData_facemap_train.csv;CollectedData_face+ibl+cheese+caz_train.csv" \
-    --train_frames "1" \
+python scripts/train/train_sweep_lightning.py \
+    --csv_files "CollectedData_facemap-600_train.csv;CollectedData_face+ibl+cheese-600_train.csv" \
+    --train_frames "200;400;600" \
     --seeds "0;1;2" \
     --backbones "vits_dino" \
     --machine L4
 ```
 
-Each job command begins with a preflight that aborts if `lightning_pose` resolved to a released
-site-packages build instead of the local editable clone — otherwise a job could train successfully
-while silently ignoring local LP changes (`--allow_stock_lp` to opt out; see `make_preflight_command`).
-
 Both scripts share their combo generation, naming, and `litpose train` command-building via
-`mighty_mouse/train.py` — they only differ in *how* a command gets executed (subprocess loop vs.
+`mighty_mouse/train/sweep.py` — they only differ in *how* a command gets executed (subprocess loop vs.
 `Job.run`), so there's one place to change if the sweep logic itself needs to change. Because a
 Lightning Job is a fresh remote process with no way to "come back" to it afterward like the local
-loop does, evaluation can't happen in-process there — instead `mighty_mouse/train.py` is itself
-CLI-invocable (`python -m mighty_mouse.train --output_dir ... --csv_file ...`) and gets chained onto
+loop does, evaluation can't happen in-process there — instead `mighty_mouse/train/sweep.py` is itself
+CLI-invocable (`python -m mighty_mouse.train.sweep --output_dir ... --csv_file ...`) and gets chained onto
 the training command with `&&` for each job.
 
 **Getting data onto Lightning storage:** each Job is an isolated snapshot of the launching Studio's
@@ -136,7 +123,7 @@ filesystem, and syncing the ~10k individual label/image files in `data/head-fixe
 archive it once (`tar -cf head-fixed_v2.tar head-fixed_v2`) and upload just that file to the
 Studio. Every job then extracts it into place itself on first use if it's not there yet — safe to do
 independently per job since there's no shared filesystem to race on (see `make_extract_command` in
-`mighty_mouse/train.py`, and `docs/train_sweep.md` for the full setup). `paths.yaml` is machine-specific
+`mighty_mouse/train/sweep.py`, and `docs/train_sweep.md` for the full setup). `paths.yaml` is machine-specific
 and gitignored, so the Studio needs its own copy: `data_dir` pointing at wherever the archive lives,
 `results_dir` pointing at storage that's actually persistent/shared across jobs (e.g. a
 teamspace-mounted drive) — the two have different persistence needs and don't have to be on the same
@@ -148,9 +135,9 @@ kind of storage.
 
 Some datasets need custom work before the standard convert step (pseudo-label
 generation, pulling frames from a non-DLC source format, etc.). Each one has its own
-README under `scripts/preprocessing/`.
+README under `scripts/preprocess/`.
 
-**Before starting a new one, see [`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md)**
+**Before starting a new one, see [`skills/preprocess/preprocess-new-dataset/SKILL.md`](skills/preprocess/preprocess-new-dataset/SKILL.md)**
 — it has the checklist of decisions (new keypoints, laterality, multi-view merging,
 train/test split) that need a human call rather than an inferred default.
 
@@ -172,9 +159,9 @@ as labels are added, so check the CSVs directly rather than recording them here.
 | facemap       | left-view; bilateral kps lateralized via `{side}` |
 | hantman-mv    | side- and front-view reaching task (views concatenated); fingertips and wrists for both paws, eyes, nose, ears (pellet excluded); subject-level train/test split |
 | ibl           | wrist + pupil_center + nose_tip + tongue; human-reviewed (July 2026), supersedes `ibl-paw` |
-| kaufman       | right-forepaw digit tips + face (eyes, ears, whisker pad, nose; MW version 1); subject-level train/test split |
+| kaufman       | right-forepaw digit tips only; subject-level train/test split |
 | kaufman-water | earlier kaufman reaching-task recordings (2020-2022, 7 mice); right-forepaw digit tips only; subject-level train/test split |
-| kondo         | right-view face (incl. ears) + both wrists |
+| kondo         | right-view face + both wrists |
 | tyssowski     | side- and front-view reaching task (views concatenated; hantman-style); right-paw fingertips and wrist, nose tip, mouth; subject-level train/test split |
 
 ---
@@ -191,8 +178,8 @@ _raw/<dataset>/                    data/head-fixed/
                                    ──build──▶  CollectedData_<tag>_{train,test}.csv
 ```
 
-**convert** (`scripts/convert_dataset.py`) is slow (copies images) and run once per dataset.
-**build** (`scripts/build_dataset.py`) is fast (CSV only) and run freely for experimentation.
+**convert** (`scripts/preprocess/convert_dataset.py`) is slow (copies images) and run once per dataset.
+**build** (`scripts/preprocess/build_dataset.py`) is fast (CSV only) and run freely for experimentation.
 
 ### Canonical keypoint vocabulary (`configs/keypoints.yaml`)
 
@@ -235,10 +222,10 @@ coordinates; the other gets `NaN` / `vis=1`.
 **`null` sessions** have no dominant side. Lateral keypoints are inapplicable; only midline keypoints
 get filled. Useful for head-on camera views (cheese-2d BC/TC sessions).
 
-### Per-dataset post-processing (`mighty_mouse/convert.py`)
+### Per-dataset post-processing (`mighty_mouse/preprocess/convert.py`)
 
 Some datasets need custom visibility logic beyond the standard lateralization rules. These are
-implemented as functions registered in `POST_PROCESS` near the top of `mighty_mouse/convert.py`
+implemented as functions registered in `POST_PROCESS` near the top of `mighty_mouse/preprocess/convert.py`
 (see there for the current list; each dataset's own README/CHANGELOG explains why it needs one).
 Each function receives the fully-processed DataFrame and the dataset config, and returns a
 modified DataFrame.
@@ -248,57 +235,96 @@ modified DataFrame.
 ```
 mighty-mouse/
   AGENTS.md                     onboarding for coding agents
-  skills/<name>/SKILL.md        step-by-step workflows (onboarding, versioning, standalone training, ...)
-  skills/pretraining/<name>/SKILL.md   workflows for the backbone-pretraining data pipeline
-  docs/                         design notes for build_dataset / train_sweep
+  docs/                         design notes for build_dataset / train_sweep; dataset_inventory.md
+                                 (generated by mighty_mouse/preprocess/inventory.py)
   configs/
     keypoints.yaml              canonical keypoint vocabulary
     model.yaml                  LP model config; data_dir/csv_file overridden per-run by train_sweep*.py
+    model_zoominout.yaml        the Mighty Mouse recipe's config: model.yaml + augmentation, per-dataset
+                                 zoom, step-based validation (needs lightning-pose post_sub_lp_delta)
     datasets/
       <dataset>.yaml            per-dataset conversion config
 
+  # The same stage structure is mirrored in skills/, scripts/, mighty_mouse/ and tests/:
+  #   pretrain | preprocess | train | evaluation
+  # A skill in skills/<stage>/ calls scripts in scripts/<stage>/, which call code in
+  # mighty_mouse/<stage>/ (or the general modules at the top of mighty_mouse/).
+  # .claude/skills/ holds flat symlinks to every skills/<stage>/<name>/ (Claude Code only discovers
+  # skills one level deep).
+
+  skills/<stage>/<name>/SKILL.md
+    pretrain/                   extract-embeddings, dedup-videos
+    preprocess/                 preprocess-new-dataset, add-keypoints-to-raw-dataset, bump-dataset-version,
+                                 transfer-pseudo-labels, active-pseudo-labeling, train-lightning-pose-model
+    train/                      train-plan
+    evaluation/                 eval-suite, pose-video
+
   scripts/
-    convert_dataset.py          per-dataset conversion (run once)
-    build_dataset.py            subsampling + merging (run freely) (see docs/build_dataset.md)
-    train_sweep.py              LP training sweep + evaluation, local/sequential (see docs/train_sweep.md)
-    train_sweep_lightning.py    same sweep, Lightning AI/parallel (see docs/train_sweep.md, mighty_mouse/train.py)
-    bump_version.py             snapshot a raw dataset's label CSVs as a new version (see skills/bump-dataset-version)
-    corpus_summary.py           per-dataset frame/keypoint summary -> assets/corpus.{csv,md}; run automatically by bump_version.py
-    add_keypoints.py            add empty keypoint columns to a raw dataset (see skills/add-keypoints-to-raw-dataset)
-    transfer_pseudo_labels.py   write model predictions into one raw dataset's label CSVs (see skills/transfer-pseudo-labels)
-    ensemble_pseudo_labels.py   overwrite a raw dataset's labels with a confidence-thresholded mean of several models (see skills/transfer-pseudo-labels)
-    active_labeling.py          label new keypoints by iterating hand-labeling and ensemble-disagreement frame selection (see skills/active-pseudo-labeling)
-    pretraining/
-      extract_embeddings.py     per-frame CLS embeddings for every pretraining video (see skills/pretraining/extract-embeddings)
-    preprocessing/
+    pretrain/
+      extract_embeddings.py     per-frame CLS embeddings for every pretraining video (see skills/pretrain/extract-embeddings)
+      dedup_videos.py           stage-1 per-video dedup of those embeddings (see skills/pretrain/dedup-videos)
+    preprocess/
       <dataset>/                per-dataset CHANGELOG.md, plus a converter + README if one was needed
       extract_clips.py          cut short high-motion clips from raw videos for review
-
+      convert_dataset.py        per-dataset conversion (run once)
+      build_dataset.py          subsampling + merging (run freely) (see docs/build_dataset.md)
+      bump_version.py           snapshot a raw dataset's label CSVs as a new version (see skills/preprocess/bump-dataset-version)
+      corpus_summary.py         per-dataset frame/keypoint summary -> assets/corpus.{csv,md}; run automatically by bump_version.py
+      add_keypoints.py          add empty keypoint columns to a raw dataset (see skills/preprocess/add-keypoints-to-raw-dataset)
+      transfer_pseudo_labels.py write model predictions into one raw dataset's label CSVs (see skills/preprocess/transfer-pseudo-labels)
+      ensemble_pseudo_labels.py overwrite a raw dataset's labels with a confidence-thresholded mean of several models (see skills/preprocess/transfer-pseudo-labels)
+      active_labeling.py        label new keypoints by iterating hand-labeling and ensemble-disagreement frame selection (see skills/preprocess/active-pseudo-labeling)
+    train/
+      train_sweep.py            LP training sweep + evaluation, local/sequential (see docs/train_sweep.md)
+      train_sweep_lightning.py  same sweep, Lightning AI/parallel (see docs/train_sweep.md, mighty_mouse/train/sweep.py)
+      train_plan.sh             Mighty Mouse recipe: all-data / dedicated / leave-one-out models, missing ones
+                                 trained (see skills/train/train-plan; needs lightning-pose post_sub_lp_delta)
+    evaluation/
+      eval_suite.py             test-set pixel-error tables of every trunk / dedicated model (see skills/evaluation/eval-suite)
+      zeroshot_predict.py       a leave-one-out trunk's predictions on the left-out dataset's train frames
+      zeroshot_score.py         leave-one-out zero-shot scores, per keypoint (see skills/evaluation/eval-suite)
+      qualitative/              house-style overlay videos: render_panel.py, render_compare.py,
+                                 ensemble_variance_rows.py, active_round_video.py (see skills/evaluation/pose-video);
+                                 qualitative_index.py builds <results_dir>/qualitative/INDEX.md from each
+                                 delivery's README front matter
 
   mighty_mouse/
     paths.py                    path resolution from paths.yaml
     configs.py                  load + cross-check configs/*.yaml
     labels.py                   LP label-CSV conventions (reader, scorer, session/frame names)
-    convert.py                  per-dataset conversion logic + POST_PROCESS hooks
-                                 (CLI: scripts/convert_dataset.py)
-    build.py                    per-dataset subsampling + merging (CLI: scripts/build_dataset.py)
-    datasets.py                 ALL_DATASETS (datasets in the combined corpus)
-    subject_split.py            shared subject-level train/test split
-    videos.py                   video snippet + motion-energy helpers
-    train.py                    sweep combo/naming/command logic shared by both
-                                 train_sweep*.py scripts; also a standalone CLI
-                                 (`python -m mighty_mouse.train`) for evaluation only
-    labeling/
-      ensemble.py               run an ensemble of LP models on a label CSV's images; confidence-thresholded mean
-      active_labeling.py        ensemble-disagreement frame selection, stats, merge-back (CLI: scripts/active_labeling.py)
+    datasets.py                 ALL_DATASETS (datasets in the combined corpus); SHORT_NAMES / tag_of
+                                 (merged-CSV tags such as face+ibl+cheese)
     plots/
       plot_keypoints.py         keypoint overlay visualization
-    pretraining/
+      house_style.py            shared colours, banner, header/footer for overlay videos (skills/evaluation/pose-video)
+      views.py                  camera view of a labeled frame
+    pretrain/
+      paths.py                  fixed layout inside the `pretrain_dir` directory (paths.yaml's only pretraining entry)
       video_list.py             flatten the pretraining videos paths file into videos to process
       embed.py                  frame decoding + frozen-ViT CLS extraction
+      kmeans.py                 chunked spherical k-means on GPU
+      hierarchical.py           two-level k-means + balanced sampling (used by dedup.py for long videos)
+      dedup.py                  stage-1 selection: flat or two-level k-means, one random frame per cluster, per video
+    preprocess/
+      convert.py                per-dataset conversion logic + POST_PROCESS hooks
+                                 (CLI: scripts/preprocess/convert_dataset.py)
+      build.py                  per-dataset subsampling + merging (CLI: scripts/preprocess/build_dataset.py)
+      inventory.py              per-dataset keypoint masks (direct / trainable / eval) of the converted
+                                 corpus -> <data_dir>/dataset_inventory.json + docs/dataset_inventory.md
+                                 (`python -m mighty_mouse.preprocess.inventory`)
+      subject_split.py          shared subject-level train/test split
+      videos.py                 video snippet + motion-energy helpers
+      labeling/
+        ensemble.py             run an ensemble of LP models on a label CSV's images; confidence-thresholded mean
+        active_labeling.py      ensemble-disagreement frame selection, stats, merge-back (CLI: scripts/preprocess/active_labeling.py)
+    train/
+      sweep.py                  sweep combo/naming/command logic shared by both train_sweep*.py scripts;
+                                 also a standalone CLI (`python -m mighty_mouse.train.sweep`) for evaluation only
+    evaluation/
+      comparison.py             pixel errors over labeled cells (visible == 2), pooled summaries
 
-  tests/                        pytest suite; mirrors mighty_mouse/ (mighty_mouse/a/b.py ->
-                                 tests/a/test_b.py). Run: python -m pytest tests
+  tests/                        pytest suite; mirrors mighty_mouse/ (mighty_mouse/<stage>/b.py ->
+                                 tests/<stage>/test_b.py). Run: python -m pytest tests
 
 poseinterface/
   _raw/
@@ -306,7 +332,7 @@ poseinterface/
       labeled-data/<session>/<frame>.png
       CollectedData.csv
       CollectedData_test.csv
-      VERSION.txt, versions/    label-version snapshots (see skills/bump-dataset-version)
+      VERSION.txt, versions/    label-version snapshots (see skills/preprocess/bump-dataset-version)
 
   data/head-fixed/
     labeled-data/
@@ -328,30 +354,26 @@ whether a run finished locally or on Lightning AI.
 ### Adding a new dataset
 
 Dataset onboarding is three stages — see
-[`skills/preprocess-new-dataset/SKILL.md`](skills/preprocess-new-dataset/SKILL.md) for the full model,
+[`skills/preprocess/preprocess-new-dataset/SKILL.md`](skills/preprocess/preprocess-new-dataset/SKILL.md) for the full model,
 what to ask before starting, and stage 1 (convert to LP format) in detail. This section
 covers stages 2 and 3, which live in this repo's shared config rather than in
-`scripts/preprocessing/`.
+`scripts/preprocess/`.
 
 **Stage 2 — add to the corpus.** Only once you've confirmed the dataset should actually
 be merged in:
 1. Add new keypoints to `configs/keypoints.yaml` and `configs/model.yaml` (keep
    `data.num_keypoints` in sync — it's a plain count, not derived from the list) if the
    dataset introduces any
-2. Append `<name>` to `configs/dataset_registry.yaml` — the list position is the dataset id
-   (samplers, per-dataset heads and checkpoints identify datasets by index), so append at the
-   end and never reorder. It drives `scripts/build_dataset.py`'s default `--datasets` set, the
-   per-dataset evaluation in `mighty_mouse/train.py` and `mighty_mouse.datasets.ALL_DATASETS`
-   (derived from it). It isn't derived from `configs/datasets/`, so it must be updated by
-   hand or the new dataset silently won't be included
-3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `mighty_mouse/convert.py`
-4. Run `python scripts/convert_dataset.py --dataset <name>`
+2. Add `<name>` to `ALL_DATASETS` in `mighty_mouse/datasets.py` — this single list drives
+   both `scripts/preprocess/build_dataset.py`'s default `--datasets` set and the per-dataset
+   evaluation in `mighty_mouse/train/sweep.py`. It isn't derived from `configs/datasets/`, so it
+   must be updated by hand or the new dataset silently won't be included in default
+   `--tag all`-style runs or per-dataset evaluation
+3. If custom visibility logic is needed, add a function to `POST_PROCESS` in `mighty_mouse/preprocess/convert.py`
+4. Run `python scripts/preprocess/convert_dataset.py --dataset <name>`
 
-**Stage 3 — rebuild the combined dataset, as a new data version.** A new dataset (or new
-keypoints) invalidates the whole tag set: the `n=all` tag now misses a dataset and every `n−1`
-leave-one-out tag omits two. Register the change, point `paths.yaml` at the next
-`data/head-fixed-v<N>` and rebuild every merged tag there (`docs/data_versioning.md`,
-`skills/dataset-update`); results trained on the old tags stay valid for the old version.
+**Stage 3 — rebuild the combined dataset.** Re-run `scripts/preprocess/build_dataset.py` for any merged
+tags that should now include the new dataset.
 
 ### Renaming or deprecating a dataset
 
@@ -366,15 +388,15 @@ don't cross-check each other. When renaming (e.g. `ibl-face` → `ibl`) or depre
 4. Any hardcoded raw-dir constants inside preprocessing scripts — a constant like
    `X_DIR = RAW_DIR / "old-name"` won't auto-follow a `configs/datasets/<name>.yaml` rename, so
    grep the script for the literal old string
-5. This README and any `scripts/preprocessing/*/README.md` — grep for the old name
+5. This README and any `scripts/preprocess/*/README.md` — grep for the old name
 6. Existing `data/head-fixed_vN/` and `results/head-fixed_vN/` directories are a **frozen
    historical record** of whatever name was used at build time — don't rename files inside them
    to match; instead rebuild a new version (see below) once the rename is done upstream
 
 A pipeline preprocessing folder name can reasonably stay divergent from the dataset name it
-produces (e.g. `scripts/preprocessing/hantman-sleap/` produces the `hantman` dataset) — it names
+produces (e.g. `scripts/preprocess/hantman-sleap/` produces the `hantman` dataset) — it names
 the *process*, not the dataset's identity in `configs/datasets/` or `_raw/`. That said, this isn't
-mandatory: `scripts/preprocessing/ibl-face/` was renamed to `scripts/preprocessing/ibl/` on
+mandatory: the `ibl-face` converter directory was renamed to `ibl` on
 2026-09-26 to match the dataset name, once the divergence stopped being useful.
 
 ### Dataset versioning
