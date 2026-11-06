@@ -63,7 +63,8 @@ def main() -> None:
     }
     m = a.out / "eval" / a.dataset / "comparison_metrics.json"
     if m.exists():
-        info[f"result_{a.dataset}_test_mean_px"] = json.load(open(m))["all"]["mean_px"]
+        metrics = json.load(open(m))   # flat since the 2026-11-06 merge; nested "all" before
+        info[f"result_{a.dataset}_test_mean_px"] = metrics.get("mean_px", metrics.get("all", {}).get("mean_px"))
     json.dump(info, open(a.out / "run_info.json", "w"), indent=2)
     print(f"wrote {a.out / 'run_info.json'}")
 

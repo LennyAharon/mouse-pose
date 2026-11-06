@@ -441,8 +441,9 @@ def evaluate_model(
         error_df.to_csv(save_dir / "pixel_error.csv")
 
         (save_dir / "comparison_metrics.json").write_text(json.dumps(summary, indent=2) + "\n")
-        mean_err = summary["no_lips"]["mean_px"]
-        print(f"    Mean pixel error (excluding lips): {mean_err:.2f} px  →  {save_dir}")
+        mean_err = summary["mean_px"]   # tongue and lips are always excluded (ALWAYS_EXCLUDED)
+        shown = "n/a (no labeled cell)" if mean_err is None else f"{mean_err:.2f} px"
+        print(f"    Mean pixel error (tongue / lips excluded): {shown}  →  {save_dir}")
 
     for fname in ("predictions.csv", "predictions_pixel_error.csv"):
         p = output_dir / fname
