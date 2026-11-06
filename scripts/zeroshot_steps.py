@@ -19,11 +19,14 @@ Writes <results_dir>/qualitative/zeroshot-steps-<MM-DD>/{per_step.csv, README.md
 import argparse
 import json
 import re
+import sys
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
-from zeroshot_score import read_preds, score
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "evaluation"))   # zeroshot_score
+from zeroshot_score import read_preds, score  # noqa: E402
 
 from mighty_mouse.evaluation.comparison import trained_keypoints
 from mighty_mouse.paths import load_paths
