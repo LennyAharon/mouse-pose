@@ -1,0 +1,41 @@
+# Our experiment (user, 2026-10-31; not the recipe of record, not for upstream): the v11 leave-out trunks of record
+# (v11-res384.yaml, R384-E5: recipe E5 at 384 px) with the BEAST backbone instead of DINOv3 ViT-S. BEAST = ViT-B/16
+# ViTMAE pretrained by MAE + InfoNCE on IBL videos (Wang, Yu et al., ICLR 2026; huggingface paninski-lab/vitb16-beast-ibl,
+# 224 px, ImageNet normalization). Note: it has seen unlabeled IBL frames, so leave-ibl-out is not image-blind.
+# No lightning-pose change: backbone vitb_imagenet (HF ViTModel, initialised from facebook/vit-mae-base) whose weights
+# load_vit_backbone_checkpoint then replaces from model.backbone_checkpoint. That loader matches key names silently;
+# the BEAST encoder was renamed to transformers-5 names first (all 198 tensors verified to load):
+# poseinterface/pretrained/vitb16-beast-ibl/{encoder.safetensors, convert_beast.py, README.md}.
+# The run folders say vitb_imagenet (the architecture); the experiment folder BEAST-E5 says which weights.
+# Results: <results_dir>/experiments/BEAST-E5/.
+
+config: configs/model_zoominout.yaml
+backbone: vitb_imagenet
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500",   # rolling checkpoint: runs continue across jobs
+                 "+model.backbone_checkpoint=/work/nvme/beez/laharon/MM_project/poseinterface/pretrained/vitb16-beast-ibl/encoder.safetensors"]
+
+targets:                               # the leave-out trunks of v11-res384.yaml (no all-data trunk)
+  facemap: [facemap]
+  ibl: [ibl]
+  cheese-2d: [cheese-2d]
+  cazettes-side: [cazettes-side]
+  kondo: [kondo]
+  hantman-mv: [hantman-mv]
+  cheese-3d: [cheese-3d]
+  kaufman: [kaufman]
+  aind-vbn-body: [aind-vbn-body]
+  aind-vbn-face: [aind-vbn-face]
+  cavelli: [cavelli]
+  tyssowski: [tyssowski]
+  kaufman-water: [kaufman-water]
+  cheese: [cheese-2d, cheese-3d]       # both-out: clean zero-shot for same-rig / same-lab pairs
+  kaufman-both: [kaufman, kaufman-water]
+  hantman-both: [hantman-mv, tyssowski]
+
+experiments:
+  BEAST-E5:
+    seeds: [0]
+    overrides: ["training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]",
+                "data.image_resize_dims.height=384", "data.image_resize_dims.width=384"]

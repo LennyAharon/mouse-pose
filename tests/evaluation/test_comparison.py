@@ -10,9 +10,11 @@ import yaml
 from mighty_mouse.evaluation.comparison import (
     ALWAYS_EXCLUDED,
     comparison_summary,
+    offset_corrected_errors,
     target_scores,
     trained_keypoints,
     visible_errors,
+    visible_residuals,
 )
 
 
@@ -122,3 +124,54 @@ class TestTargetScores:
         assert result["ear"] is None
         assert result["missing"] is None
         assert np.isnan(result["pooled"][0])
+
+
+def shifted(n: int = 40, shift: tuple[float, float] = (5.0, -3.0), noise: float = 0.0, seed: int = 0):
+    """n frames of one keypoint at (10, 10); predictions shifted by `shift` plus optional noise."""
+    rng = np.random.default_rng(seed)
+    idx = [f"labeled-data/ds/s{i % 2}/img{i}.png" for i in range(n)]
+    cols = pd.MultiIndex.from_tuples([("s", "nose", c) for c in ("x", "y", "visible")])
+    labels = pd.DataFrame([[10.0, 10.0, 2.0]] * n, index=idx, columns=cols)
+    e = rng.normal(0, noise, (n, 2)) if noise else np.zeros((n, 2))
+    pcols = pd.MultiIndex.from_tuples([("s", "nose", c) for c in ("x", "y", "likelihood")])
+    preds = pd.DataFrame([[10 + shift[0] + a, 10 + shift[1] + b, 1.0] for a, b in e], index=idx,
+                         columns=pcols)
+    return labels, preds
+
+
+class TestOffsetCorrectedErrors:
+    """Test the function offset_corrected_errors."""
+
+    def test_offset_corrected_errors_removes_constant_shift(self):
+        labels, preds = shifted()
+        raw = visible_errors(labels, preds)
+        out = offset_corrected_errors(labels, preds)
+        np.testing.assert_allclose(raw["nose"], np.hypot(5, 3))
+        np.testing.assert_allclose(out["nose"], 0.0, atol=1e-9)
+
+    def test_offset_corrected_errors_keeps_noise(self):
+        labels, preds = shifted(n=400, noise=2.0)
+        out = offset_corrected_errors(labels, preds)
+        assert 1.0 < out["nose"].median() < 4.0      # the random part stays
+
+    def test_offset_corrected_errors_too_few_frames_left_raw(self):
+        labels, preds = shifted(n=6)
+        out = offset_corrected_errors(labels, preds, min_frames=5)
+        np.testing.assert_allclose(out["nose"], np.hypot(5, 3))
+
+    def test_offset_corrected_errors_separate_groups(self):
+        labels, preds = shifted(n=40)
+        preds.iloc[::2, 0] += 10                         # session s0 shifted 10 px more in x
+        groups = pd.Series([i.split("/")[2] for i in labels.index], index=labels.index)
+        out = offset_corrected_errors(labels, preds, groups=groups)
+        np.testing.assert_allclose(out["nose"], 0.0, atol=1e-9)
+
+
+class TestVisibleResiduals:
+    """Test the function visible_residuals."""
+
+    def test_visible_residuals_signed(self):
+        labels, preds = shifted(n=4)
+        dx, dy = visible_residuals(labels, preds)
+        np.testing.assert_allclose(dx["nose"], 5.0)
+        np.testing.assert_allclose(dy["nose"], -3.0)

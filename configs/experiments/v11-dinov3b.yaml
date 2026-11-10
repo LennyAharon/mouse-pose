@@ -1,0 +1,36 @@
+# Our experiment (user, 2026-11-01; not the recipe of record, not for upstream): size-matched control for the BEAST
+# leave-out trunks (v11-beast.yaml). Same trunks, recipe E5 at 384 px and head as v11-res384.yaml (R384-E5); only the
+# backbone differs: DINOv3 ViT-B/16 (facebook/dinov3-vitb16-pretrain-lvd1689m, LP backbone vitb_dinov3) instead of
+# ViT-S. Read with R384-E5 (DINOv3 ViT-S) and BEAST-E5 (BEAST ViT-B): ViT-S vs ViT-B = size, ViT-B DINOv3 vs BEAST =
+# pretraining. kondo and hantman-mv go first: their BEAST runs are done (2026-10-31).
+# Results: <results_dir>/experiments/DINOv3B-E5/.
+
+config: configs/model_zoominout.yaml
+backbone: vitb_dinov3
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500"]   # rolling checkpoint: runs continue across jobs
+
+targets:                               # the leave-out trunks of v11-beast.yaml (no all-data trunk)
+  kondo: [kondo]
+  hantman-mv: [hantman-mv]
+  facemap: [facemap]
+  ibl: [ibl]
+  cheese-2d: [cheese-2d]
+  cazettes-side: [cazettes-side]
+  cheese-3d: [cheese-3d]
+  kaufman: [kaufman]
+  aind-vbn-body: [aind-vbn-body]
+  aind-vbn-face: [aind-vbn-face]
+  cavelli: [cavelli]
+  tyssowski: [tyssowski]
+  kaufman-water: [kaufman-water]
+  cheese: [cheese-2d, cheese-3d]       # both-out: clean zero-shot for same-rig / same-lab pairs
+  kaufman-both: [kaufman, kaufman-water]
+  hantman-both: [hantman-mv, tyssowski]
+
+experiments:
+  DINOv3B-E5:
+    seeds: [0]
+    overrides: ["training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]",
+                "data.image_resize_dims.height=384", "data.image_resize_dims.width=384"]

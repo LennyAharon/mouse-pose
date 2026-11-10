@@ -44,7 +44,8 @@ done_run() {  # evaluated, and for a leave-out trunk the zero-shot train predict
 }
 done_run && { echo "already done: $RUN_DIR"; exit 0; }
 trained_only() {  # training finished (best checkpoint kept) but the evaluation is missing
-    grep -q '"status": "COMPLETED"' "$RUN_DIR/train_status.json" 2>/dev/null &&
+    # EVALUATING = all steps trained, job cut off in lightning-pose's own evaluation (2026-10-28)
+    grep -q -E '"status": "(COMPLETED|EVALUATING)"' "$RUN_DIR/train_status.json" 2>/dev/null &&
         ls "$RUN_DIR"/tb_logs/*/version_*/checkpoints/*-best.ckpt >/dev/null 2>&1
 }
 CLAIM="$RUN_DIR.claim"; mkdir -p "$(dirname "$RUN_DIR")"
@@ -60,20 +61,23 @@ else
     fi
     # an earlier attempt (ours after a requeue, or a dead owner's) left an unfinished run dir
     # (a run with a rolling checkpoint, training.resume_every_n_steps, is kept and continues instead)
-    if [ -d "$RUN_DIR" ] && ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1; then
+    # (not done_run: a job cut off midway through the evaluation leaves some eval/ sets, 2026-11-08)
+    if [ -d "$RUN_DIR" ] && ! done_run; then
         if [ -f "$RUN_DIR/resume/resume.ckpt" ]; then
             echo "resuming $RUN_DIR from its rolling checkpoint"
         elif trained_only; then
             echo "training of $RUN_DIR finished earlier: evaluating only"
-        else
+        elif ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1; then
             echo "removing unfinished $RUN_DIR"; rm -rf "$RUN_DIR"
+        else
+            echo "$RUN_DIR evaluated earlier without its best checkpoint: kept, nothing retrained"
         fi
     fi
 fi
 echo "[$(date -u +%H:%M)] start $RUN_DIR"
 
 EVAL_ONLY=()   # a job cut off during evaluation must not retrain: evaluate only
-trained_only && ! ls "$RUN_DIR"/eval/*/predictions.csv >/dev/null 2>&1 && EVAL_ONLY=(--eval_only)
+trained_only && ! done_run && EVAL_ONLY=(--eval_only)
 python scripts/train/train_sweep.py "$@" "${EVAL_ONLY[@]}"
 
 if [ "$LEFT_OUT" != - ]; then

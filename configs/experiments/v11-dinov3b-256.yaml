@@ -1,0 +1,23 @@
+# Our experiment (user, 2026-11-04: "train vitb at 256x256"; not the recipe of record, not for upstream): DINOv3 ViT-B/16
+# (vitb_dinov3) at 256 px, the 256 px counterpart of DINOv3B-E5 (v11-dinov3b.yaml, 384 px). Subset = the BEAST 100k test's
+# trunks (v11-beast100k.yaml: ibl-out + the three both-out), so it fills the 256 px columns next to ViT-S DINOv3 256
+# (trunks-headmlp256) and BEAST 100k-A1 256 (BEAST100kA1-E5-256). Recipe E5 and head as DINOv3B-E5; only the input size differs.
+# Results: <results_dir>/experiments/DINOv3B-E5-256/. Scored by results/head-fixed-v11/qualitative/beast100k-loo-11-04/score.py.
+
+config: configs/model_zoominout.yaml
+backbone: vitb_dinov3
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500"]   # rolling checkpoint: runs continue across jobs
+
+targets:
+  ibl: [ibl]
+  cheese: [cheese-2d, cheese-3d]       # both-out: clean zero-shot for same-rig / same-lab pairs
+  kaufman-both: [kaufman, kaufman-water]
+  hantman-both: [hantman-mv, tyssowski]
+
+experiments:
+  DINOv3B-E5-256:
+    seeds: [0]
+    overrides: ["training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]",
+                "data.image_resize_dims.height=256", "data.image_resize_dims.width=256"]

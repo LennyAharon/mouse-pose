@@ -1,18 +1,20 @@
 #!/usr/bin/env python
 """
-Overlay video of one scored active pseudo-labeling round, in house style.
+Overlay video of one scored active pseudo-labeling round (skills/preprocess/active-pseudo-labeling), in house style.
 
 Uses the member predictions `scripts/preprocess/active_labeling.py score` cached in
-results/<dataset>/active/round_XX/ (one per model, on every original frame; no model is
-re-run) and renders them with ensemble_variance_rows.py: dot = median of the round's models,
-cross = +-1 SD across them, frames from the dataset's raw labeled-data/. Which frames:
+results/<dataset>/active/round_XX/ (one per model, on every original frame; no model is re-run) and renders
+them with ensemble_variance_rows.py: dot = median of the round's models, cross = +-1 SD across them, frames
+from the dataset's raw labeled-data/. Which frames:
 
-  --frames pool   frames the round's models were NOT trained on (originals minus tolabel),
-                  --n per view, evenly spread over sessions
-  --frames top    the --n pool frames with the highest disagreement (pool_scores.csv;
-                  ignores `select`'s reserved-frame lists)
-  --frames selected  exactly the frames `select` added from this round's scores (the next
-                  labeling batch)
+  --frames pool   frames the round's models were NOT trained on (originals minus tolabel), --n per view,
+                  evenly spread over sessions
+  --frames top    the --n pool frames with the highest disagreement (pool_scores.csv; ignores `select`'s
+                  reserved-frame lists)
+  --frames selected  exactly the frames `select` added from this round's scores (the next labeling batch);
+                  --first N keeps the batch's first N rows (tolabel order), e.g. to preview what is labelled first
+  --frames planned   preview before writing: the --n frames `active_labeling.py select --m <n>` would add now
+                  (same scores, reserved-frame lists honoured, session order)
   --frames test   every frame of CollectedData_test.csv   (rows also in tolabel WERE trained on)
   --frames train  every frame of CollectedData.csv        (idem)
 
@@ -39,6 +41,12 @@ import yaml
 
 from mighty_mouse.paths import load_paths, repo_root
 from mighty_mouse.plots.views import view_of
+from mighty_mouse.preprocess.labeling.active_labeling import (
+    exclude_frames,
+    order_by_session,
+    read_frame_ids,
+    select_frames,
+)
 
 RENDERER = Path(__file__).with_name("ensemble_variance_rows.py")
 SPLIT_CSV = {"train": "CollectedData.csv", "test": "CollectedData_test.csv"}
@@ -59,12 +67,15 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1], epilog=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dataset", help="directory under raw_dir")
-    ap.add_argument("--round", type=int, default=None,
-                    help="round to draw (default: the last scored one)")
-    ap.add_argument("--frames", choices=["pool", "top", "selected", "test", "train"],
-                    default="pool")
+    ap.add_argument("--round", type=int, default=None, help="round to draw (default: the last scored one)")
+    ap.add_argument("--frames", choices=["pool", "top", "selected", "planned", "test", "train"], default="pool")
     ap.add_argument("--n", type=int, default=60,
-                    help="pool: frames per view; top: frames in total")
+                    help="pool: frames per view; top: frames in total; planned: select's --m")
+    ap.add_argument("--first", type=int, default=None,
+                    help="selected: only the first N rows of the batch, in tolabel order")
+    ap.add_argument("--marker", choices=["dot", "ring"], default="dot",
+                    help="median marker (ensemble_variance_rows.py --marker): dot, or a thin ring that keeps "
+                         "the image under it visible")
     ap.add_argument("--include", default="", help="comma regexes: keep only matching keypoints")
     ap.add_argument("--conf", type=float, default=0.7)
     ap.add_argument("--fps", type=int, default=3)
@@ -122,7 +133,25 @@ def main() -> None:
             sys.exit(f"no frames were selected from round {r}'s scores yet "
                      f"(manifest has no round {r + 1})")
         frames = chosen[chosen.isin(preds[0].index)]
-        subset = f"the {len(frames)} frames selected for labeling round {r + 1} (not trained on)"
+        n_batch = len(frames)
+        if args.first:
+            frames = frames[:args.first]
+        subset = (f"the {len(frames)} frames selected for labeling round {r + 1} (not trained on)"
+                  if len(frames) == n_batch else
+                  f"the first {len(frames)} of the {n_batch} frames selected for labeling round {r + 1} "
+                  "(tolabel order; not trained on)")
+        n_frames = len(frames)
+    elif args.frames == "planned":
+        # the batch `select --m <n>` would write now, before it is written (nothing here touches tolabel)
+        scores = pd.read_csv(rdir / "pool_scores.csv", index_col=0)["score"]
+        reserved = pd.Index([])
+        for f in state.get("exclude_files", []):
+            path = Path(f) if Path(f).is_absolute() else raw / f
+            reserved = reserved.append(read_frame_ids(path.read_text()))
+        scores = exclude_frames(scores.loc[scores.index.intersection(pool)], reserved.unique())
+        frames = order_by_session(select_frames(scores, args.n), preds[0].index)
+        subset = (f"the {len(frames)} frames `select --m {args.n}` would add for labeling round {r + 1} "
+                  "(not written yet; not trained on)")
         n_frames = len(frames)
     elif args.frames == "top":
         # NaN = no keypoint scored on that frame; `select` never picks those
@@ -144,7 +173,10 @@ def main() -> None:
     what = f"{args.dataset}-{args.frames}" + (f"-{args.include.replace(',', '+')}"
                                               if args.include else "")
     what += f"-{args.per_view}perview" if args.per_view and args.frames in SPLIT_CSV else ""
+    what += f"-m{args.n}" if args.frames == "planned" else ""
+    what += f"-first{args.first}" if args.first and args.frames == "selected" else ""
     what += "-medsub" if args.median_panel else ""
+    what += "-ring" if args.marker == "ring" else ""
     name = f"{what}__{model_tok}_nogt"
     today = datetime.date.today()
     out = args.out_dir or (Path(paths["results_dir"]) / "qualitative"
@@ -166,6 +198,8 @@ def main() -> None:
         cmd += ["--include", args.include]
     if args.median_panel:
         cmd += ["--median_panel"]
+    if args.marker != "dot":
+        cmd += ["--marker", args.marker]
     subprocess.run(cmd, check=True)
 
     readme = out / "README.md"

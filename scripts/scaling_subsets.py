@@ -30,15 +30,17 @@ from mighty_mouse.paths import load_paths
 from mighty_mouse.registry import load_registry
 
 REPO     = Path(__file__).resolve().parents[1]
+# same rig and mice; hantman-mv / tyssowski: same rig type and frame size, kept out of each
+# other's curves too (user, 2026-10-29)
 PAIRS    = [("cheese-2d", "cheese-3d"), ("kaufman", "kaufman-water"),
-            ("aind-vbn-body", "aind-vbn-face")]
-SIBLINGS = {**dict(PAIRS), **{b: a for a, b in PAIRS}}   # same rig and mice
+            ("aind-vbn-body", "aind-vbn-face"), ("hantman-mv", "tyssowski")]
+SIBLINGS = {**dict(PAIRS), **{b: a for a, b in PAIRS}}
 HEADER   = """\
 # Zero-shot vs number of training datasets (user, 2026-10-26), written by
 # scripts/scaling_subsets.py (do not edit by hand). Per target: the other datasets minus the
 # target's sibling, shuffled once per draw; the first 3 / 6 / 9 are nested random subsets; 3 draws.
-# The top point of each curve is the existing leave-one-out trunk (experiments/R384-E5; both-out
-# for cheese-3d and kaufman). Same recipe as those trunks: E5 at 384 px, nonlinear head, seed 0.
+# The top point of each curve is the leave-one-out trunk (experiments/R384-E5; both-out for a
+# target with a sibling). Same recipe as those trunks: E5 at 384 px, nonlinear head, seed 0.
 # Runs: <results_dir>/experiments/SCALE/<tag>_train/; checkpoints deleted after evaluation.
 """
 

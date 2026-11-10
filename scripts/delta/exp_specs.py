@@ -30,15 +30,19 @@ REPO = Path(__file__).resolve().parents[2]
 LEAF = "supervised/sampling-T2/tf1"
 
 
-def resumable(run_dir: Path) -> bool:
+def resumable(run_dir: Path, left_out: list[str]) -> bool:
     """A started run that can continue, or only needs its evaluation: a rolling checkpoint (or finished
-    training with a best checkpoint), no evaluation, and no live job holding it."""
+    training with a best checkpoint), not done (evaluated and, for a leave-out trunk, the zero-shot train
+    predictions of every left-out set written; a job cut off midway through the evaluation leaves only
+    some eval/ sets, 2026-11-08), and no live job holding it."""
     status = run_dir / "train_status.json"
-    trained = (status.exists() and '"COMPLETED"' in status.read_text()
+    # EVALUATING = all steps trained, job cut off in lightning-pose's own evaluation
+    trained = (status.exists() and any(s in status.read_text() for s in ('"COMPLETED"', '"EVALUATING"'))
                and any(run_dir.glob("tb_logs/*/version_*/checkpoints/*-best.ckpt")))
     if not ((run_dir / "resume" / "resume.ckpt").exists() or trained):
         return False
-    if any(run_dir.glob("eval/*/predictions.csv")):
+    if any(run_dir.glob("eval/*/predictions.csv")) and all(
+            (run_dir / "zeroshot" / f"{ds}_train_predictions.csv").exists() for ds in left_out):
         return False
     claim = run_dir.parent / f"{run_dir.name}.claim" / "job"
     if not claim.exists():
@@ -93,7 +97,7 @@ def main() -> None:
                 raise SystemExit(f"no training csv for tag {tag} (target {target}); build it first")
             for seed in exp.get("seeds", [0]):
                 run_dir = root / f"{tag}_train" / LEAF / spec["backbone"] / f"seed{seed}"
-                if run_dir.exists() and not args.all and not resumable(run_dir):
+                if run_dir.exists() and not args.all and not resumable(run_dir, left_out):
                     continue
                 overrides = ";".join(head_ov + list(exp.get("overrides", [])))
                 sweep = (f"--config_file {spec['config']} --csv_files CollectedData_{tag}_train.csv "

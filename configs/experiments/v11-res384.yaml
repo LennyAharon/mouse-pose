@@ -26,6 +26,7 @@ targets:                               # as v11-trunks.yaml
   kaufman-water: [kaufman-water]
   cheese: [cheese-2d, cheese-3d]
   kaufman-both: [kaufman, kaufman-water]
+  hantman-both: [hantman-mv, tyssowski]   # top point of the hantman-mv scaling curve (2026-10-29)
 
 experiments:
   R384-E5:

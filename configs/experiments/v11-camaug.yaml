@@ -1,0 +1,37 @@
+# Camera augmentation for zero-shot transfer to new camera angles (corpus head-fixed-v11; user 2026-11-10: "we need to be
+# able to mimic new angles of cameras ... we can go ahead and try things").
+# A 2-D warp can mimic a camera that turns in place: roll = in-plane rotation, pan / tilt = a perspective warp (exact
+# for a camera rotating about its centre), distance / lens = zoom (already per dataset in the recipe). It cannot mimic
+# a camera MOVED to a new position (parts appear / disappear).
+# In October each piece was tested alone, mild, on ViT-S (configs/experiments/v11-aug384.yaml: AUG-ROT60 helped kondo
+# only, AUG-PERSP scale 0.02-0.12 + shear no consistent gain; a combined arm was not run then). This arm = roll + tilt
+# together and stronger, on the ViT-B stable recipe.
+# Baseline = experiments/STABLE-B384 (same trunks, seed 0). lightning-pose = main checkout (post_sub_lp_delta, which
+# has stable training since 2026-11-10). Results: <results_dir>/experiments/CAM-B384/.
+# Judge (as the refine head): raw pooled zero-shot median, test + train frames, vs STABLE-B384; adopt only if better on
+# >= 5 of the 8 targets and none > 5 % worse; in-domain test error must not get worse by > 3 %.
+
+config: configs/model_zoominout.yaml
+backbone: vitb_dinov3
+head_overrides: ["+model.head_hidden_channels=256",
+                 "+training.resume_every_n_steps=500"]
+
+targets:                               # the 6 trunks of the refine-head / hi-res experiments (8 zero-shot targets)
+  # kondo: [kondo]   # paused 2026-11-10 (user: kondo labels have an issue; no kondo leave-outs for now)
+  facemap: [facemap]
+  ibl: [ibl]
+  cheese: [cheese-2d, cheese-3d]
+  kaufman-both: [kaufman, kaufman-water]
+  hantman-both: [hantman-mv, tyssowski]
+
+experiments:
+  CAM-B384:                             # roll +-45 deg (recipe: +-25, p 0.4) + perspective warp (tilt / pan)
+    seeds: [0]
+    overrides: ["training.imgaug.Rotate.p=0.6", "training.imgaug.Rotate.kwargs.rotate=[-45,45]",
+                "+training.imgaug.PerspectiveTransform.p=0.5",
+                "+training.imgaug.PerspectiveTransform.kwargs.scale=[0.05,0.15]",
+                # the STABLE-B384 recipe
+                "+training.unfreeze_warmup_steps=1000", "+training.gradient_clip_val=1.0",
+                "training.unfreezing_step=3000", "training.min_steps=14000", "training.max_steps=14000",
+                "training.lr_scheduler_params.multisteplr.milestone_steps=[6000,8000,10000]",
+                "data.image_resize_dims.height=384", "data.image_resize_dims.width=384"]

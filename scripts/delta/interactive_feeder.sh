@@ -32,7 +32,11 @@ declare -A MAX_GPUS=([gpuA40x4-interactive]=4 [gpuA100x4-interactive]=4 [gpuA100
 # FEEDER_MAX_GPUS (env) caps GPUs per job, e.g. "gpuH200x8-interactive=2" when 4-GPU jobs there wait a day
 for kv in ${FEEDER_MAX_GPUS:-}; do MAX_GPUS[${kv%%=*}]=${kv#*=}; done
 RUN_MIN=50   # one run incl. evaluation, minutes (measured ~45-50, 2026-10-22)
-REBALANCE_MIN=30
+# 12 h: --test-only on an EMPTY partition is hours optimistic (a job moved for '~12:08' got a real
+# estimate of 16:38), so a smaller margin moved the same 3 jobs every 15 min for 4 h and reset their
+# queue age each time, 2026-10-28. Only rescue a job stuck for days (e.g. H200 interactive).
+REBALANCE_MIN=720
+REBALANCE_AGE_MIN=15   # a pending job younger than this is never moved
 est_start() {  # partition, gpus -> estimated start (epoch s) of a new job, or empty
   local e
   e=$(sbatch --test-only -A beez-delta-gpu -p "$1" --gpus-per-node="$2" --cpus-per-task=$((16 * $2)) \
@@ -84,18 +88,20 @@ while true; do
     done
     if [ "$avail" -eq 0 ]; then
       # nothing unassigned: take over a pending job elsewhere that would start much later. Only jobs
-      # with a real estimate that have waited >= 10 min (a fresh job's estimate is N/A, which once
-      # made this cancel brand-new jobs every pass), and the freed runs go to THIS partition in the
-      # same pass so they cannot drift back.
-      here=$(est_start "$p" 1); [ -z "$here" ] && continue
+      # with a real estimate that have waited >= REBALANCE_AGE_MIN, compared with this partition's
+      # estimate for the SAME number of GPUs (a 1-GPU estimate against a 4-GPU job made the feeder
+      # move one job between partitions every 5 min, 2026-10-28 night), and the freed runs go to
+      # THIS partition in the same pass so they cannot drift back.
       # runs this partition may take (a definition's `partitions:` can exclude it)
       allowed_here=$(for line in "${MISSING[@]}"; do allowed_on "$line" "$p" && echo "${line%%|*}"; done)
       stolen=""
       while read -r jid jpart jstart jsubmit jcomment; do
         [ "$jpart" = "$p" ] || [ "$jstart" = N/A ] && continue
-        [ $(( $(date +%s) - $(date -d "$jsubmit" +%s) )) -lt 600 ] && continue
+        [ $(( $(date +%s) - $(date -d "$jsubmit" +%s) )) -lt $((REBALANCE_AGE_MIN * 60)) ] && continue
         # only a job whose runs may all move here
         tr ',' '\n' <<< "$jcomment" | grep -vxF -f <(printf '%s\n' "$allowed_here") | grep -q . && continue
+        g=$(tr ',' '\n' <<< "$jcomment" | grep -c .); [ "$g" -gt "${MAX_GPUS[$p]}" ] && g=${MAX_GPUS[$p]}
+        here=$(est_start "$p" "$g"); [ -z "$here" ] && continue
         if [ "$(date -d "$jstart" +%s)" -gt $((here + REBALANCE_MIN * 60)) ]; then
           scancel "$jid" && { stolen=$jcomment
             echo "[$(date +%T)] rebalance: took over pending $jid ($jpart, est $jstart) -> $p (~$(date -d @"$here" +%H:%M))"; }

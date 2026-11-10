@@ -19,7 +19,9 @@ Writes <out dir>/videos/<name>.mp4.
 """
 
 import argparse
+import fnmatch
 import json
+import re
 from pathlib import Path
 
 import cv2
@@ -44,10 +46,37 @@ VIEW_ORDER = [("ibl", "left"), ("ibl", "right"), ("facemap", "cam0"), ("facemap"
               ("cheese-2d", "TL"), ("cheese-2d", "TR"),
               ("cheese-3d", "BC"), ("cheese-3d", "L"), ("cheese-3d", "R"), ("cheese-3d", "TC"),
               ("cheese-3d", "TL"), ("cheese-3d", "TR"),
-              ("aind-vbn-body", "body"), ("aind-vbn-face", "face"),
-              ("cavelli", "left"), ("cavelli", "right"),
-              ("tyssowski", "front"), ("tyssowski", "side"),
-              ("kaufman-water", "cam1"), ("kaufman-water", "cam2")]
+              ("aind-vbn-body", "body"), ("aind-vbn-face", "face"), ("cavelli", "left"), ("cavelli", "right"),
+              ("tyssowski", "front"), ("tyssowski", "side"), ("kaufman-water", "cam1"), ("kaufman-water", "cam2")]
+
+
+# ── digit tips per view (user, 2026-11-05) ─────────────────────────────────────
+# facemap is a face close-up: no paws in frame, so no digit tips at all. In a side view only the
+# near paw's fingers are drawn: NEAR_SIDE names the side the camera faces, read from the labels
+# (that view's lateral eye / ear / pad / digit labels are all, or >= 85 %, on that side; cheese TL
+# and TR are the 85-90 % oblique views). Views not listed see both paws and keep every digit tip
+# (cheese BC / TC, hantman-mv front, tyssowski front, aind-vbn-face). Wrists are never hidden.
+NO_DIGITS = {"facemap"}
+NEAR_SIDE = {("ibl", "left"): "left", ("ibl", "right"): "left",          # right camera is flipped
+             ("cazettes-side", "side"): "left", ("kondo", "bottom"): "right",
+             ("hantman-mv", "side"): "right", ("tyssowski", "side"): "right",
+             ("kaufman", "cam1"): "right", ("kaufman", "cam2"): "right",
+             ("kaufman-water", "cam1"): "right", ("kaufman-water", "cam2"): "right",
+             ("aind-vbn-body", "body"): "left",
+             ("cavelli", "left"): "left", ("cavelli", "right"): "right",
+             ("cheese-2d", "L"): "left", ("cheese-2d", "R"): "right",
+             ("cheese-2d", "TL"): "left", ("cheese-2d", "TR"): "right",
+             ("cheese-3d", "L"): "left", ("cheese-3d", "R"): "right",
+             ("cheese-3d", "TL"): "left", ("cheese-3d", "TR"): "right"}
+DIGIT = re.compile(r"d\d_tip_(left|right)$")
+
+
+def hidden_digits(dataset, view, kps):
+    """Digit-tip channels not drawn in this view: all of them in facemap, the far side's in a side view."""
+    if dataset in NO_DIGITS:
+        return {k for k in kps if DIGIT.match(k)}
+    near = NEAR_SIDE.get((dataset, view))
+    return {k for k in kps if near and (m := DIGIT.match(k)) and m.group(1) != near}
 
 
 def put(canvas, x, y, text, color=(235, 235, 235), fs=0.5):
@@ -82,11 +111,18 @@ def main() -> None:
     ap.add_argument("--panel",  type=int, default=300)
     ap.add_argument("--cols",   type=int, default=5)
     ap.add_argument("--fps",    type=int, default=3)
+    ap.add_argument("--all_digits", action="store_true",
+                    help="draw every digit tip (default: none in facemap, near side only in side views)")
+    ap.add_argument("--png",    default="",
+                    help="comma list of steps (1-based) also saved as PNG stills in <out dir>/png/")
+    ap.add_argument("--hide",   default="",
+                    help="one-off curation of single panels, e.g. for a figure still: "
+                         "'cheese-3d/BC=d*_tip_*;tyssowski/side=eye_*' (dataset/view=keypoint globs)")
+    ap.add_argument("--png_only", action="store_true", help="write only the --png stills, no video")
     ap.add_argument("--split",  default="test", choices=["test", "train", "both"],
-                    help="test = eval/<ds>/predictions.csv (held-out test frames); "
-                         "train = zeroshot/<ds>_train_predictions.csv in the run dir, when a "
-                         "leave-one-out model was run on its left-out dataset's TRAIN frames; "
-                         "both = one panel per view and split")
+                    help="test = eval/<ds>/predictions.csv (held-out test frames); train = the zero-shot "
+                         "predictions a leave-one-out trunk wrote for its left-out dataset's TRAIN frames "
+                         "(zeroshot/<ds>_train_predictions.csv); both = one panel per view and split")
     args = ap.parse_args()
 
     P     = load_paths()
@@ -98,6 +134,10 @@ def main() -> None:
     parts = [x for x in MODEL.parts if x not in ("supervised", "tf1")]
     label = "/".join(parts[parts.index("results") + 1:]) if "results" in parts else MODEL.name
 
+    curate = {}
+    for item in filter(None, args.hide.split(";")):
+        key, pats = item.split("=")
+        curate[tuple(key.split("/", 1))] = pats.split(",")
     panels = {}
     keep_ds = set(args.datasets.split(",")) if args.datasets else set(inv)
     keep_ds -= set(x for x in args.exclude.split(",") if x)
@@ -132,8 +172,11 @@ def main() -> None:
             frames = sorted(frames)
             if len(frames) > args.frames:
                 frames = [frames[int(i)] for i in np.linspace(0, len(frames) - 1, args.frames)]
+            hide = set() if args.all_digits else hidden_digits(dataset, v, all_kps)
+            hide |= {k for k in all_kps for pat in curate.get((dataset, v), []) if fnmatch.fnmatch(k, pat)}
             panels[(dataset, v if args.split != "both" else f"{split} {v}")] = dict(
-                frames=frames, preds=preds, transfer=transfer, extra=extra, labelled=labelled)
+                frames=frames, preds=preds, labelled=labelled,
+                transfer=[k for k in transfer if k not in hide], extra=[k for k in extra if k not in hide])
 
     order = [k for k in VIEW_ORDER if k in panels]
     missing = sorted(set(panels) - set(order))
@@ -146,8 +189,9 @@ def main() -> None:
     n  = max(len(panels[k]["frames"]) for k in order)
     bh = BANNER_H
     gw, gh = PANEL * COLS, PANEL * ROWS
-    vw = Writer(OUT, args.fps, (gw, gh + bh), crf=24)
+    vw = None if args.png_only else Writer(OUT, args.fps, (gw, gh + bh), crf=24)
     drawn = {k: 0 for k in order}
+    png_steps = {int(x) for x in args.png.split(",") if x}
     for i in range(n):
         canvas = np.full((gh + bh, gw, 3), 14, np.uint8)
         x = 10
@@ -160,10 +204,11 @@ def main() -> None:
                             "| tongue tip and right pupil shown in every view",
                 "all":      "ALL keypoints the model outputs (the dataset's own and inherited)",
                 "own":      "ONLY the keypoints the dataset itself labels"}[args.mode]
-        where = {"test":  "held-out test frames",
-                 "train": "TRAIN frames (zero-shot: never trained on them)",
-                 "both":  "test and train frames (one panel each)"}[args.split]
-        line = f"{label} on {where} | {what} | conf >= {args.conf}"
+        where = {"test": "held-out test frames", "train": "TRAIN frames (zero-shot: never trained on them)",
+                 "both": "test and train frames (one panel each)"}[args.split]
+        digits = "" if args.all_digits else " | digit tips: none in facemap, near paw only in side views"
+        curated = " | selected keypoints hidden in some panels" if curate else ""
+        line = f"{label} on {where} | {what} | conf >= {args.conf}{digits}{curated}"
         # shrink the banner until it fits the canvas rather than running off the right edge
         put(canvas, 10, 50, line, (200, 200, 200), fit(line, gw - 20, 0.5, floor=0.3))
         for idx, key in enumerate(order):
@@ -209,9 +254,16 @@ def main() -> None:
             cv2.putText(panel, f"{step}/{len(d['frames'])} {Path(fr).name}", (3, PANEL - 4),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (200, 200, 200), 1, cv2.LINE_AA)
             canvas[bh + r * PANEL:bh + (r + 1) * PANEL, c0 * PANEL:(c0 + 1) * PANEL] = panel
-        vw.write(canvas)
-    vw.close()
-    print(f"wrote {OUT} ({n} steps at {args.fps} fps, {len(order)} views)")
+        if vw:
+            vw.write(canvas)
+        if i + 1 in png_steps:
+            png = OUT.parent.parent / "png" / f"{OUT.stem}_step{i + 1:03d}.png"
+            png.parent.mkdir(exist_ok=True)
+            cv2.imwrite(str(png), canvas)
+            print(f"  png {png}")
+    if vw:
+        vw.close()
+    print(f"wrote {OUT if vw else 'stills only'} ({n} steps at {args.fps} fps, {len(order)} views)")
     for key in order:
         d = panels[key]
         print(f"  {key[0] + '/' + key[1]:22s} frames={len(d['frames']):3d} "

@@ -131,3 +131,74 @@ def target_scores(errors: pd.DataFrame, keypoints: list[str],
     allerr = np.concatenate(pooled) if pooled else np.array([np.nan])
     out["pooled"] = (float(np.mean(allerr)), float(np.median(allerr)))
     return out
+
+
+def visible_residuals(
+    labels: pd.DataFrame, predictions: pd.DataFrame, exclude: frozenset[str] = ALWAYS_EXCLUDED,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Signed per-frame, per-keypoint residuals (prediction - label) over the labeled cells.
+
+    Args:
+        labels: converted labels, as for visible_errors
+        predictions: (scorer, keypoint, x|y|likelihood) columns for the same frames
+        exclude: keypoints never scored (their columns are all NaN)
+
+    Returns:
+        (dx, dy): two DataFrames indexed like labels, one column per keypoint, NaN where
+        visible_errors is NaN
+    """
+    err = visible_errors(labels, predictions, exclude)   # validates frames and coordinates
+    predictions = predictions.loc[labels.index]
+    dx, dy = {}, {}
+    for key in err.columns:
+        gt   = labels.xs(key, axis=1, level=1).droplevel(0, axis=1)
+        pred = predictions.xs(key, axis=1, level=1).droplevel(0, axis=1)
+        mask = err[key].notna().to_numpy()
+        dx[key] = np.where(mask, pred["x"].to_numpy(float) - gt["x"].to_numpy(float), np.nan)
+        dy[key] = np.where(mask, pred["y"].to_numpy(float) - gt["y"].to_numpy(float), np.nan)
+    return pd.DataFrame(dx, index=labels.index), pd.DataFrame(dy, index=labels.index)
+
+
+def offset_corrected_errors(
+    labels: pd.DataFrame, predictions: pd.DataFrame, groups: pd.Series | None = None,
+    seed: int = 0, min_frames: int = 5, exclude: frozenset[str] = ALWAYS_EXCLUDED,
+) -> pd.DataFrame:
+    """Pixel errors after removing a constant labeling-convention shift, cross-validated.
+
+    The frames are split at random into two halves. For each keypoint (and group, e.g. camera
+    view) the shift is the median residual (prediction - label) on one half; it is subtracted
+    from the other half's residuals, and the halves swap. What remains is the model's
+    localization error once a lab's constant way of clicking the point is removed. It uses the
+    target's labels, so it is a diagnostic next to the raw zero-shot error, not a zero-shot
+    number itself.
+
+    Args:
+        labels: converted labels, as for visible_errors
+        predictions: predictions for the same frames
+        groups: per-frame group (same index as labels) with its own shift per keypoint, e.g. the
+            camera view; None = one group
+        seed: seed of the random split
+        min_frames: a (group, keypoint) needs at least this many labeled frames in the fitting
+            half for a shift; otherwise its errors are left uncorrected
+        exclude: keypoints never scored
+
+    Returns:
+        DataFrame like visible_errors (NaN where not scored)
+    """
+    dx, dy = visible_residuals(labels, predictions, exclude)
+    g = (pd.Series("all", index=labels.index) if groups is None
+         else groups.reindex(labels.index).astype(str))
+    rng = np.random.default_rng(seed)
+    fold = pd.Series(rng.permutation(len(labels)) % 2, index=labels.index)
+    out = np.hypot(dx, dy)
+    for f in (0, 1):
+        fit, apply = fold != f, fold == f
+        for grp in g.unique():
+            fg, ag = fit & (g == grp), apply & (g == grp)
+            for key in dx.columns:
+                fx, fy = dx.loc[fg, key].dropna(), dy.loc[fg, key].dropna()
+                if len(fx) < min_frames:
+                    continue
+                ox, oy = fx.median(), fy.median()
+                out.loc[ag, key] = np.hypot(dx.loc[ag, key] - ox, dy.loc[ag, key] - oy)
+    return out

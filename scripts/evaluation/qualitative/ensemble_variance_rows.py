@@ -122,6 +122,11 @@ def main() -> None:
     ap.add_argument("--panel",     type=int, default=440)
     ap.add_argument("--strip",     type=int, default=250)
     ap.add_argument("--fps",       type=int, default=3)
+    ap.add_argument("--marker",    choices=["dot", "ring"], default="dot",
+                    help="median marker: filled dot (default) or a thin ring that leaves the image under it "
+                         "visible; low-confidence points get a larger thin ring in both styles")
+    ap.add_argument("--marker_r",  type=int, default=None,
+                    help="radius of the confident marker in px (default 4 for dot, 3 for ring)")
     ap.add_argument("--exclude",   default="")
     ap.add_argument("--include",   default="", help="comma regexes: keep only matching keypoints")
     ap.add_argument("--modes",     default="",
@@ -238,12 +243,15 @@ def main() -> None:
         legend_row(canvas, [kmap.get(k, k) for k in kps], fs=0.42)
         shown_rule = ("no confidence masking: every keypoint drawn on every frame"
                       if args.conf <= 0 else
-                      f"shown if any model conf >= {args.conf}; ring = mean conf < {args.conf}")
+                      f"shown if any model conf >= {args.conf}; "
+                      + (f"large ring = mean conf < {args.conf}" if args.marker == "ring"
+                         else f"ring = mean conf < {args.conf}"))
         cross = ("rows differ ONLY in the +-1 SD cross" if len(modes) > 1 else "cross = +-1 SD")
         scale = "" if args.bar_scale == 1 else f" x{args.bar_scale:g}"
         line = (f"{args.title} | {args.target} {args.subset} | "
-                f"dot = median of all {len(preds)} models; "
-                f"{shown_rule} | {cross} (true length{scale}) | "
+                + (f"small ring = median of all {len(preds)} models; " if args.marker == "ring"
+                   else f"dot = median of all {len(preds)} models; ")
+                + f"{shown_rule} | {cross} (true length{scale}) | "
                 + ("no ground truth drawn" if args.no_gt or gt is None else "x = ground truth")
                 + (" | lower panels: frame - session median "
                    "(gray = unchanged, contrast stretched per frame)"
@@ -280,12 +288,16 @@ def main() -> None:
                         nd += 1
                         ex, ey = sx[i, j] * s * args.bar_scale, sy[i, j] * s * args.bar_scale
                         th = 2 if mconf[i, j] >= args.conf else 1
-                        cv2.line(p, (int(q[0] - ex), q[1]), (int(q[0] + ex), q[1]), cc, th,
+                        lw = 1 if args.marker == "ring" else th   # ring style: thin cross too
+                        cv2.line(p, (int(q[0] - ex), q[1]), (int(q[0] + ex), q[1]), cc, lw,
                                  cv2.LINE_AA)
-                        cv2.line(p, (q[0], int(q[1] - ey)), (q[0], int(q[1] + ey)), cc, th,
+                        cv2.line(p, (q[0], int(q[1] - ey)), (q[0], int(q[1] + ey)), cc, lw,
                                  cv2.LINE_AA)
-                        cv2.circle(p, q, 4 if th == 2 else 5, cc, -1 if th == 2 else 1,
-                                   cv2.LINE_AA)
+                        r0 = args.marker_r or (3 if args.marker == "ring" else 4)
+                        if th == 2:
+                            cv2.circle(p, q, r0, cc, 1 if args.marker == "ring" else -1, cv2.LINE_AA)
+                        else:
+                            cv2.circle(p, q, r0 + 2, cc, 1, cv2.LINE_AA)
                         sds.append(np.hypot(sx[i, j], sy[i, j]))
                         if ln < P - 8:
                             cv2.circle(strip, (10, ln - 4), 4, cc, -1 if th == 2 else 1,
