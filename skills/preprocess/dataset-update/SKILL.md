@@ -84,8 +84,11 @@ against the other rigs; same scale as an existing rig = same range).
    `python scripts/preprocess/build_dataset.py` for the tags in use (`docs/build_dataset.md`).
    Frames: convert with `--link_frames` (symlink `labeled-data/<ds>` to the shared frame pool)
    once that flag exists; until then copies are acceptable.
-3. `python -m mighty_mouse.preprocess.inventory` (writes `dataset_inventory.json`, which the manifest needs,
-   and `docs/dataset_inventory.md`), then `python scripts/data_manifest.py` (writes `MANIFEST.json`), then
+3. `convert_dataset.py` already refreshed the corpus inventory (`dataset_inventory.{json,md,csv}` in
+   data_dir, which the manifest needs; rerun by hand with `python -m mighty_mouse.preprocess.inventory
+   --source corpus --data_dir <corpus>` if it warned). The checked-in raw summary `assets/corpus.{md,csv}`
+   comes from `--source raw` (`bump_version.py` runs it). Then `python scripts/data_manifest.py` (writes
+   `MANIFEST.json`), then
    `python scripts/data_manifest.py --diff v<N-1>` and paste its output into
    `poseinterface/DATA_VERSIONS.md` under `## v<N> — built <YYYY-MM-DD>` with: the user's one-line
    "why", and per changed dataset the date the labels changed (the `date` of its entry in
@@ -111,7 +114,7 @@ usually is). Reusable data is not a reusable model — check the model directory
 
 ## 6. Record it
 
-- Commit the repo changes (configs, registry, `docs/dataset_inventory.md`, any converter/config
+- Commit the repo changes (configs, registry, `assets/corpus.{md,csv}`, any converter/config
   edits) as ONE commit whose subject starts with `data v<N>:` and whose body lists the dataset
   versions (`facemap@v2, hantman-mv@v1, ...`) and vocabulary size; push. Then append the commit
   hash to the `## v<N>` entry in `poseinterface/DATA_VERSIONS.md` (`code: mouse-pose <hash>`),
