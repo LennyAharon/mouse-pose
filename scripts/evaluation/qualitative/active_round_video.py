@@ -1,20 +1,21 @@
 #!/usr/bin/env python
 """
-Overlay video of one scored active pseudo-labeling round (skills/preprocess/active-pseudo-labeling), in house style.
+Overlay video of one scored active pseudo-labeling round, in house style.
 
 Uses the member predictions `scripts/preprocess/active_labeling.py score` cached in
-results/<dataset>/active/round_XX/ (one per model, on every original frame; no model is re-run) and renders
-them with ensemble_variance_rows.py: dot = median of the round's models, cross = +-1 SD across them, frames
-from the dataset's raw labeled-data/. Which frames:
+results/<dataset>/active/round_XX/ (one per model, on every original frame; no model is
+re-run) and renders them with ensemble_variance_rows.py: dot = median of the round's models,
+cross = +-1 SD across them, frames from the dataset's raw labeled-data/. Which frames:
 
-  --frames pool   frames the round's models were NOT trained on (originals minus tolabel), --n per view,
-                  evenly spread over sessions
-  --frames top    the --n pool frames with the highest disagreement (pool_scores.csv; ignores `select`'s
-                  reserved-frame lists)
-  --frames selected  exactly the frames `select` added from this round's scores (the next labeling batch);
-                  --first N keeps the batch's first N rows (tolabel order), e.g. to preview what is labelled first
-  --frames planned   preview before writing: the --n frames `active_labeling.py select --m <n>` would add now
-                  (same scores, reserved-frame lists honoured, session order)
+  --frames pool   frames the round's models were NOT trained on (originals minus tolabel),
+                  --n per view, evenly spread over sessions
+  --frames top    the --n pool frames with the highest disagreement (pool_scores.csv;
+                  ignores `select`'s reserved-frame lists)
+  --frames selected  exactly the frames `select` added from this round's scores (the next
+                  labeling batch); --first N keeps the batch's first N rows (tolabel order),
+                  e.g. to preview what is labelled first
+  --frames planned   preview before writing: the --n frames `active_labeling.py select --m <n>`
+                  would add now (same scores, reserved-frame lists honoured, session order)
   --frames test   every frame of CollectedData_test.csv   (rows also in tolabel WERE trained on)
   --frames train  every frame of CollectedData.csv        (idem)
 
@@ -35,31 +36,28 @@ import subprocess
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import yaml
 
+from mighty_mouse.evaluation.delivery import front_matter
+from mighty_mouse.evaluation.qualitative.variance_rows import render_variance_rows
+from mighty_mouse.labels import read_labels_csv
 from mighty_mouse.paths import load_paths, repo_root
-from mighty_mouse.plots.views import view_of
+from mighty_mouse.plots.views import sample_per_view
 from mighty_mouse.preprocess.labeling.active_labeling import (
     exclude_frames,
     order_by_session,
     read_frame_ids,
-    select_frames,
+    top_frames,
 )
 
-RENDERER = Path(__file__).with_name("ensemble_variance_rows.py")
 SPLIT_CSV = {"train": "CollectedData.csv", "test": "CollectedData_test.csv"}
 
 
 def spread_per_view(frames: pd.Index, dataset: str, n: int) -> pd.Index:
     """At most n frames per camera view, evenly spaced through `frames` (so across sessions),
     in their original order; same view rule as ensemble_variance_rows.py."""
-    views = pd.Series([view_of(dataset, Path(f).parent.name) for f in frames], index=frames)
-    keep = []
-    for _, view in views.groupby(views, sort=True):
-        keep += list(view.index[np.unique(np.linspace(0, len(view) - 1,
-                                                      min(n, len(view))).astype(int))])
+    keep = {f for fs in sample_per_view(frames, dataset, n).values() for f in fs}
     return frames[frames.isin(keep)]
 
 
@@ -67,15 +65,16 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1], epilog=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dataset", help="directory under raw_dir")
-    ap.add_argument("--round", type=int, default=None, help="round to draw (default: the last scored one)")
-    ap.add_argument("--frames", choices=["pool", "top", "selected", "planned", "test", "train"], default="pool")
+    ap.add_argument("--round", type=int, default=None,
+                    help="round to draw (default: the last scored one)")
+    ap.add_argument("--frames", choices=["pool", "top", "selected", "planned", "test", "train"],
+                    default="pool")
     ap.add_argument("--n", type=int, default=60,
                     help="pool: frames per view; top: frames in total; planned: select's --m")
     ap.add_argument("--first", type=int, default=None,
                     help="selected: only the first N rows of the batch, in tolabel order")
     ap.add_argument("--marker", choices=["dot", "ring"], default="dot",
-                    help="median marker (ensemble_variance_rows.py --marker): dot, or a thin ring that keeps "
-                         "the image under it visible")
+                    help="median marker: dot, or a thin ring that keeps the image under it visible")
     ap.add_argument("--include", default="", help="comma regexes: keep only matching keypoints")
     ap.add_argument("--conf", type=float, default=0.7)
     ap.add_argument("--fps", type=int, default=3)
@@ -107,13 +106,13 @@ def main() -> None:
     model_dirs = state["rounds"][r]["model_dirs"]
     rdir = active / f"round_{r:02d}"
     caches = [rdir / f"member{i}_{Path(d).name}.csv" for i, d in enumerate(model_dirs)]
-    preds = [pd.read_csv(c, header=[0, 1, 2], index_col=0) for c in caches]
+    preds = [read_labels_csv(c) for c in caches]
 
     trained = pd.read_csv(active / "tolabel_manifest.csv", index_col=0)
     trained = trained[trained["round"] <= r].index
     pool = preds[0].index.difference(trained, sort=False)
     if args.frames in SPLIT_CSV:
-        split = pd.read_csv(raw / SPLIT_CSV[args.frames], header=[0, 1, 2], index_col=0).index
+        split = read_labels_csv(raw / SPLIT_CSV[args.frames]).index
         frames = preds[0].index[preds[0].index.isin(split)]
         n_all = len(frames)
         if args.per_view:
@@ -138,20 +137,21 @@ def main() -> None:
             frames = frames[:args.first]
         subset = (f"the {len(frames)} frames selected for labeling round {r + 1} (not trained on)"
                   if len(frames) == n_batch else
-                  f"the first {len(frames)} of the {n_batch} frames selected for labeling round {r + 1} "
-                  "(tolabel order; not trained on)")
+                  f"the first {len(frames)} of the {n_batch} frames selected for labeling round "
+                  f"{r + 1} (tolabel order; not trained on)")
         n_frames = len(frames)
     elif args.frames == "planned":
-        # the batch `select --m <n>` would write now, before it is written (nothing here touches tolabel)
+        # the batch `select --m <n>` would write now, before it is written (nothing here touches
+        # tolabel)
         scores = pd.read_csv(rdir / "pool_scores.csv", index_col=0)["score"]
         reserved = pd.Index([])
         for f in state.get("exclude_files", []):
             path = Path(f) if Path(f).is_absolute() else raw / f
             reserved = reserved.append(read_frame_ids(path.read_text()))
         scores = exclude_frames(scores.loc[scores.index.intersection(pool)], reserved.unique())
-        frames = order_by_session(select_frames(scores, args.n), preds[0].index)
-        subset = (f"the {len(frames)} frames `select --m {args.n}` would add for labeling round {r + 1} "
-                  "(not written yet; not trained on)")
+        frames = order_by_session(top_frames(scores, args.n), preds[0].index)
+        subset = (f"the {len(frames)} frames `select --m {args.n}` would add for labeling round "
+                  f"{r + 1} (not written yet; not trained on)")
         n_frames = len(frames)
     elif args.frames == "top":
         # NaN = no keypoint scored on that frame; `select` never picks those
@@ -189,30 +189,26 @@ def main() -> None:
         pred_csvs.append(str(f))
 
     kmap = args.keypoint_map or repo_root() / "configs" / "datasets" / f"{args.dataset}.yaml"
-    cmd = [sys.executable, str(RENDERER), "--preds", *pred_csvs, "--image_dir", str(raw),
-           "--no_gt", "--target", args.dataset, "--subset", subset, "--keypoint_map", str(kmap),
-           "--modes", "ensemble var", "--frames", str(n_frames), "--conf", str(args.conf),
-           "--fps", str(args.fps),
-           "--title", f"{model_tok} (median of {len(preds)})", "--out", str(out / f"{name}.mp4")]
-    if args.include:
-        cmd += ["--include", args.include]
-    if args.median_panel:
-        cmd += ["--median_panel"]
-    if args.marker != "dot":
-        cmd += ["--marker", args.marker]
-    subprocess.run(cmd, check=True)
+    render_variance_rows(
+        out / f"{name}.mp4", [Path(f) for f in pred_csvs], raw, args.dataset, subset=subset,
+        keypoint_map=kmap, title=f"{model_tok} (median of {len(preds)})", conf=args.conf,
+        frames=n_frames, fps=args.fps, include=args.include, modes="ensemble var", no_gt=True,
+        median_panel=args.median_panel, marker=args.marker,
+    )
 
     readme = out / "README.md"
     if not readme.exists():
         readme.write_text(
-            f"---\ntitle: {args.dataset} active pseudo-labeling round {r}, ensemble median\n"
-            f"date: {today}\ndata_version: _raw/{args.dataset} (active round {r}, "
-            f"{state['rounds'][r]['rows']} tolabel rows)\n"
-            f"question: How do the round-{r} models' predictions look on "
-            f"{args.dataset}'s frames?\n"
-            f"models: {model_tok} = {', '.join(Path(d).name for d in model_dirs)}\n"
-            "outputs: see below\nfinding: (to fill after viewing)\n---\n\n"
-            f"# {args.dataset}, active round {r}\n\n"
+            front_matter(
+                title=f"{args.dataset} active pseudo-labeling round {r}, ensemble median",
+                date=str(today),
+                data_version=f"_raw/{args.dataset} (active round {r}, "
+                             f"{state['rounds'][r]['rows']} tolabel rows)",
+                question=f"How do the round-{r} models' predictions look on "
+                         f"{args.dataset}'s frames?",
+                models=f"{model_tok} = {', '.join(Path(d).name for d in model_dirs)}",
+                outputs="see below", finding="(to fill after viewing)")
+            + f"\n# {args.dataset}, active round {r}\n\n"
             f"Dot = median of the {len(preds)} models, cross = +-1 SD across them (true px), "
             f"drawn if any model conf >= {args.conf}, ring if their mean conf is below it. "
             "No ground truth (`_nogt`). Predictions are "

@@ -97,7 +97,7 @@ factory loads with `strict=False`, so a broken path can otherwise pass silently.
 Automatic after each sweep run. Standalone / re-run:
 
 ```bash
-python -m mighty_mouse.train.sweep --output_dir <run_dir> [--csv_file <train csv>] --keep_checkpoints
+python scripts/evaluation/evaluate_run.py --run <run_dir> --keep_checkpoints
 ```
 
 (`--csv_file` is inferred from standard sweep paths but must be given for non-standard

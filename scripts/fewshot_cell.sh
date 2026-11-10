@@ -219,7 +219,7 @@ PY
 fi
 gpu_gate
 KEEP_CKPT=""; case "$ARM" in lora|dino-lora|replay|replay-lora|anchor|anchor-lora|anchor-video) KEEP_CKPT="--keep_checkpoints" ;; esac   # adapters: keep the weights
-python -m mighty_mouse.train.sweep --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" $KEEP_CKPT \
+python scripts/evaluation/evaluate_run.py --run "$OUT" $KEEP_CKPT \
     > "${LOG%.log}-eval.log" 2>&1
 E=$?
 case "$ARM" in lora|dino-lora|replay-lora|anchor-lora|anchor-video)

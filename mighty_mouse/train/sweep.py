@@ -5,44 +5,38 @@ Combo generation, naming, and command-building live here so they stay identical 
 local (sequential) and Lightning AI (parallel) backends — only *how* a command gets executed
 differs.
 
-Also invocable standalone to run evaluation only. This exists because a
-Lightning AI Job is an independent remote process: there's no "come back to
-this process after training finishes" step like the local sweep script has,
-so evaluation has to be its own chainable command:
+Evaluation lives in mighty_mouse/evaluation/run.py; a Lightning AI Job has no "come back to
+this process after training finishes" step, so make_eval_command builds it as a chainable
+command.
 
-    python -m mighty_mouse.train.sweep --output_dir <dir> --csv_file <CollectedData_..._train.csv>
+Multi-dataset sampling temperature, the per-dataset zoom of configs/model_zoominout.yaml, the
+nonlinear head and resumable runs need lightning-pose on branch `post_sub_lp_delta`
+(paninski-lab/lightning-pose; LP_BRANCH below). Stock lightning-pose reads none of their config
+keys and would silently train without them, so the sweeps call check_lightning_pose() before
+any run that uses one. Drop the check once that branch is merged into lightning-pose main.
 """
 
-import argparse
-import json
-import shutil
 from itertools import product
 from pathlib import Path
 
-import numpy as np
 import yaml
 
-from mighty_mouse.labels import read_labels_csv
-from mighty_mouse.paths import load_paths, repo_root
-from mighty_mouse.registry import load_registry
-
-_paths      = load_paths()
-DATA_DIR    = Path(_paths["data_dir"])
-RESULTS_DIR = Path(_paths["results_dir"])
-CONFIG_FILE = repo_root() / "configs" / "model.yaml"
-
-# Every model is evaluated against each dataset's test CSV, in registry order
-# (configs/dataset_registry.yaml — the one place the dataset list is maintained).
-# Pixel error is NaN for keypoints absent from a given dataset; the plotting
-# script handles filtering.
-EVAL_DATASETS = load_registry()
-
+from mighty_mouse.datasets import ALL_DATASETS
+from mighty_mouse.paths import repo_root
+from mighty_mouse.train.layout import (
+    head_mode_tag,
+    losses_tag,
+    run_dir,
+    sanitize,
+    temperature_tag,
+)
 
 # The lightning-pose branch (paninski-lab/lightning-pose) that reads these config keys; stock
 # lightning-pose ignores them.
 LP_BRANCH      = "post_sub_lp_delta"
 LP_BRANCH_KEYS = ("sampling_temperature", "dataset_names", "imgaug_per_dataset_zoom",
                   "head_hidden_channels", "resume_every_n_steps")
+
 
 # ── naming / output dirs ─────────────────────────────────────────────────────
 
@@ -51,55 +45,12 @@ def csv_stem(csv_file: str) -> str:
     return Path(csv_file).stem.split("_", 1)[1]
 
 
-def infer_csv_file(output_dir: Path) -> str:
-    """Inverse of csv_stem applied inside make_output_dir: the first path
-    component under RESULTS_DIR is always csv_stem(csv_file), so the original
-    train CSV filename can be recovered from output_dir alone."""
-    rel = Path(output_dir).resolve().relative_to(RESULTS_DIR.resolve())
-    return f"CollectedData_{rel.parts[0]}.csv"
-
-
-def losses_tag(losses: list[str]) -> str:
-    return "supervised" if not losses else "+".join(sorted(losses))
-
-
-def sanitize(s: str) -> str:
-    return str(s).replace("/", "_").replace(".", "_")
-
-
-def head_mode_tag(head_mode) -> str | None:
-    """Path/name component for a head mode; None when the run is stock (shared).
-
-    'shared' (or unset) gets no component, so existing shared-head results keep
-    their paths and --skip_existing keeps recognizing them.
-    """
-    if head_mode in (None, "shared"):
-        return None
-    return f"head-{head_mode}"
-
-
-def temperature_tag(temperature) -> str | None:
-    """Path/name component for a sampling temperature; None when the run is stock.
-
-    T=1 (or unset) deliberately gets no component at all, so existing frame-
-    proportional results keep their paths and --skip_existing keeps recognizing
-    them — T=1 IS the stock loader, not a new condition.
-    """
-    if temperature in (None, 1, "1"):
-        return None
-    return f"sampling-T{temperature}"
-
-
 def make_output_dir(
-    csv_file, backbone, train_frames, seed, losses, temperature=None, head_mode=None,
+    root: Path, csv_file, backbone, train_frames, seed, losses, temperature=None, head_mode=None,
 ) -> Path:
-    parts = [csv_stem(csv_file), losses_tag(losses)]
-    if (tag := head_mode_tag(head_mode)) is not None:
-        parts.append(tag)
-    if (tag := temperature_tag(temperature)) is not None:
-        parts.append(tag)
-    parts += [f"tf{train_frames}", sanitize(backbone), f"seed{seed}"]
-    return RESULTS_DIR.joinpath(*parts)
+    """Run directory for one sweep combo under `root` (the results_dir or an --output_root)."""
+    return run_dir(root, csv_stem(csv_file), losses, temperature, train_frames, backbone, seed,
+                   head_mode)
 
 
 def make_job_name(
@@ -107,11 +58,7 @@ def make_job_name(
 ) -> str:
     """Lightning job name for one sweep combo (unused locally, but shares the
     same inputs as make_output_dir so job name <-> output dir stay traceable)."""
-    parts = [
-        sanitize(csv_stem(csv_file)),
-        sanitize(backbone),
-        losses_tag(losses),
-    ]
+    parts = [sanitize(csv_stem(csv_file)), sanitize(backbone), losses_tag(losses)]
     if (tag := head_mode_tag(head_mode)) is not None:
         parts.append(sanitize(tag))
     if (tag := temperature_tag(temperature)) is not None:
@@ -129,12 +76,11 @@ def parse_semicolon_list(s: str) -> list[str]:
 def build_combos(
     csv_files, backbones, train_frames, seeds, temperatures=None, head_modes=None,
 ) -> list[tuple]:
-    """Cartesian product of one sweep, in (csv_file, backbone, train_frames, seed,
-    temperature, head_mode) order. temperatures=None means one stock frame-proportional
-    run; head_modes=None means one stock shared-head run."""
-    temperatures = temperatures if temperatures else [None]
-    head_modes   = head_modes if head_modes else [None]
-    return list(product(csv_files, backbones, train_frames, seeds, temperatures, head_modes))
+    """Cartesian product of one sweep, in (csv_file, backbone, train_frames, seed, temperature,
+    head_mode) order; temperatures=None means one stock frame-proportional run per combo,
+    head_modes=None one stock shared-head run."""
+    return list(product(csv_files, backbones, train_frames, seeds, temperatures or [None],
+                        head_modes or [None]))
 
 
 # ── lightning-pose branch check ──────────────────────────────────────────────
@@ -191,16 +137,23 @@ def check_lightning_pose() -> None:
 # ── command building ─────────────────────────────────────────────────────────
 
 def make_train_command(
-    csv_file, backbone, train_frames, seed, losses, output_dir, debug=False,
-    temperature=None, head_mode=None, config_file=None, extra_overrides=None,
+    csv_file, backbone, train_frames, seed, losses, output_dir, data_dir, debug=False,
+    temperature=None, config_file=None, extra_overrides=None, head_mode=None,
 ) -> list[str]:
-    """Build the `litpose train ...` argv for one sweep combo; ``extra_overrides`` (Hydra strings)
-    are appended last, e.g. ``["+training.ckpt_every_n_steps=2000"]``."""
+    """Build the `litpose train ...` argv for one sweep combo.
+
+    A non-stock temperature, a non-shared head mode, or a config with per-dataset zoom, passes
+    ALL_DATASETS as data.dataset_names (all look up each frame's dataset); all need
+    lightning-pose LP_BRANCH.
+    ``data_dir`` is the corpus directory holding the CSVs and labeled-data/. ``config_file``
+    replaces configs/model.yaml; ``extra_overrides`` (Hydra strings) are
+    appended last, e.g. ``["+model.head_hidden_channels=256"]``.
+    """
     lr = 5e-5 if "vit" in backbone else 1e-3
     losses_hydra = f"[{','.join(losses)}]"
 
     overrides = [
-        f"data.data_dir={DATA_DIR}",
+        f"data.data_dir={data_dir}",
         f"data.csv_file={csv_file}",
         f"model.backbone={backbone}",
         f"model.losses_to_use={losses_hydra}",
@@ -209,27 +162,26 @@ def make_train_command(
         f"training.optimizer_params.learning_rate={lr}",
     ]
 
-    # temperature sampling, per-dataset zoom and per-dataset heads all look up each frame's
-    # dataset, so any of them passes the registry as data.dataset_names (added once); ++ adds or
-    # replaces a key, so any config works
+    # the temperature sampler, per-dataset zoom and per-dataset heads all look up each frame's
+    # dataset; ++ adds or replaces a key, so any config works
     zoom = config_file is not None and "imgaug_per_dataset_zoom" in Path(config_file).read_text()
-    if temperature_tag(temperature) is not None or head_mode_tag(head_mode) is not None or zoom:
-        overrides.append(f"++data.dataset_names=[{','.join(EVAL_DATASETS)}]")
+    heads = head_mode_tag(head_mode) is not None
+    if temperature_tag(temperature) is not None or heads or zoom:
+        overrides.append(f"++data.dataset_names=[{','.join(ALL_DATASETS)}]")
     if temperature_tag(temperature) is not None:
         # quoted so "inf" stays a string
         overrides.append(f"++training.sampling_temperature='{temperature}'")
-    if head_mode_tag(head_mode) is not None:
+    if heads:
         overrides.append(f"model.head_mode={head_mode}")
 
     if "vitb_sam" in backbone:
         overrides.append("training.train_batch_size=16")
 
     if debug:
-        # Step-based keys, not epoch-based: model.yaml schedules by step, and LP asserts
-        # the two styles are never mixed. limit_train_batches pins an epoch to two steps
-        # regardless of tag size; validation is step-based (val_check_interval, with
-        # check_val_every_n_epoch null in model.yaml), so shrink the interval to fire
-        # within the six debug steps. Milestones must stay <= max_steps.
+        # Step-based keys, as the configs schedule by step (lightning-pose refuses a mix of step
+        # and epoch keys): two batches per epoch, six steps, validation every two steps
+        # (Lightning counts val_check_interval in steps only when check_val_every_n_epoch is
+        # null); milestones must stay <= max_steps.
         overrides += [
             "+training.limit_train_batches=2",
             "training.min_steps=2",
@@ -244,42 +196,33 @@ def make_train_command(
     overrides += list(extra_overrides or [])
 
     return (
-        ["litpose", "train", str(config_file or CONFIG_FILE),
+        ["litpose", "train", str(config_file or repo_root() / "configs" / "model.yaml"),
          "--output_dir", str(output_dir),
          "--overrides"] + overrides
     )
 
 
-def make_eval_command(output_dir, csv_file) -> list[str]:
+def make_eval_command(output_dir) -> list[str]:
     """Build the standalone-evaluation argv for one sweep combo (chained onto
     make_train_command's output with `&&` for a single Lightning job command)."""
     return [
-        "python", "-m", "mighty_mouse.train.sweep",
-        "--output_dir", str(output_dir),
-        "--csv_file", str(csv_file),
+        "python", str(repo_root() / "scripts" / "evaluation" / "evaluate_run.py"),
+        "--run", str(output_dir),
     ]
 
 
 def make_preflight_command(allow_stock_lp: bool = False) -> str:
-    """Shell snippet that records which lightning_pose a job actually imported, and by
-    default fails the job immediately if it resolved to a site-packages copy instead of
-    an editable clone (chained ahead of everything else in a Lightning job command).
+    """Shell snippet that records which lightning_pose a job imported and, by default, fails
+    the job at once if it resolved to a site-packages copy instead of an editable clone
+    (chained ahead of everything else in a Lightning job command).
 
-    A Lightning Job runs in an environment derived from the launching Studio, and an
-    editable install depends on *two* things surviving that transition independently:
-    the `.pth` marker, which lives in the env (outside the Studio's own directory), and
-    the checkout it points at, which lives inside it. If the marker survives but the
-    checkout doesn't, `import lightning_pose` fails loudly and the job dies — fine. The
-    bad case is neither surviving while the job image happens to carry a stock PyPI
-    lightning-pose: training then succeeds, pixel errors look entirely plausible, and
-    every local modification to LP's data loaders is simply absent from the run.
+    A Lightning Job's environment is derived from the launching Studio; if the editable
+    install does not survive that while the image carries a stock lightning-pose, training
+    succeeds with plausible errors and every local LP change is silently absent. Failing in
+    the first second is cheaper than finding that out after a sweep. allow_stock_lp=True
+    downgrades the check to a log line.
 
-    Failing in the first second of a job is much cheaper than discovering that after a
-    48-job sweep, so this errs toward stopping. Pass allow_stock_lp=True to downgrade it
-    to a log line for runs that legitimately want the released package.
-
-    Returns a shell string (not an argv list, like make_extract_command) — it needs `;`
-    and shell quoting, and is only meaningful for Lightning jobs.
+    Returns a shell string (it needs `;` and quoting); only meaningful for Lightning jobs.
     """
     check = (
         "import lightning_pose as lp, sys; "
@@ -298,13 +241,30 @@ def make_preflight_command(allow_stock_lp: bool = False) -> str:
             "job would train with the released package and silently ignore local LP changes. "
             'Re-launch with --allow_stock_lp if that is intended.") if stock else None'
         )
-
     return f"python -c '{check}'"
 
 
-def make_extract_command() -> str:
-    """Shell snippet that extracts DATA_DIR from a sibling `.tar` archive if
-    DATA_DIR doesn't already exist, meant to run once at the start of each
+def make_publish_command(output_dir: Path, results_root: Path, publish_root: Path) -> str:
+    """Shell snippet that copies a finished run directory to persistent storage, run last in a
+    Lightning job's `train && eval && publish` chain.
+
+    A Job's filesystem is torn down when it ends, and a teamspace folder is the only place
+    that outlives it. Copying at the end (rather than training into the folder) keeps
+    checkpoint writes off the network mount and, chained with `&&`, publishes only runs that
+    trained and evaluated: a half-written directory never reaches shared storage, where
+    --skip_existing would mistake it for a finished run. The run's path below `results_root`
+    is mirrored under `publish_root`.
+
+    Returns a shell string; only meaningful for Lightning jobs.
+    """
+    rel  = Path(output_dir).resolve().relative_to(Path(results_root).resolve())
+    dest = Path(publish_root) / rel
+    return f'mkdir -p "{dest}" && cp -a "{output_dir}/." "{dest}/"'
+
+
+def make_extract_command(data_dir: Path) -> str:
+    """Shell snippet that extracts `data_dir` from a sibling `.tar` archive if
+    it doesn't already exist, meant to run once at the start of each
     Lightning job (chained before make_train_command's output with `&&`).
 
     Each Lightning Job is an isolated snapshot of the launching Studio's own
@@ -313,7 +273,7 @@ def make_extract_command() -> str:
     to guard against here. Every job independently checking "does this exist
     yet" and extracting its own local copy if not is safe to duplicate as-is.
 
-    Also ensures DATA_DIR/videos exists: litpose's config always points
+    Also ensures data_dir/videos exists: litpose's config always points
     `video_dir` at this path even though the head-fixed dataset trains from
     already-extracted frames, and the archive doesn't necessarily contain an
     entry for it if it was empty when tarred (`mkdir -p` after the
@@ -322,188 +282,16 @@ def make_extract_command() -> str:
 
     Returns a shell string (not an argv list, unlike the other make_*_command
     functions) since it needs `||` — only meaningful for Lightning jobs; the
-    local sequential script never calls this because DATA_DIR is expected to
+    local sequential script never calls this because data_dir is expected to
     already exist on disk for local runs.
 
-    The test/tar pair is parenthesized because `&&` and `||` have equal precedence
-    and associate left to right. Bare, `A && test -d D || tar` would parse as
-    `((A && test) || tar)`, so *any* failure in a command chained ahead of this one
-    would fall through to the tar branch and let the rest of the chain proceed —
-    silently defeating make_preflight_command. The parens keep the fallback bound to
-    the test it belongs to.
+    The test/tar pair is parenthesized because `&&` and `||` have equal precedence: bare,
+    `A && test -d D || tar` parses as `((A && test) || tar)`, so a failed preflight chained
+    ahead would fall through to the tar branch and let the chain proceed.
     """
-    archive = f"{DATA_DIR}.tar"
+    data_dir = Path(data_dir)
+    archive = f"{data_dir}.tar"
     return (
-        f'( test -d "{DATA_DIR}" || tar -xf "{archive}" -C "{DATA_DIR.parent}" )'
-        f' && mkdir -p "{DATA_DIR / "videos"}"'
+        f'( test -d "{data_dir}" || tar -xf "{archive}" -C "{data_dir.parent}" )'
+        f' && mkdir -p "{data_dir / "videos"}"'
     )
-
-
-def make_publish_command(output_dir: Path, publish_root: Path) -> str:
-    """Shell snippet that copies a finished run directory to persistent storage, meant to
-    run last in a Lightning job's command chain.
-
-    A Job's filesystem is an isolated snapshot that is torn down when the job ends, so
-    anything written to `output_dir` is gone unless it is copied somewhere that outlives
-    the compute. A teamspace folder is the only channel available: a Job cannot write back
-    into the launching Studio (it holds a snapshot, not a live mount), and `path_mappings`
-    /`artifacts_remote` on `Job.run` apply to docker jobs only, not `studio=` ones.
-
-    Deliberately a copy at the end rather than training directly into the folder. Teamspace
-    folders are S3/GCS-backed FUSE mounts, so the repeated checkpoint and tb_log writes a
-    training run makes would pay network latency for data that `evaluate_model` deletes
-    minutes later anyway. Copying once moves only what is kept — configs, eval CSVs, logs.
-
-    The bigger reason is failure behavior. Chained with `&&` after evaluation, this runs
-    only if training *and* evaluation both succeeded, so a job that dies partway through
-    leaves nothing behind on shared storage. Training straight into the folder would instead
-    publish a half-written directory that looks complete enough for `--skip_existing` to
-    skip — exactly the stale-directory failure that lost the earlier `cazettes-side` seeds.
-
-    Mirrors the run's path under `publish_root`, so a published tree has the same
-    `<tag>/<losses>/tf<N>/<backbone>/seed<N>` layout as a local one and can be copied back
-    into a local results dir wholesale.
-
-    Returns a shell string (not an argv list, like make_extract_command) — it needs shell
-    quoting, and is only meaningful for Lightning jobs.
-    """
-    rel  = Path(output_dir).resolve().relative_to(RESULTS_DIR.resolve())
-    dest = Path(publish_root) / rel
-    return f'mkdir -p "{dest}" && cp -a "{output_dir}/." "{dest}/"'
-
-
-# ── evaluation ────────────────────────────────────────────────────────────────
-
-def evaluate_model(
-    output_dir: Path, csv_file: str, keep_checkpoints: bool = False, datasets: list[str] | None = None,
-    checkpoint: Path | None = None, eval_subdir: str = "eval",
-) -> None:
-    """Evaluate a trained model against every per-dataset test CSV, then clean
-    up the scratch prediction files litpose leaves behind in output_dir and,
-    unless keep_checkpoints, delete model checkpoints (*.ckpt) — evaluation
-    predictions/pixel-errors under output_dir/eval/ are what's kept long-term.
-
-    keep_checkpoints=True is required for any model whose weights are needed
-    after evaluation: per-dataset-head models (blind/oracle re-scoring runs all
-    heads over the test sets again) and all-data or leave-one-out models kept
-    for zero-/few-shot adaptation.
-
-    datasets: evaluate only these test sets (default: every registry dataset), e.g. the target
-    dataset of an adaptation cell.
-
-    checkpoint: evaluate this checkpoint instead of the run's *-best.ckpt (e.g. the
-    final-step *-periodic.ckpt of an adaptation cell), writing to output_dir/<eval_subdir>/."""
-    from lightning_pose.api import Model
-    from PIL import Image
-
-    from mighty_mouse.evaluation.comparison import comparison_summary, visible_errors
-
-    output_dir = Path(output_dir)
-
-    print("  Loading model...")
-    model = Model.from_dir(output_dir)
-    if checkpoint is not None:   # preload, so the model does not pick the run's *-best.ckpt
-        from lightning_pose.api.model import load_model_from_checkpoint
-        print(f"  Using checkpoint {checkpoint}")
-        model.model = load_model_from_checkpoint(cfg=model.cfg, ckpt_file=str(checkpoint),
-                                                 eval=True, skip_data_module=True)
-
-    for eval_name in (datasets or EVAL_DATASETS):
-        test_csv = DATA_DIR / f"CollectedData_{eval_name}_test.csv"
-
-        if not test_csv.exists():
-            print(f"  WARNING: {test_csv} not found — skipping {eval_name} eval")
-            continue
-
-        print(f"  Predicting on {eval_name} test set ({test_csv.name})...")
-        result = model.predict_on_label_csv(
-            csv_file=test_csv,
-            data_dir=DATA_DIR,
-            compute_metrics=False,
-        )
-        preds_df = result.predictions
-
-        labels_df = read_labels_csv(test_csv)
-        if labels_df.index[0] == labels_df.index.name:
-            labels_df = labels_df.iloc[1:]
-
-        error_df = visible_errors(labels_df, preds_df)
-        preds_df = preds_df.loc[labels_df.index]
-        diagonals = []
-        for name in labels_df.index:
-            with Image.open(DATA_DIR / name) as image:
-                diagonals.append(float(np.linalg.norm(image.size)))
-        summary = comparison_summary(error_df, np.asarray(diagonals))
-
-        save_dir = output_dir / eval_subdir / eval_name
-        save_dir.mkdir(parents=True, exist_ok=True)
-        preds_df.to_csv(save_dir / "predictions.csv")
-        error_df.to_csv(save_dir / "pixel_error.csv")
-
-        (save_dir / "comparison_metrics.json").write_text(json.dumps(summary, indent=2) + "\n")
-        mean_err = summary["mean_px"]   # tongue and lips are always excluded (ALWAYS_EXCLUDED)
-        shown = "n/a (no labeled cell)" if mean_err is None else f"{mean_err:.2f} px"
-        print(f"    Mean pixel error (tongue / lips excluded): {shown}  →  {save_dir}")
-
-    for fname in ("predictions.csv", "predictions_pixel_error.csv"):
-        p = output_dir / fname
-        if p.exists():
-            p.unlink()
-    image_preds = output_dir / "image_preds"
-    if image_preds.exists():
-        shutil.rmtree(image_preds)
-
-    if keep_checkpoints:
-        n_kept = len(list(output_dir.rglob("*.ckpt")))
-        print(f"  Kept {n_kept} checkpoint file(s) (--keep_checkpoints)")
-    else:
-        n_deleted = 0
-        for ckpt in output_dir.rglob("*.ckpt"):
-            ckpt.unlink()
-            n_deleted += 1
-        print(f"  Deleted {n_deleted} checkpoint file(s)")
-
-
-def _main():
-    parser = argparse.ArgumentParser(
-        description="Evaluate a trained head-fixed model against every per-dataset test CSV. "
-                     "Also useful standalone for finishing sweep jobs that trained successfully "
-                     "but stalled before their chained eval step completed.",
-    )
-    parser.add_argument(
-        "--output_dir", required=True, type=Path,
-        help="Model output_dir passed to `litpose train`",
-    )
-    parser.add_argument(
-        "--csv_file", default=None,
-        help="Train CSV filename the model was trained on (for logging only). "
-             "Inferred from output_dir's path structure if omitted.",
-    )
-    parser.add_argument(
-        "--keep_checkpoints", action="store_true",
-        help="Retain *.ckpt files after evaluation (needed for blind/oracle "
-             "re-scoring of per-dataset-head models and zero-/few-shot adaptation).",
-    )
-    parser.add_argument(
-        "--datasets", default=None,
-        help="Comma-separated test sets to evaluate (default: every registry dataset).",
-    )
-    parser.add_argument(
-        "--checkpoint", default=None, type=Path,
-        help="Evaluate this checkpoint instead of the run's *-best.ckpt.",
-    )
-    parser.add_argument(
-        "--eval_subdir", default="eval",
-        help="Folder under output_dir for the predictions (default eval; e.g. eval_last).",
-    )
-    args = parser.parse_args()
-    csv_file = args.csv_file or infer_csv_file(args.output_dir)
-    print(f"output_dir: {args.output_dir}")
-    print(f"csv_file:   {csv_file}")
-    datasets = [d for d in args.datasets.split(",") if d] if args.datasets else None
-    evaluate_model(args.output_dir, csv_file, keep_checkpoints=args.keep_checkpoints,
-                   datasets=datasets, checkpoint=args.checkpoint, eval_subdir=args.eval_subdir)
-
-
-if __name__ == "__main__":
-    _main()

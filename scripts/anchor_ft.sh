@@ -117,7 +117,7 @@ else
     grep -q "LoRA: wrapped 72 linear layers (rank $LORA_RANK," "$LOG" || { echo "ABORT: LoRA not applied (rank $LORA_RANK)"; exit 1; }
 fi
 grep -q COMPLETED "$OUT/train_status.json"        || { echo "ABORT: training not COMPLETED"; exit 1; }
-python -m mighty_mouse.train.sweep --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" --keep_checkpoints \
+python scripts/evaluation/evaluate_run.py --run "$OUT" --keep_checkpoints \
     > "${LOG%.log}-eval.log" 2>&1
 E=$?
 [ "$FULL_FT" = 1 ] || python - "$OUT" <<'PY' || { echo "ABORT: reloaded model lacks the trained LoRA adapters"; exit 1; }

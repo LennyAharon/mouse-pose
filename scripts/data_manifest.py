@@ -133,7 +133,7 @@ def build_manifest(data_dir: Path, raw_dir: Path, repo: Path) -> dict:
             "train_frames": d["train_frames"], "test_frames": d["test_frames"],
             "train_sessions": d["train_sessions"], "test_sessions": d["test_sessions"],
             "views": sorted({v for v in d.get("views", {}).values() if v}),
-            "direct": sorted(d["direct"]), "trainable": sorted(d["trainable"]), "eval": sorted(d["eval"]),
+            "direct": sorted(d["direct"]), "trainable": sorted(d["trainable"]), "eval": sorted(d["eval"]) if "eval" in d else None,   # dropped by upstream #35
             "excluded_sessions": len(d.get("excluded", [])),
             "raw_folder": raw_name, "raw_csv_sha256": sha256_files(csvs) if csvs else None,
             "dataset_version": next((v["version"] for v in reg.get(name, []) if csvs and v["raw_csv_sha256"] == sha256_files(csvs)), None),
@@ -166,7 +166,8 @@ def diff(new: dict, old: dict) -> str:
         for k in ("train_frames", "test_frames", "train_sessions", "test_sessions", "excluded_sessions"):
             if a[k] != b[k]: changes.append(f"{k} {a[k]} → {b[k]}")
         for k in ("direct", "eval", "views"):
-            added, removed = sorted(set(b[k]) - set(a[k])), sorted(set(a[k]) - set(b[k]))
+            ak, bk = set(a.get(k) or []), set(b.get(k) or [])
+            added, removed = sorted(bk - ak), sorted(ak - bk)
             if added: changes.append(f"{k} +{added}")
             if removed: changes.append(f"{k} -{removed}")
         if a.get("dataset_version") != b.get("dataset_version"):

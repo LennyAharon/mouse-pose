@@ -11,7 +11,7 @@ it shares all combo/naming/command-building logic with this script via
 mighty_mouse.train.sweep, so the two only differ in how a command actually gets run.
 
 Output lands at:
-  <results_dir>/<tag>/<losses_tag>/tf<N>/<backbone>/seed<N>/
+  <results_dir or --output_root>/<tag>/<losses_tag>[/sampling-T<T>]/tf<N>/<backbone>/seed<N>/
   └── eval/<dataset_name>/pixel_error.csv   ← per-model evaluation results
 
 Merged CSVs (produced by build_dataset.py --tag <tag>) are evaluated against
@@ -31,8 +31,16 @@ Usage examples:
       --seeds "0;1;2" \\
       --backbones "vits_dino"
 
-  # safe to re-run after interruption
+  # safe to re-run after interruption (a run with a rolling checkpoint continues)
   python scripts/train/train_sweep.py --skip_existing ...
+
+  # the Mighty Mouse recipe (scripts/train/train_plan.sh builds these commands); needs
+  # lightning-pose
+  # branch post_sub_lp_delta, which the script checks before training
+  python scripts/train/train_sweep.py --config_file configs/model_zoominout.yaml \\
+      --csv_files CollectedData_<tag>_train.csv --backbones vits_dinov3 \\
+      --sampling_temperatures 2 --keep_checkpoints --skip_existing \\
+      --extra_overrides "+model.head_hidden_channels=256;+training.resume_every_n_steps=500"
 """
 
 import argparse
@@ -40,12 +48,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from mighty_mouse.evaluation.run import clean_run_dir, evaluate_run
+from mighty_mouse.paths import load_paths
 from mighty_mouse.train.sweep import (
-    RESULTS_DIR,
     build_combos,
     check_lightning_pose,
     csv_stem,
-    evaluate_model,
     make_output_dir,
     make_train_command,
     needs_lp_branch,
@@ -66,34 +74,59 @@ def main():
         "--train_frames", default="1",
         help='semicolon-separated frame counts; 1 = all frames',
     )
-    parser.add_argument("--seeds",        default="0",                   help='semicolon-separated rng seeds, e.g. "0;1;2"')
-    parser.add_argument("--backbones",    default="resnet50_animal_ap10k", help='semicolon-separated backbone names')
-    parser.add_argument("--losses_to_use", default="",                   help='comma-separated loss names; empty = supervised only')
+    parser.add_argument("--seeds", default="0", help='semicolon-separated rng seeds, e.g. "0;1;2"')
+    parser.add_argument(
+        "--backbones", default="resnet50_animal_ap10k", help='semicolon-separated backbone names',
+    )
+    parser.add_argument(
+        "--losses_to_use", default="", help='comma-separated loss names; empty = supervised only',
+    )
     parser.add_argument(
         "--sampling_temperatures", default="",
-        help='semicolon-separated multi-dataset sampling temperatures, e.g. "1;2;inf". '
-             "1 = stock frame-proportional loader (no path component, same outputs as "
-             "before this flag existed); empty = one stock run.",
+        help='semicolon-separated multi-dataset sampling temperatures, e.g. "1;2;inf"; '
+             "1 or empty = the stock frame-proportional loader (no path component). Other "
+             "values need lightning-pose branch post_sub_lp_delta.",
     )
     parser.add_argument(
         "--head_modes", default="",
-        help='semicolon-separated head modes, e.g. "shared;per_dataset". shared = stock '
-             "single head (no path component); empty = one shared run.",
+        help='semicolon-separated head modes, e.g. "shared;per_dataset"; shared or empty = the '
+             "stock single head (no path component). Others need lightning-pose branch "
+             "post_sub_lp_delta.",
     )
-    parser.add_argument("--debug",         action="store_true",          help="Smoke-test run (3 epochs)")
-    parser.add_argument("--dry_run",       action="store_true",          help="Print commands without running")
-    parser.add_argument("--skip_existing", action="store_true",          help="Skip combos whose output dir already exists")
-    parser.add_argument("--eval_only",     action="store_true",          help="Skip training; only run evaluation on existing model dirs")
-    parser.add_argument("--keep_checkpoints", action="store_true",        help="Retain *.ckpt after eval (needed for blind/oracle re-scoring and zero-shot)")
-    parser.add_argument("--config_file", type=Path, help="Explicit training recipe YAML")
-    parser.add_argument("--output_root", type=Path, help="Separate root for new experiment results")
-    parser.add_argument("--stop_on_failure", action="store_true", help="Stop a sequential sweep on its first failure")
-    parser.add_argument("--extra_overrides", default="",
-                        help='semicolon-separated extra Hydra overrides for every combo, e.g. '
-                             '"+training.ckpt_every_n_steps=2000" (does not change the output path)')
+    parser.add_argument(
+        "--config_file", type=Path, default=None,
+        help="training config (default: configs/model.yaml), e.g. configs/model_zoominout.yaml",
+    )
+    parser.add_argument(
+        "--extra_overrides", default="",
+        help='semicolon-separated Hydra overrides added to every run, e.g. '
+             '"+model.head_hidden_channels=256" (not part of the output path)',
+    )
+    parser.add_argument(
+        "--output_root", type=Path, default=None,
+        help="write runs here instead of results_dir (same layout below it)",
+    )
+    parser.add_argument("--debug", action="store_true", help="Smoke-test run (6 steps)")
+    parser.add_argument("--dry_run", action="store_true", help="Print commands without running")
+    parser.add_argument(
+        "--skip_existing", action="store_true",
+        help="Skip combos whose output dir already exists, unless it holds a rolling "
+             "checkpoint (+training.resume_every_n_steps): those continue",
+    )
+    parser.add_argument(
+        "--eval_only", action="store_true",
+        help="Skip training; only run evaluation on existing model dirs",
+    )
+    parser.add_argument(
+        "--keep_checkpoints", action="store_true",
+        help="Keep *.ckpt after evaluation (needed for zero-shot predictions and fine-tuning)",
+    )
+    parser.add_argument(
+        "--stop_on_failure", action="store_true", help="Stop the sweep at its first failure",
+    )
     args = parser.parse_args()
     if args.config_file is not None and not args.config_file.is_file():
-        parser.error("--config_file must exist")
+        parser.error(f"--config_file {args.config_file} does not exist")
 
     csv_files    = parse_semicolon_list(args.csv_files)
     train_frames = parse_semicolon_list(args.train_frames)
@@ -102,34 +135,37 @@ def main():
     losses       = [x for x in args.losses_to_use.split(",") if x]
     temperatures = [t for t in args.sampling_temperatures.split(";") if t]
     head_modes   = [h for h in args.head_modes.split(";") if h]
+    extra        = [o for o in args.extra_overrides.split(";") if o]
+
+    paths       = load_paths()
+    results_dir = Path(paths["results_dir"])
+    data_dir    = Path(paths["data_dir"])
 
     combos = build_combos(csv_files, backbones, train_frames, seeds, temperatures, head_modes)
-    # Collected rather than raised so one bad combo doesn't abort the sweep, but the
-    # process can still exit non-zero instead of reporting success after every job died.
-    failures: list[str] = []
     print(f"Total jobs: {len(combos)}")
 
-    def output_for(combo):
-        output = make_output_dir(combo[0], combo[1], combo[2], combo[3], losses, combo[4], combo[5])
-        return args.output_root / output.relative_to(RESULTS_DIR) if args.output_root else output
+    def output_for(combo) -> Path:
+        return make_output_dir(args.output_root or results_dir, *combo[:4], losses, combo[4],
+                               combo[5])
 
     if args.skip_existing and not args.eval_only:
-        # a run with a rolling checkpoint (training.resume_every_n_steps) is not skipped:
-        # it continues
         combos = [
             c for c in combos
             if not output_for(c).exists() or (output_for(c) / "resume" / "resume.ckpt").exists()
         ]
         print(f"After skipping existing: {len(combos)} remaining")
 
-    extra = [o for o in args.extra_overrides.split(";") if o]
     if not (args.dry_run or args.eval_only) and any(
         needs_lp_branch(c[4], args.config_file, extra) for c in combos
     ):
         check_lightning_pose()
 
-    for csv_file, backbone, train_frames_n, seed, temperature, head_mode in combos:
-        output_dir = output_for((csv_file, backbone, train_frames_n, seed, temperature, head_mode))
+    # collected rather than raised, so one bad combo doesn't stop the sweep, but the
+    # process still exits non-zero instead of reporting success after a failure
+    failures: list[str] = []
+    for combo in combos:
+        csv_file, backbone, train_frames_n, seed, temperature, head_mode = combo
+        output_dir = output_for(combo)
         label = f"{csv_stem(csv_file)} | tf={train_frames_n} | {backbone} | seed={seed}"
         if temperature:
             label += f" | T={temperature}"
@@ -139,9 +175,9 @@ def main():
 
         if not args.eval_only:
             cmd = make_train_command(
-                csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug,
-                temperature, head_mode, config_file=args.config_file,
-                extra_overrides=[o for o in args.extra_overrides.split(";") if o],
+                csv_file, backbone, train_frames_n, seed, losses, output_dir, data_dir,
+                args.debug, temperature, config_file=args.config_file, extra_overrides=extra,
+                head_mode=head_mode,
             )
             print("   " + " ".join(cmd))
 
@@ -162,7 +198,8 @@ def main():
                 failures.append(f"{label} (no output dir)")
                 continue
             try:
-                evaluate_model(output_dir, csv_file, keep_checkpoints=args.keep_checkpoints)
+                evaluate_run(output_dir, data_dir)
+                clean_run_dir(output_dir, args.keep_checkpoints)
             except Exception as e:
                 print(f"  ERROR: evaluation failed: {e}")
                 failures.append(f"{label} (evaluation: {e})")

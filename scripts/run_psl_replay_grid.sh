@@ -76,7 +76,7 @@ PY
   grep -q COMPLETED "$OUT/train_status.json" 2>/dev/null || { echo "ABORT: training failed $DS $SLUG"; exit 1; }
   grep -q "loading weights from" "$OUT.log" || { echo "ABORT: trunk weights not loaded $DS $SLUG"; exit 1; }
 
-  python -m mighty_mouse.train.sweep --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" \
+  python scripts/evaluation/evaluate_run.py --run "$OUT" \
       > "${OUT}-eval.log" 2>&1
   [ -f "$OUT/eval/$DS/pixel_error.csv" ] || { echo "ABORT: eval failed $DS $SLUG"; exit 1; }
   echo "done: $DS $SLUG"

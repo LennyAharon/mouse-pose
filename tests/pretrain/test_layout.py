@@ -1,13 +1,14 @@
-"""Tests for mighty_mouse.pretrain.paths."""
+"""Tests for mighty_mouse.pretrain.layout."""
 
 from pathlib import Path
 
 import pytest
 
-from mighty_mouse.pretrain.paths import (
+from mighty_mouse.pretrain.layout import (
     dedup_dir,
     embeddings_dir,
     pretrain_dir,
+    subset_dir,
     videos_paths_file,
 )
 
@@ -31,3 +32,11 @@ class TestLayout:
         assert videos_paths_file(root) == root / "paths.yaml"
         assert embeddings_dir(root) == root / "embeddings"
         assert dedup_dir(root) == root / "dedup"
+
+
+class TestSubsetDir:
+    """Test the function subset_dir."""
+
+    def test_subset_dir_joins_size_and_method(self):
+        root = Path("/data/videos")
+        assert subset_dir(root, "100k", "A1") == root / "pretrain_datasets" / "100k_methodA1"

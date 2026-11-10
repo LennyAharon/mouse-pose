@@ -2,17 +2,20 @@
 
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
 from mighty_mouse.pretrain.dedup import (
     choose_method,
+    dedup_video,
     load_selection,
     output_path,
     save_selection,
     seed_from_key,
-    select_frames,
+    skip_first_frames,
     stored_method,
+    video_fps,
 )
 
 torch = pytest.importorskip("torch")
@@ -63,6 +66,41 @@ class TestChooseMethod:
             choose_method(10, method="nope")
 
 
+class TestSkipFirstFrames:
+    """Test the function skip_first_frames."""
+
+    def test_skip_first_frames_dataset_without_skip(self):
+        assert skip_first_frames("hantman") == 0
+
+    def test_skip_first_frames_frames_entry(self):
+        assert skip_first_frames("aind-vbn-body") == 1
+
+    def test_skip_first_frames_seconds_entry_scales_with_fps(self):
+        assert skip_first_frames("scara", fps=30.0) == 1800
+        assert skip_first_frames("costa-peterka", fps=30.0) == 1050
+        assert skip_first_frames("costa-peterka", fps=60.0) == 2100
+
+    def test_skip_first_frames_seconds_entry_without_fps_raises(self):
+        with pytest.raises(ValueError, match="fps"):
+            skip_first_frames("scara")
+
+
+class TestVideoFps:
+    """Test the function video_fps."""
+
+    def test_video_fps_reads_frame_rate(self, tmp_path: Path):
+        path = tmp_path / "v.mp4"
+        writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 25.0, (32, 32))
+        for _ in range(5):
+            writer.write(np.zeros((32, 32, 3), dtype=np.uint8))
+        writer.release()
+        assert video_fps(path) == pytest.approx(25.0)
+
+    def test_video_fps_missing_file_raises(self, tmp_path: Path):
+        with pytest.raises(OSError):
+            video_fps(tmp_path / "missing.mp4")
+
+
 class TestStoredMethod:
     """Test the function stored_method."""
 
@@ -74,82 +112,82 @@ class TestStoredMethod:
         assert stored_method({"n_iter": 12}) == "flat"
 
 
-class TestSelectFrames:
-    """Test the function select_frames."""
+class TestDedupVideo:
+    """Test the function dedup_video."""
 
-    def test_select_frames_short_video_kept_whole(self, embeddings):
-        idx, size, stats = select_frames(embeddings[:10], k=10)
+    def test_dedup_video_short_video_kept_whole(self, embeddings):
+        idx, size, stats = dedup_video(embeddings[:10], k=10)
         assert idx.tolist() == list(range(10))
         assert size.tolist() == [1] * 10
         assert stats["n_iter"] == 0
 
-    def test_select_frames_one_per_cluster(self, embeddings):
-        idx, size, stats = select_frames(embeddings, k=3, seed=0)
+    def test_dedup_video_one_per_cluster(self, embeddings):
+        idx, size, stats = dedup_video(embeddings, k=3, seed=0)
         assert len(idx) == 3
         # one kept frame from each group of 100
         assert sorted(idx // 100) == [0, 1, 2]
         assert size.tolist() == [100, 100, 100]
         assert stats["n_empty_clusters"] == 0
 
-    def test_select_frames_indices_sorted_unique_in_range(self, embeddings):
-        idx, size, _ = select_frames(embeddings, k=20, seed=1)
+    def test_dedup_video_indices_sorted_unique_in_range(self, embeddings):
+        idx, size, _ = dedup_video(embeddings, k=20, seed=1)
         assert np.all(np.diff(idx) > 0)
         assert idx.min() >= 0 and idx.max() < 300
         assert idx.dtype == np.int32 and size.dtype == np.int32
 
-    def test_select_frames_cluster_sizes_sum_to_n(self, embeddings):
-        idx, size, stats = select_frames(embeddings, k=7, seed=2)
+    def test_dedup_video_cluster_sizes_sum_to_n(self, embeddings):
+        idx, size, stats = dedup_video(embeddings, k=7, seed=2)
         assert size.sum() == 300  # every frame belongs to exactly one kept cluster
         assert stats["n_empty_clusters"] == 7 - len(idx)
 
-    def test_select_frames_deterministic_per_seed(self, embeddings):
-        a = select_frames(embeddings, k=10, seed=5)[0]
-        b = select_frames(embeddings, k=10, seed=5)[0]
+    def test_dedup_video_deterministic_per_seed(self, embeddings):
+        a = dedup_video(embeddings, k=10, seed=5)[0]
+        b = dedup_video(embeddings, k=10, seed=5)[0]
         assert np.array_equal(a, b)
 
-    def test_select_frames_does_not_modify_input(self, embeddings):
+    def test_dedup_video_does_not_modify_input(self, embeddings):
         before = embeddings.copy()
-        select_frames(embeddings, k=10, seed=0)
+        dedup_video(embeddings, k=10, seed=0)
         assert np.array_equal(before, embeddings)
 
-    def test_select_frames_two_level(self, embeddings):
-        idx, size, stats = select_frames(
+    def test_dedup_video_two_level(self, embeddings):
+        idx, size, stats = dedup_video(
             embeddings, k=20, seed=0, method="two_level", k1_factor=3, k2=6
         )
         assert len(idx) == 20 and np.all(np.diff(idx) > 0)
         assert stats["method"] == "two_level" and stats["k1"] == 60 and stats["k2"] == 6
         assert size.min() >= 1
 
-    def test_select_frames_two_level_auto_uses_threshold(self, embeddings):
-        _, _, stats = select_frames(
+    def test_dedup_video_two_level_auto_uses_threshold(self, embeddings):
+        _, _, stats = dedup_video(
             embeddings, k=20, two_level_min_frames=100, k1_factor=3, k2=6
         )
         assert stats["method"] == "two_level"
-        _, _, stats = select_frames(embeddings, k=20, two_level_min_frames=10_000)
+        _, _, stats = dedup_video(embeddings, k=20, two_level_min_frames=10_000)
         assert stats["method"] == "flat" and stats["k1"] == 0
 
-    def test_select_frames_two_level_too_few_frames_raises(self, embeddings):
+    def test_dedup_video_two_level_too_few_frames_raises(self, embeddings):
         with pytest.raises(ValueError, match="at least"):
-            select_frames(embeddings[:50], k=20, method="two_level")
+            dedup_video(embeddings[:50], k=20, method="two_level")
 
     @pytest.mark.parametrize("method", ["flat", "two_level"])
-    def test_select_frames_skip_first_never_selected(self, embeddings, method):
+    def test_dedup_video_skip_first_never_selected(self, embeddings, method):
         # make frame 0 a lone outlier that k-means would otherwise keep
         embeddings = embeddings.copy()
         embeddings[0] = -embeddings[0]
-        idx, _, stats = select_frames(
+        idx, _, stats = dedup_video(
             embeddings, k=20, seed=1, method=method, skip_first=1, k1_factor=3, k2=6
         )
         assert 0 not in idx and idx.max() < 300
         assert stats["skip_first"] == 1 and stats["n_frames"] == 300
 
-    def test_select_frames_skip_first_whole_video(self, embeddings):
-        idx, size, stats = select_frames(embeddings[:10], k=10, skip_first=2)
+    def test_dedup_video_skip_first_whole_video(self, embeddings):
+        idx, size, stats = dedup_video(embeddings[:10], k=10, skip_first=2)
         assert idx.tolist() == list(range(2, 10)) and len(size) == 8
         assert stats["method"] == "whole"
 
-    def test_select_frames_coverage_stats(self, embeddings):
-        _, _, stats = select_frames(embeddings, k=3, seed=0)
+    def test_dedup_video_coverage_stats(self, embeddings):
+        _, _, stats = dedup_video(embeddings, k=3, seed=0)
         assert 0 <= stats["coverage_mean"] <= stats["coverage_p95"] <= stats["coverage_max"]
         assert stats["coverage_max"] < 0.01  # groups are tight
 

@@ -13,7 +13,7 @@ everything the trunk trained; an experts trunk with model.head_groups needs PYTH
 at a Lightning Pose that builds them, else ABORT); `litpose train <arm config>` with the cell's
 overrides; check the log (weights loaded, anchor attached, LoRA rank, head) and that the run's
 config kept the trunk's input size (evaluation predicts at the run's size); evaluate on the
-target dataset's test set (`python -m mighty_mouse.train.sweep --datasets <ds>`, plus the dataset's
+target dataset's test set (`scripts/evaluation/evaluate_run.py --datasets <ds>`, plus the dataset's
 `eval_also` test sets from the grid config; with the grid's
 `eval_last`, also the final-step checkpoint into eval_last/); for LoRA arms
 check that the reloaded model carries the trained adapters; delete checkpoints unless the grid
@@ -59,6 +59,8 @@ from mighty_mouse.adaptation import (
     trunk_problem,
 )
 from mighty_mouse.paths import load_paths, repo_root
+
+EVALUATE_RUN = str(Path(__file__).resolve().parents[1] / "evaluation" / "evaluate_run.py")
 
 LORA_CHECK = """
 import sys, torch
@@ -223,9 +225,8 @@ def main() -> None:
     # the target's test set, plus any the grid lists under the dataset's `eval_also`
     eval_sets = ",".join([cell.dataset, *grid.datasets[cell.dataset].get("eval_also", [])])
     with open(out.with_name(out.name + "-eval.log"), "w") as fh:
-        ev = subprocess.run([sys.executable, "-m", "mighty_mouse.train", "--output_dir", str(out),
-                             "--csv_file", train_csv, "--datasets", eval_sets,
-                             "--keep_checkpoints"],
+        ev = subprocess.run([sys.executable, EVALUATE_RUN, "--run", str(out),
+                             "--datasets", eval_sets, "--keep_checkpoints"],
                             stdout=fh, stderr=subprocess.STDOUT).returncode
     pred = out / "eval" / cell.dataset / "predictions.csv"
     if ev != 0 or not pred.exists():
@@ -239,8 +240,7 @@ def main() -> None:
         if last is None or step_of(last) != steps_for(grid, cell.n, arm):
             sys.exit(f"ABORT {cell.id}: no final-step checkpoint ({last})")
         with open(out.with_name(out.name + "-eval_last.log"), "w") as fh:
-            ev = subprocess.run([sys.executable, "-m", "mighty_mouse.train",
-                                 "--output_dir", str(out), "--csv_file", train_csv,
+            ev = subprocess.run([sys.executable, EVALUATE_RUN, "--run", str(out),
                                  "--datasets", eval_sets, "--checkpoint", str(last),
                                  "--eval_subdir", "eval_last", "--keep_checkpoints"],
                                 stdout=fh, stderr=subprocess.STDOUT).returncode

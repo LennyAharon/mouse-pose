@@ -24,7 +24,7 @@ echo "train exit $?"
 grep -q COMPLETED "$OUT/train_status.json" || { echo "ABORT: training not COMPLETED"; exit 1; }
 grep -q "stratified split" "$LOG" && { echo "ABORT: stratified split used -- frames differ from the anchored draw"; exit 1; }
 grep -q "dataset splits -- train: $N," "$LOG" || { echo "ABORT: train split is not $N frames"; exit 1; }
-python -m mighty_mouse.train.sweep --output_dir "$OUT" --csv_file "CollectedData_${DS}_train.csv" --keep_checkpoints \
+python scripts/evaluation/evaluate_run.py --run "$OUT" --keep_checkpoints \
     > "${LOG%.log}-eval.log" 2>&1
 E=$?
 echo "eval exit $E - $OUT"

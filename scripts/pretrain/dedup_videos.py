@@ -21,25 +21,33 @@ from mighty_mouse.paths import load_paths
 from mighty_mouse.pretrain.dedup import (
     DEFAULT_K,
     METHODS,
-    SKIP_FIRST_FRAMES,
+    SKIP_FIRST_SECONDS,
     TWO_LEVEL_MIN_FRAMES,
     choose_method,
+    dedup_video,
     load_selection,
     output_path,
     save_selection,
     seed_from_key,
-    select_frames,
+    skip_first_frames,
     stored_method,
+    video_fps,
 )
 from mighty_mouse.pretrain.embed import MODEL_TYPES
 from mighty_mouse.pretrain.embed import output_path as embeddings_path
-from mighty_mouse.pretrain.paths import (
+from mighty_mouse.pretrain.layout import (
     dedup_dir,
     embeddings_dir,
     pretrain_dir,
     videos_paths_file,
 )
 from mighty_mouse.pretrain.video_list import list_videos
+
+
+def skip_for(v) -> int:
+    """Leading frames to ignore for a video (reads the frame rate only if its dataset needs it)."""
+    fps = video_fps(v.path) if v.dataset in SKIP_FIRST_SECONDS else None
+    return skip_first_frames(v.dataset, fps)
 
 
 def main() -> None:
@@ -78,7 +86,7 @@ def main() -> None:
         elif out.exists() and not args.overwrite:
             n_existing += 1
             stats = load_selection(out)[2]
-            skip = SKIP_FIRST_FRAMES.get(v.dataset, 0)
+            skip = skip_for(v)
             expected = choose_method(
                 stats["n_frames"] - skip, args.k, args.method, args.two_level_min_frames
             )
@@ -112,9 +120,9 @@ def main() -> None:
             emb = np.load(embeddings_path(embeddings_dir(root), args.model_type, v.dataset, v.key))
             if v.n_frames is not None and len(emb) != v.n_frames:
                 print(f"  WARNING: {len(emb)} embeddings, videos paths file says {v.n_frames}")
-            frame_idx, cluster_size, stats = select_frames(
+            frame_idx, cluster_size, stats = dedup_video(
                 emb, args.k, seed_from_key(v.key), device, args.method,
-                args.two_level_min_frames, SKIP_FIRST_FRAMES.get(v.dataset, 0),
+                args.two_level_min_frames, skip_for(v),
             )
         except Exception:
             traceback.print_exc()

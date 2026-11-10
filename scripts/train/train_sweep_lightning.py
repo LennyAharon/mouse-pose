@@ -13,7 +13,7 @@ are chained into one shell command per job:
     test -d <data_dir> || tar -xf <data_dir>.tar -C <data_dir's parent>
     && mkdir -p <data_dir>/videos
     && litpose train ...
-    && python -m mighty_mouse.train.sweep --output_dir ... --csv_file ...
+    && python scripts/evaluation/evaluate_run.py --run ...
 
 Each Job is an isolated snapshot of the launching Studio's own filesystem, not
 a shared mount multiple jobs write into — so every job independently checking
@@ -23,7 +23,7 @@ HuggingFace-style dataset cache on genuinely shared storage, which would need
 locking or pre-extraction to avoid concurrent-write races.
 
 Output lands at the same place as the local script:
-  <results_dir>/<tag>/<losses_tag>/tf<N>/<backbone>/seed<N>/
+  <results_dir>/<tag>/<losses_tag>[/head-<mode>][/sampling-T<T>]/tf<N>/<backbone>/seed<N>/
   └── eval/<dataset_name>/pixel_error.csv   ← per-model evaluation results
 
 Prerequisites (not handled by this script):
@@ -53,10 +53,14 @@ Run from outside Lightning AI (set LIGHTNING_API_KEY env var first):
 """
 
 import argparse
+import shlex
 import time
+from pathlib import Path
 
+from mighty_mouse.paths import load_paths
 from mighty_mouse.train.sweep import (
     build_combos,
+    check_lightning_pose,
     make_eval_command,
     make_extract_command,
     make_job_name,
@@ -64,6 +68,7 @@ from mighty_mouse.train.sweep import (
     make_preflight_command,
     make_publish_command,
     make_train_command,
+    needs_lp_branch,
     parse_semicolon_list,
 )
 
@@ -120,7 +125,22 @@ def main():
              "mid-training and the remaining combos never run.",
     )
     parser.add_argument("--poll_interval", type=int, default=30,         help="Seconds between job-status polls")
+    parser.add_argument(
+        "--config_file", type=Path, default=None,
+        help="training config (default: configs/model.yaml), e.g. configs/model_zoominout.yaml",
+    )
+    parser.add_argument(
+        "--extra_overrides", default="",
+        help='semicolon-separated Hydra overrides added to every run, e.g. '
+             '"+model.head_hidden_channels=256" (not part of the output path)',
+    )
+    parser.add_argument(
+        "--keep_checkpoints", action="store_true",
+        help="Keep *.ckpt after evaluation (needed for zero-shot predictions and fine-tuning)",
+    )
     args = parser.parse_args()
+    if args.config_file is not None and not args.config_file.is_file():
+        parser.error(f"--config_file {args.config_file} does not exist")
 
     csv_files    = parse_semicolon_list(args.csv_files)
     train_frames = parse_semicolon_list(args.train_frames)
@@ -129,6 +149,11 @@ def main():
     losses       = [x for x in args.losses_to_use.split(",") if x]
     temperatures = [t for t in args.sampling_temperatures.split(";") if t]
     head_modes   = [h for h in args.head_modes.split(";") if h]
+    extra        = [o for o in args.extra_overrides.split(";") if o]
+
+    paths       = load_paths()
+    results_dir = Path(paths["results_dir"])
+    data_dir    = Path(paths["data_dir"])
 
     combos = build_combos(csv_files, backbones, train_frames, seeds, temperatures, head_modes)
     print(f"Total jobs: {len(combos)}")
@@ -136,7 +161,7 @@ def main():
     if args.skip_existing:
         combos = [
             c for c in combos
-            if not make_output_dir(c[0], c[1], c[2], c[3], losses, c[4], c[5]).exists()
+            if not make_output_dir(results_dir, *c[:4], losses, c[4], c[5]).exists()
         ]
         print(f"After skipping existing: {len(combos)} remaining")
 
@@ -145,7 +170,7 @@ def main():
     # Preflight goes first so a wrong lightning_pose kills the job in a second rather than
     # after a full training run (see make_preflight_command).
     preflight_cmd = make_preflight_command(args.allow_stock_lp)
-    extract_cmd   = make_extract_command()
+    extract_cmd   = make_extract_command(data_dir)
 
     def combo_block(combo) -> tuple[str, "Path", str]:
         """(job name, output dir, `train && eval && publish` chain) for one combo.
@@ -156,20 +181,25 @@ def main():
         """
         csv_file, backbone, train_frames_n, seed, temperature, head_mode = combo
         output_dir = make_output_dir(
-            csv_file, backbone, train_frames_n, seed, losses, temperature, head_mode,
+            results_dir, csv_file, backbone, train_frames_n, seed, losses, temperature, head_mode,
         )
         name       = make_job_name(
             csv_file, backbone, train_frames_n, seed, losses, temperature, head_mode,
         )
+        eval_cmd   = make_eval_command(output_dir)
+        if args.keep_checkpoints:
+            eval_cmd.append("--keep_checkpoints")
+        # shlex.join: overrides such as sampling_temperature='inf' carry shell quotes
         stages     = [
-            " ".join(make_train_command(
-                csv_file, backbone, train_frames_n, seed, losses, output_dir, args.debug,
-                temperature, head_mode,
+            shlex.join(make_train_command(
+                csv_file, backbone, train_frames_n, seed, losses, output_dir, data_dir,
+                args.debug, temperature, config_file=args.config_file, extra_overrides=extra,
+                head_mode=head_mode,
             )),
-            " ".join(make_eval_command(output_dir, csv_file)),
+            shlex.join(eval_cmd),
         ]
         if args.publish_dir:
-            stages.append(make_publish_command(output_dir, args.publish_dir))
+            stages.append(make_publish_command(output_dir, results_dir, args.publish_dir))
         return name, output_dir, " && ".join(stages)
 
     jobs_spec = []
@@ -197,6 +227,10 @@ def main():
             print(f"\n{name}:\n  {cmd}")
         print(f"\n(dry run — {len(jobs_spec)} jobs printed, nothing launched)")
         return
+
+    # the jobs run on this Studio's lightning-pose
+    if any(needs_lp_branch(c[4], args.config_file, extra) for c in combos):
+        check_lightning_pose()
 
     from lightning_sdk import Job, Machine, Studio
 
