@@ -15,8 +15,8 @@ from mighty_mouse.registry import load_registry
 ALL_DATASETS = load_registry()
 
 # dataset -> short name in merged-CSV tags, in tag order (append new datasets at the end; same
-# order as configs/dataset_registry.yaml). From upstream main (#30); scripts/evaluation/zeroshot_score.py
-# and eval_suite.py use these.
+# order as configs/dataset_registry.yaml). From upstream main (#30);
+# scripts/evaluation/zeroshot_score.py and eval_suite.py use these.
 SHORT_NAMES = {
     "facemap":       "face",
     "ibl":           "ibl",
@@ -31,6 +31,7 @@ SHORT_NAMES = {
     "cavelli":       "cav",
     "tyssowski":     "tys",
     "kaufman-water": "kaufw",
+    "murphy-1":      "murph-1",
 }
 
 
