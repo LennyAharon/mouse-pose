@@ -9,16 +9,18 @@ description: Run after a corpus version is built (or when the user asks what to 
 runs by default. `run` starts GPU jobs and is only allowed when the user has named, in this
 conversation, the stages (and seeds) to run; if in doubt, show the table and ask.
 
-`scripts/train/train_plan.sh` knows the recipe of record (shared **nonlinear** head, T=2, per-dataset zoom-in/out) in
-the two sizes the user trains (2026-09-29): **S** = ViT-S DINOv3 12k steps
-(`configs/model_zoominout.yaml`, results under `trunks/`, `dedicated/`) and **B** = ViT-B DINOv3
-24k steps (`configs/ablations/model_zoominout_24k.yaml`, under `trunks_24k/`, `dedicated_24k/`);
-`--arch S|B|SB` (default both). It never retrains something that exists (`--skip_existing`), so it
-can be re-run at any time.
+`scripts/train/train_plan.sh` knows the recipe of record (shared **nonlinear** head, T=2, per-dataset zoom-in/out).
+Since 2026-11-15 that is **B** = ViT-B DINOv3, 384 px stable recipe (`configs/model_recipe_b384.yaml`: 14k steps,
+unfreeze 3000, lr halvings 6k/8k/10k, linear backbone warm-up 1000 + gradient clip 1.0; results under `trunks_b384/`,
+`dedicated_b384/`), the default arch. **L** = the same recipe with ViT-L DINOv3 (`trunks_l384/`, `dedicated_l384/`;
+~45 GB GPU memory, so 80 GB A100 / H100 / H200 only). **S** = the old ViT-S 12k 256 px recipe
+(`configs/model_zoominout.yaml`, `trunks/`, `dedicated/`), kept for comparison. `--arch B|L|S` or combinations
+(e.g. `BL`). It never retrains something that exists (`--skip_existing`), so it can be re-run at any time.
+The geometric unfreeze warm-up and layer-wise lr decay are NOT in the recipe (still being tested, 2026-11-15).
 
 **Head (user, 2026-10-22): nonlinear is the default and the go-to.** Every stage adds
 `+model.head_hidden_channels=256` (the adaptation-curves trunk
-recipe) and writes to `trunks-headmlp256/`, `dedicated-headmlp256/` (`trunks_24k-headmlp256/` ... for B).
+recipe) and writes to `trunks_b384-headmlp256/`, `dedicated_b384-headmlp256/` (`trunks-headmlp256/` ... for S).
 `--head linear` gives the old stock linear head (`trunks/`, `dedicated/`) and only when the user asks.
 Check the first run's log for lightning-pose's `nonlinear head: ConvT -> 256 -> ...` line.
 On NCSA Delta, launch with `submit` (one SLURM job per run) and/or `scripts/delta/interactive_feeder.sh`
@@ -35,9 +37,9 @@ On NCSA Delta, launch with `submit` (one SLURM job per run) and/or `scripts/delt
    experiment uses), then `dedicated` (upper-bound references, small and fast), then `loo` (only
    needed for zero-shot / few-shot transfer experiments). Seeds: 1 for everything first; 3 for
    `all` when ensembles or seed-variance are needed. Train only what the user asked for (on
-   2026-09-29: the all-data trunk in both sizes, then leave-one-out for selected datasets). Alone
-   on the L4 a ViT-S 12k trunk takes ~1.5 h and a ViT-B 24k trunk ~5.5 h; two at a time each is
-   slower (~2.5-3 h / ~8-10 h).
+   2026-09-29: the all-data trunk in both sizes, then leave-one-out for selected datasets). On Delta
+   (one GPU, 16 CPU per run) a B run takes ~3.5 h on an A100 and an L run ~4 h on an H200 (both
+   ~1 step/s; 1-h interactive slots resume across jobs).
 4. `bash scripts/train/train_plan.sh show <stages>` prints the script `run` would launch (check it),
    then `bash scripts/train/train_plan.sh run <stages> --seeds "..." [--arch ...]`. It runs detached
    (`setsid nohup`, survives the session) and keeps **2 training runs** on the GPU whenever it has

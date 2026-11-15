@@ -1,16 +1,18 @@
 #!/bin/bash
 # Training plan for the current corpus version: which models exist, which are missing, run the
-# missing ones with the recipe of record (shared NONLINEAR head, T=2, per-dataset zoom-in/out) in two sizes:
-#   S = ViT-S DINOv3, 12k steps (configs/model_zoominout.yaml)               -> trunks/, dedicated/
-#   B = ViT-B DINOv3, 24k steps (configs/ablations/model_zoominout_24k.yaml) -> trunks_24k/, dedicated_24k/
+# missing ones with the recipe of record (shared NONLINEAR head, T=2, per-dataset zoom-in/out):
+#   B = ViT-B DINOv3, 384 px stable recipe (configs/model_recipe_b384.yaml)    -> trunks_b384/, dedicated_b384/
+#   L = ViT-L DINOv3, same recipe (needs ~45 GB: 80 GB A100 / H100 / H200)     -> trunks_l384/, dedicated_l384/
+#   S = ViT-S DINOv3, old 256 px 12k recipe (configs/model_zoominout.yaml)     -> trunks/, dedicated/
+# (recipe of record from 2026-11-15; before that B was ViT-B 24k at 256 px, configs/ablations/model_zoominout_24k.yaml)
 # Keeps up to 2 training runs on the GPU: before each job it waits until fewer than 2 are running,
 # counted globally (every scripts/train/train_sweep.py process, whoever started it), then launches it in the
 # background -- a queue with work left always fills a free second slot (user, 2026-09-29). After each leave-one-out run, zero-shot predictions on the
 # left-out dataset's TRAIN frames go to <run>/zeroshot/<ds>_train_predictions.csv (test frames: eval/).
 #
 #   scripts/train/train_plan.sh plan                      # table: stage / tag / status per arch x seed
-#   scripts/train/train_plan.sh run all loo               # train the missing ones, S and B (detached)
-#   scripts/train/train_plan.sh run all --arch S          # ViT-S only ("S", "B" or "SB")
+#   scripts/train/train_plan.sh run all loo               # train the missing ones, ViT-B recipe (detached)
+#   scripts/train/train_plan.sh run all --arch BL         # ViT-B and ViT-L ("B", "L", "S" or combinations)
 #   scripts/train/train_plan.sh run loo --seeds "0;1;2"   # more seeds
 #   scripts/train/train_plan.sh run loo:kaufman           # one dataset's leave-one-out trunk
 #   scripts/train/train_plan.sh run all dedicated:hantman-mv  # one dataset's dedicated model
@@ -22,7 +24,7 @@
 #
 # HEAD: the shared head is NONLINEAR by default (user, 2026-10-22: the go-to recipe): +model.head_hidden_channels=256
 # (ConvT -> 256 -> LayerNorm -> ReLU -> Conv1x1), as the adaptation-curves
-# trunks; results in trunks-headmlp256/, dedicated-headmlp256/ (trunks_24k-headmlp256/ ... for B). `--head <N>` sets
+# trunks; results in trunks-headmlp256/, dedicated-headmlp256/ (trunks_b384-headmlp256/ ... for B, _l384 for L). `--head <N>` sets
 # another width; `--head linear` is the stock linear head (old layout: trunks/, dedicated/).
 # Logs: <results_dir>/_logs/train_plan_<stamp>_<stages>.log, one per `run`; kept as the record of what was
 # launched when (small text files), never needed by any script; delete freely once the run is done.
@@ -30,8 +32,8 @@
 # Stages: all = the all-data trunk; dedicated = one model per dataset (its own frames only);
 # loo = one leave-one-out trunk per dataset. Datasets and their order come from
 # configs/dataset_registry.yaml; tag short names from the TAG map below (keep in sync with
-# docs/build_dataset.md). Output layout under results_dir: trunks[_24k]/<tag>_train/... and
-# dedicated[_24k]/<ds>_train/... (train_sweep.py's own path inside), so --skip_existing works.
+# docs/build_dataset.md). Output layout under results_dir: trunks[_b384|_l384]/<tag>_train/... and
+# dedicated[_b384|_l384]/<ds>_train/... (train_sweep.py's own path inside), so --skip_existing works.
 set -u
 cd "$(dirname "$0")/../.."
 RESULTS=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()['results_dir'])")
@@ -39,7 +41,7 @@ DATA=$(python -c "from mighty_mouse.paths import load_paths; print(load_paths()[
 mapfile -t DATASETS < <(python -c "from mighty_mouse.registry import load_registry; print('\n'.join(load_registry()))")
 declare -A TAG=([facemap]=face [ibl]=ibl [cheese-2d]=cheese [cazettes-side]=caz [kondo]=kondo [hantman-mv]=hmv [cheese-3d]=c3d [kaufman]=kauf
                 [aind-vbn-body]=vbnb [aind-vbn-face]=vbnf [cavelli]=cav [tyssowski]=tys [kaufman-water]=kaufw [murphy-1]=murph-1)
-SEEDS="0"; ARCHS="S B"
+SEEDS="0"; ARCHS="B"
 cmd="${1:-plan}"; shift || true
 while [ $# -gt 0 ]; do case "$1" in
   --seeds) SEEDS="$2"; shift 2;;
@@ -55,9 +57,9 @@ HEAD_OV="${HEAD:++model.head_hidden_channels=$HEAD}"
 # every run keeps a rolling checkpoint (lightning-pose training.resume_every_n_steps, 2026-10-23): a run
 # cut off by a job's time limit or by preemption continues in the next job instead of starting over
 HEAD_OV="${HEAD_OV:+$HEAD_OV;}+training.resume_every_n_steps=500"
-cfg_of()      { [ "$1" = S ] && echo configs/model_zoominout.yaml || echo configs/ablations/model_zoominout_24k.yaml; }
-backbone_of() { [ "$1" = S ] && echo vits_dinov3 || echo vitb_dinov3; }
-suffix_of()   { [ "$1" = S ] && echo "" || echo "_24k"; }
+cfg_of()      { case "$1" in S) echo configs/model_zoominout.yaml;; *) echo configs/model_recipe_b384.yaml;; esac; }
+backbone_of() { case "$1" in S) echo vits_dinov3;; L) echo vitl_dinov3;; *) echo vitb_dinov3;; esac; }
+suffix_of()   { case "$1" in S) echo "";; L) echo "_l384";; *) echo "_b384";; esac; }
 tag_of() { local t=""; for d in "$@"; do t="${t:+$t+}${TAG[$d]:?no short name for $d, add it to TAG}"; done; echo "$t"; }
 all_tag=$(tag_of "${DATASETS[@]}")
 loo_tag() { local out=$1 keep=(); for d in "${DATASETS[@]}"; do [ "$d" != "$out" ] && keep+=("$d"); done; tag_of "${keep[@]}"; }
@@ -89,7 +91,7 @@ rows() {
 
 case "$cmd" in
   plan)
-    echo "corpus: $(basename "$DATA")  results: $RESULTS  seeds: $SEEDS  archs: $ARCHS(S = ViT-S 12k, B = ViT-B 24k)"
+    echo "corpus: $(basename "$DATA")  results: $RESULTS  seeds: $SEEDS  archs: $ARCHS(B = ViT-B 384 stable, L = ViT-L 384 stable, S = ViT-S 12k 256 px)"
     printf "%-10s %-38s" stage tag; for a in $ARCHS; do for s in ${SEEDS//;/ }; do printf " %s-seed%s " "$a" "$s"; done; done; echo
     rows | while read -r stage area tag out; do
       [ -f "$DATA/CollectedData_${tag}_train.csv" ] || { printf "%-10s %-38s  NO CSV (build the tag first)\n" "$stage" "$tag"; continue; }
