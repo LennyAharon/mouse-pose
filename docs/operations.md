@@ -28,10 +28,10 @@ python -m mighty_mouse.preprocess.inventory                         # validate +
 
 The dataset registry (`configs/dataset_registry.yaml`) is the single ordered source of
 dataset ids — list position = id, append-only. `python -m mighty_mouse.preprocess.inventory` validates
-the 36-keypoint schema, asserts train/test session disjointness, derives the
-direct/trainable/eval keypoint masks, and regenerates `docs/dataset_inventory.md` plus a
-machine-readable `dataset_inventory.json` next to the data. Run it before freezing any
-data change.
+the keypoint schema (`configs/keypoints.yaml`), asserts train/test session disjointness, derives the
+direct/trainable/eval keypoint masks, and writes `dataset_inventory.{json,md,csv}` next to the
+data (`--source corpus`; `--source raw` writes the checked-in summary `assets/corpus.{md,csv}`).
+Run it before freezing any data change.
 
 Merged tags currently built: 5 singles, 5 leave-one-out, 1 all-dataset
 (`face+ibl+cheese+caz+kondo`). `CollectedData_<tag>_{train,test}.csv` live in `data_dir`.

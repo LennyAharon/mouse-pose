@@ -144,6 +144,7 @@ training:
     cavelli: [-0.4, 0.15]        # pupil->nose 23-26% of width in both cameras (ibl 23%)
     tyssowski: [-0.4, 0.15]      # hantman-mv rig size (448x290): fingertip spread 6.3% of width (hantman-mv 7.5%)
     kaufman-water: [-0.4, 0.15]  # kaufman scale (800x600): tip->knuckle 2.8% / tip->palm 6.3% (kaufman 2.7 / 5.9%)
+    murphy-1: [-0.4, 0.15]       # digit tips only: d1->d4 tip spread 7.1% of width (tyssowski 6.3, kaufman-water 7.6, hantman-mv 8.8)
   imgaug_hflip: true
   train_batch_size: 32
   val_batch_size: 64
